@@ -53,84 +53,21 @@
 
 #include "access/xlogutils.h"
 #include "lib/ilist.h"
+#include "miscadmin.h"
 #include "storage/bufmgr.h"
 #include "storage/ipc.h"
 #include "storage/md.h"
 #include "storage/smgr.h"
+#include "port/atomics.h"
 #include "utils/hsearch.h"
 #include "utils/inval.h"
+#include "utils/memutils.h"
 
+static f_smgr *smgrsw;
 
-/*
- * This struct of function pointers defines the API between smgr.c and
- * any individual storage manager module.  Note that smgr subfunctions are
- * generally expected to report problems via elog(ERROR).  An exception is
- * that smgr_unlink should use elog(WARNING), rather than erroring out,
- * because we normally unlink relations during post-commit/abort cleanup,
- * and so it's too late to raise an error.  Also, various conditions that
- * would normally be errors should be allowed during bootstrap and/or WAL
- * recovery --- see comments in md.c for details.
- */
-typedef struct f_smgr
-{
-	void		(*smgr_init) (void);	/* may be NULL */
-	void		(*smgr_shutdown) (void);	/* may be NULL */
-	void		(*smgr_open) (SMgrRelation reln);
-	void		(*smgr_close) (SMgrRelation reln, ForkNumber forknum);
-	void		(*smgr_create) (SMgrRelation reln, ForkNumber forknum,
-								bool isRedo);
-	bool		(*smgr_exists) (SMgrRelation reln, ForkNumber forknum);
-	void		(*smgr_unlink) (RelFileLocatorBackend rlocator, ForkNumber forknum,
-								bool isRedo);
-	void		(*smgr_extend) (SMgrRelation reln, ForkNumber forknum,
-								BlockNumber blocknum, const void *buffer, bool skipFsync);
-	void		(*smgr_zeroextend) (SMgrRelation reln, ForkNumber forknum,
-									BlockNumber blocknum, int nblocks, bool skipFsync);
-	bool		(*smgr_prefetch) (SMgrRelation reln, ForkNumber forknum,
-								  BlockNumber blocknum, int nblocks);
-	uint32		(*smgr_maxcombine) (SMgrRelation reln, ForkNumber forknum,
-									BlockNumber blocknum);
-	void		(*smgr_readv) (SMgrRelation reln, ForkNumber forknum,
-							   BlockNumber blocknum,
-							   void **buffers, BlockNumber nblocks);
-	void		(*smgr_writev) (SMgrRelation reln, ForkNumber forknum,
-								BlockNumber blocknum,
-								const void **buffers, BlockNumber nblocks,
-								bool skipFsync);
-	void		(*smgr_writeback) (SMgrRelation reln, ForkNumber forknum,
-								   BlockNumber blocknum, BlockNumber nblocks);
-	BlockNumber (*smgr_nblocks) (SMgrRelation reln, ForkNumber forknum);
-	void		(*smgr_truncate) (SMgrRelation reln, ForkNumber forknum,
-								  BlockNumber old_blocks, BlockNumber nblocks);
-	void		(*smgr_immedsync) (SMgrRelation reln, ForkNumber forknum);
-	void		(*smgr_registersync) (SMgrRelation reln, ForkNumber forknum);
-} f_smgr;
+static int	NSmgr = 0;
 
-static const f_smgr smgrsw[] = {
-	/* magnetic disk */
-	{
-		.smgr_init = mdinit,
-		.smgr_shutdown = NULL,
-		.smgr_open = mdopen,
-		.smgr_close = mdclose,
-		.smgr_create = mdcreate,
-		.smgr_exists = mdexists,
-		.smgr_unlink = mdunlink,
-		.smgr_extend = mdextend,
-		.smgr_zeroextend = mdzeroextend,
-		.smgr_prefetch = mdprefetch,
-		.smgr_maxcombine = mdmaxcombine,
-		.smgr_readv = mdreadv,
-		.smgr_writev = mdwritev,
-		.smgr_writeback = mdwriteback,
-		.smgr_nblocks = mdnblocks,
-		.smgr_truncate = mdtruncate,
-		.smgr_immedsync = mdimmedsync,
-		.smgr_registersync = mdregistersync,
-	}
-};
-
-static const int NSmgr = lengthof(smgrsw);
+static Size LargestSMgrRelationSize = 0;
 
 /*
  * Each backend has a hashtable that stores all extant SMgrRelation objects.
@@ -144,6 +81,60 @@ static dlist_head unpinned_relns;
 static void smgrshutdown(int code, Datum arg);
 static void smgrdestroy(SMgrRelation reln);
 
+#define MaxSMgrId UINT8_MAX
+
+SMgrId
+smgr_register(const f_smgr *smgr, Size smgrrelation_size)
+{
+	SMgrId		my_id;
+	MemoryContext old;
+
+	if (process_shared_preload_libraries_done)
+		elog(FATAL, "SMgrs must be registered in the shared_preload_libraries phase");
+	if (NSmgr == MaxSMgrId)
+		elog(FATAL, "Too many smgrs registered");
+	if (smgr->name == NULL || *smgr->name == 0)
+		elog(FATAL, "smgr registered with invalid name");
+
+	Assert(smgr->smgr_open != NULL);
+	Assert(smgr->smgr_close != NULL);
+	Assert(smgr->smgr_create != NULL);
+	Assert(smgr->smgr_exists != NULL);
+	Assert(smgr->smgr_unlink != NULL);
+	Assert(smgr->smgr_extend != NULL);
+	Assert(smgr->smgr_zeroextend != NULL);
+	Assert(smgr->smgr_prefetch != NULL);
+	Assert(smgr->smgr_readv != NULL);
+	Assert(smgr->smgr_writev != NULL);
+	Assert(smgr->smgr_writeback != NULL);
+	Assert(smgr->smgr_nblocks != NULL);
+	Assert(smgr->smgr_truncate != NULL);
+	Assert(smgr->smgr_immedsync != NULL);
+
+	old = MemoryContextSwitchTo(TopMemoryContext);
+
+	my_id = NSmgr++;
+	if (my_id == 0)
+		smgrsw = palloc_array(f_smgr, 1);
+	else
+		smgrsw = repalloc_array(smgrsw, f_smgr, NSmgr);
+
+	MemoryContextSwitchTo(old);
+
+	pg_compiler_barrier();
+
+	if (!smgrsw)
+	{
+		NSmgr--;
+		elog(FATAL, "Failed to extend smgr array");
+	}
+
+	smgrsw[my_id] = *smgr;
+
+	LargestSMgrRelationSize = Max(LargestSMgrRelationSize, smgrrelation_size);
+
+	return my_id;
+}
 
 /*
  * smgrinit(), smgrshutdown() -- Initialize or shut down storage
@@ -211,8 +202,11 @@ smgropen(RelFileLocator rlocator, ProcNumber backend)
 		/* First time through: initialize the hash table */
 		HASHCTL		ctl;
 
+		LargestSMgrRelationSize = MAXALIGN(LargestSMgrRelationSize);
+		Assert(NSmgr > 0);
+
 		ctl.keysize = sizeof(RelFileLocatorBackend);
-		ctl.entrysize = sizeof(SMgrRelationData);
+		ctl.entrysize = LargestSMgrRelationSize;
 		SMgrRelationHash = hash_create("smgr relation table", 400,
 									   &ctl, HASH_ELEM | HASH_BLOBS);
 		dlist_init(&unpinned_relns);
@@ -232,7 +226,8 @@ smgropen(RelFileLocator rlocator, ProcNumber backend)
 		reln->smgr_targblock = InvalidBlockNumber;
 		for (int i = 0; i <= MAX_FORKNUM; ++i)
 			reln->smgr_cached_nblocks[i] = InvalidBlockNumber;
-		reln->smgr_which = 0;	/* we only have md.c at present */
+
+		reln->smgr_which = MdSMgrId;	/* we only have md.c at present */
 
 		/* implementation-specific initialization */
 		smgrsw[reln->smgr_which].smgr_open(reln);
