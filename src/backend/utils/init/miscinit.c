@@ -43,6 +43,7 @@
 #include "replication/slotsync.h"
 #include "storage/fd.h"
 #include "storage/ipc.h"
+#include "storage/md.h"
 #include "storage/latch.h"
 #include "storage/pg_shmem.h"
 #include "storage/pmsignal.h"
@@ -191,6 +192,9 @@ InitStandaloneProcess(const char *argv0)
 	InitializeWaitEventSupport();
 	InitProcessLocalLatch();
 	InitializeLatchWaitSet();
+
+	/* Initialize smgrs */
+	register_builtin_dynamic_managers();
 
 	/*
 	 * For consistency with InitPostmasterChild, initialize signal mask here.
@@ -1870,6 +1874,17 @@ process_session_preload_libraries(void)
 	load_libraries(local_preload_libraries_string,
 				   "local_preload_libraries",
 				   true);
+}
+
+/*
+ * Register any internal managers.
+ */
+void
+register_builtin_dynamic_managers(void)
+{
+	mdsmgr_register();
+
+	storage_manager_id = MdSMgrId;
 }
 
 /*
