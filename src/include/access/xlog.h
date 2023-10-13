@@ -13,6 +13,7 @@
 
 #include "access/xlogbackup.h"
 #include "access/xlogdefs.h"
+#include "catalog/pg_control.h"
 #include "replication/logicalctl.h"
 #include "datatype/timestamp.h"
 #include "lib/stringinfo.h"
@@ -59,6 +60,9 @@ extern PGDLLIMPORT bool track_wal_io_timing;
 extern PGDLLIMPORT int wal_decode_buffer_size;
 
 extern PGDLLIMPORT int CheckPointSegments;
+
+typedef void (*checkpoint_create_hook_type) (const CheckPoint *);
+extern PGDLLIMPORT checkpoint_create_hook_type checkpoint_create_hook;
 
 /* Archive modes */
 typedef enum ArchiveMode
