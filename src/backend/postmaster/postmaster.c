@@ -1011,6 +1011,11 @@ PostmasterMain(int argc, char *argv[])
 	ApplyLauncherRegister();
 
 	/*
+	 * Register built-in managers that are not part of static arrays
+	 */
+	register_builtin_dynamic_managers();
+
+	/*
 	 * process any libraries that should be preloaded at postmaster start
 	 */
 	process_shared_preload_libraries();
