@@ -62,6 +62,7 @@
 #include "access/xlogprefetcher.h"
 #include "access/xlogreader.h"
 #include "access/xlogrecovery.h"
+#include "access/xlog_smgr.h"
 #include "access/xlogutils.h"
 #include "backup/basebackup.h"
 #include "catalog/catversion.h"
@@ -2300,7 +2301,7 @@ XLogWrite(XLogwrtRqst WriteRqst, TimeLineID tli, bool flexible)
 					INSTR_TIME_SET_ZERO(start);
 
 				pgstat_report_wait_start(WAIT_EVENT_WAL_WRITE);
-				written = pg_pwrite(openLogFile, from, nleft, startoffset);
+				written = xlog_smgr->seg_write(openLogFile, from, nleft, startoffset);
 				pgstat_report_wait_end();
 
 				/*
