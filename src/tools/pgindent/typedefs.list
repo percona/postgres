@@ -3098,6 +3098,7 @@ XLogRecordBuffer
 XLogRecoveryCtlData
 XLogRedoAction
 XLogSegNo
+XLogSmgr
 XLogSource
 XLogStats
 XLogwrtResult
