@@ -38,6 +38,7 @@
 #include "access/xlogprefetcher.h"
 #include "access/xlogreader.h"
 #include "access/xlogrecovery.h"
+#include "access/xlog_smgr.h"
 #include "access/xlogutils.h"
 #include "access/xlogwait.h"
 #include "backup/basebackup.h"
@@ -3391,7 +3392,8 @@ retry:
 	io_start = pgstat_prepare_io_time(track_wal_io_timing);
 
 	pgstat_report_wait_start(WAIT_EVENT_WAL_READ);
-	r = pg_pread(readFile, readBuf, XLOG_BLCKSZ, (pgoff_t) readOff);
+	r = xlog_smgr->seg_read(readFile, readBuf, XLOG_BLCKSZ, (pgoff_t) readOff,
+							curFileTLI, readSegNo, wal_segment_size);
 	if (r != XLOG_BLCKSZ)
 	{
 		char		fname[MAXFNAMELEN];

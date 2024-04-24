@@ -59,6 +59,7 @@
 #include "access/xlogarchive.h"
 #include "access/xlogrecovery.h"
 #include "access/xlogwait.h"
+#include "access/xlog_smgr.h"
 #include "catalog/pg_authid.h"
 #include "funcapi.h"
 #include "libpq/pqformat.h"
@@ -1021,7 +1022,9 @@ XLogWalRcvWrite(char *buf, Size nbytes, XLogRecPtr recptr, TimeLineID tli)
 		start = pgstat_prepare_io_time(track_wal_io_timing);
 
 		pgstat_report_wait_start(WAIT_EVENT_WAL_WRITE);
-		byteswritten = pg_pwrite(recvFile, buf, segbytes, (pgoff_t) startoff);
+		byteswritten = xlog_smgr->seg_write(recvFile, buf, segbytes,
+											(pgoff_t) startoff, recvFileTLI,
+											recvSegNo, wal_segment_size);
 		pgstat_report_wait_end();
 
 		if (byteswritten <= 0)
