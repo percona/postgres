@@ -61,6 +61,7 @@
 #include "access/xloginsert.h"
 #include "access/xlogreader.h"
 #include "access/xlogrecovery.h"
+#include "access/xlog_smgr.h"
 #include "access/xlogutils.h"
 #include "backup/basebackup.h"
 #include "catalog/catversion.h"
@@ -2424,7 +2425,7 @@ XLogWrite(XLogwrtRqst WriteRqst, TimeLineID tli, bool flexible)
 					INSTR_TIME_SET_ZERO(start);
 
 				pgstat_report_wait_start(WAIT_EVENT_WAL_WRITE);
-				written = pg_pwrite(openLogFile, from, nleft, startoffset);
+				written = xlog_smgr->seg_write(openLogFile, from, nleft, startoffset, tli, openLogSegNo, wal_segment_size);
 				pgstat_report_wait_end();
 
 				/*
@@ -3401,6 +3402,7 @@ XLogFileCopy(TimeLineID destTLI, XLogSegNo destsegno,
 	int			srcfd;
 	int			fd;
 	int			nbytes;
+	off_t		offset = 0;
 
 	/*
 	 * Open the source file
@@ -3449,7 +3451,8 @@ XLogFileCopy(TimeLineID destTLI, XLogSegNo destsegno,
 			if (nread > sizeof(buffer))
 				nread = sizeof(buffer);
 			pgstat_report_wait_start(WAIT_EVENT_WAL_COPY_READ);
-			r = read(srcfd, buffer.data, nread);
+			r = xlog_smgr->seg_read(srcfd, buffer.data, nread, offset,
+ 					srcTLI, srcsegno, wal_segment_size);
 			if (r != nread)
 			{
 				if (r < 0)
@@ -3467,7 +3470,7 @@ XLogFileCopy(TimeLineID destTLI, XLogSegNo destsegno,
 		}
 		errno = 0;
 		pgstat_report_wait_start(WAIT_EVENT_WAL_COPY_WRITE);
-		if ((int) write(fd, buffer.data, sizeof(buffer)) != (int) sizeof(buffer))
+		if ((int) xlog_smgr->seg_write(fd, buffer.data, sizeof(buffer), offset, destTLI, destsegno, wal_segment_size) != (int) sizeof(buffer))
 		{
 			int			save_errno = errno;
 
@@ -3483,6 +3486,7 @@ XLogFileCopy(TimeLineID destTLI, XLogSegNo destsegno,
 					 errmsg("could not write to file \"%s\": %m", tmppath)));
 		}
 		pgstat_report_wait_end();
+		offset += sizeof(buffer);
 	}
 
 	pgstat_report_wait_start(WAIT_EVENT_WAL_COPY_SYNC);
