@@ -1,5 +1,25 @@
 # Copyright (c) 2022-2024, PostgreSQL Global Development Group
 
+tde_decrypt_sources = files(
+  '../../contrib/pg_tde/src/access/pg_tde_tdemap.c',
+  '../../contrib/pg_tde/src/access/pg_tde_xlog_encrypt.c',
+  '../../contrib/pg_tde/src/catalog/tde_global_space.c',
+  '../../contrib/pg_tde/src/catalog/tde_keyring.c',
+  '../../contrib/pg_tde/src/catalog/tde_keyring_parse_opts.c',
+  '../../contrib/pg_tde/src/catalog/tde_principal_key.c',
+  '../../contrib/pg_tde/src/common/pg_tde_utils.c',
+  '../../contrib/pg_tde/src/encryption/enc_aes.c',
+  '../../contrib/pg_tde/src/encryption/enc_tde.c',
+  '../../contrib/pg_tde/src/keyring/keyring_api.c',
+  '../../contrib/pg_tde/src/keyring/keyring_curl.c',
+  '../../contrib/pg_tde/src/keyring/keyring_file.c',
+  '../../contrib/pg_tde/src/keyring/keyring_vault.c',
+)
+tde_include = include_directories('../../contrib/pg_tde/src/include')
+
+curldep = dependency('libcurl')
+tde_deps = [curldep]
+
 subdir('initdb')
 subdir('pg_amcheck')
 subdir('pg_archivecleanup')

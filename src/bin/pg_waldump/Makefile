@@ -6,26 +6,27 @@ PGAPPICON=win32
 subdir = src/bin/pg_waldump
 top_builddir = ../../..
 include $(top_builddir)/src/Makefile.global
+include ../Makefile.tde
 
 OBJS = \
 	$(RMGRDESCOBJS) \
 	$(WIN32RES) \
+	$(TDE_OBJS) \
 	compat.o \
 	pg_waldump.o \
 	rmgrdesc.o \
 	xlogreader.o \
 	xlogstats.o
 
-override CPPFLAGS := -DFRONTEND $(CPPFLAGS)
+override CPPFLAGS := -I$(top_srcdir)/contrib/pg_tde/src/include -DFRONTEND $(CPPFLAGS)
 
 RMGRDESCSOURCES = $(sort $(notdir $(wildcard $(top_srcdir)/src/backend/access/rmgrdesc/*desc*.c)))
 RMGRDESCOBJS = $(patsubst %.c,%.o,$(RMGRDESCSOURCES))
 
-
 all: pg_waldump
 
 pg_waldump: $(OBJS) | submake-libpgport
-	$(CC) $(CFLAGS) $^ $(LDFLAGS) $(LDFLAGS_EX) $(LIBS) -o $@$(X)
+	$(CC) $(CFLAGS) $^ $(LDFLAGS) $(LDFLAGS_EX) $(LIBS) $(TDE_LIBS) -o $@$(X)
 
 xlogreader.c: % : $(top_srcdir)/src/backend/access/transam/%
 	rm -f $@ && $(LN_S) $< .
