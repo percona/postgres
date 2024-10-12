@@ -225,7 +225,7 @@ mdexists(SMgrRelation reln, ForkNumber forknum)
  * If isRedo is true, it's okay for the relation to exist already.
  */
 void
-mdcreate(SMgrRelation reln, ForkNumber forknum, bool isRedo)
+mdcreate(RelFileLocator /* reln */, SMgrRelation reln, ForkNumber forknum, bool isRedo)
 {
 	MdSMgrRelation mdreln = (MdSMgrRelation) reln;
 	MdfdVec    *mdfd;
