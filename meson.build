@@ -926,7 +926,7 @@ endif
 llvmopt = get_option('llvm')
 llvm = not_found_dep
 if have_cxx
-  llvm = dependency('llvm', version: '>=14', method: 'config-tool', required: llvmopt)
+  llvm = dependency('llvm', version: '>=14', method: 'config-tool', required: llvmopt, static: true)
 
   if llvm.found()
 
