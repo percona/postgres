@@ -794,7 +794,7 @@ endif
 llvmopt = get_option('llvm')
 llvm = not_found_dep
 if add_languages('cpp', required: llvmopt, native: false)
-  llvm = dependency('llvm', version: '>=3.9', method: 'config-tool', required: llvmopt)
+  llvm = dependency('llvm', version: '>=3.9', method: 'config-tool', required: llvmopt, static: true)
 
   if llvm.found()
 
