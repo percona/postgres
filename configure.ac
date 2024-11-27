@@ -260,13 +260,6 @@ PGAC_ARG_BOOL(enable, injection-points, no, [enable injection points (for testin
 AC_SUBST(enable_injection_points)
 
 #
-# Percona ext
-#
-PGAC_ARG_BOOL(enable, percona-ext, yes, [enable Percona specific features],
-              [AC_DEFINE([PERCONA_EXT], 1, [Define to 1 to build with Percona specific features. (--enable-percona-ext)])])
-AC_SUBST(enable_percona_ext)
-
-#
 # Block size
 #
 AC_MSG_CHECKING([for block size])
@@ -917,6 +910,16 @@ AC_MSG_RESULT([$with_pam])
 
 
 #
+# curl
+#
+AC_MSG_CHECKING([whether to build with curl support])
+PGAC_ARG_BOOL(with, curl, no,
+              [build with curl support],
+              [AC_DEFINE([USE_CURL], 1, [Define to 1 to build with curl support. (--with-curl)])])
+AC_MSG_RESULT([$with_curl])
+
+
+#
 # BSD AUTH
 #
 AC_MSG_CHECKING([whether to build with BSD Authentication support])
@@ -1343,6 +1346,18 @@ if test "$with_openssl" = yes ; then
   with_ssl=openssl
 fi
 
+#
+# Percona ext
+# 
+# Requires Open SSL and curl
+#
+PGAC_ARG_BOOL(enable, percona-ext, yes, [enable Percona specific features],
+              [AC_DEFINE([PERCONA_EXT], 1, [Define to 1 to build with Percona specific features. (--enable-percona-ext)])])
+
+with_curl=yes
+with_ssl=openssl
+AC_SUBST(enable_percona_ext)
+
 if test "$with_ssl" = openssl ; then
   dnl Order matters!
   # Minimum required OpenSSL version is 1.0.2
@@ -1374,6 +1389,10 @@ elif test "$with_ssl" != no ; then
   AC_MSG_ERROR([--with-ssl must specify openssl])
 fi
 AC_SUBST(with_ssl)
+
+if test "$with_curl" = "yes" ; then
+  AC_CHECK_LIB(curl,    curl_easy_setopt, [], [AC_MSG_ERROR([library 'curl' is required for curl support])])
+fi
 
 if test "$with_pam" = yes ; then
   AC_CHECK_LIB(pam,    pam_start, [], [AC_MSG_ERROR([library 'pam' is required for PAM])])
@@ -1552,6 +1571,13 @@ AC_MSG_NOTICE([using openssl: $pgac_openssl_version])
 if test "$with_ssl" = openssl ; then
   AC_CHECK_HEADER(openssl/ssl.h, [], [AC_MSG_ERROR([header file <openssl/ssl.h> is required for OpenSSL])])
   AC_CHECK_HEADER(openssl/err.h, [], [AC_MSG_ERROR([header file <openssl/err.h> is required for OpenSSL])])
+fi
+
+if test "$with_curl" = "yes" ; then
+	AC_CHECK_HEADER(curl/curl.h, [],
+	[
+		AC_MSG_ERROR([header file <curl/curl.h> is required for curl support])
+	])
 fi
 
 if test "$with_pam" = yes ; then
