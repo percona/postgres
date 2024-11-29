@@ -5,7 +5,7 @@ tde_include = []
 tde_deps = []
 
 if percona_ext == true
-# TODO: better to move it out of the PG like w/ make
+# TODO: should be in pg_tde, ideally as a static lib
 tde_decrypt_sources = files(
    '../../contrib/pg_tde/src/access/pg_tde_tdemap.c',
    '../../contrib/pg_tde/src/access/pg_tde_xlog_encrypt.c',
@@ -20,9 +20,19 @@ tde_decrypt_sources = files(
    '../../contrib/pg_tde/src/keyring/keyring_curl.c',
    '../../contrib/pg_tde/src/keyring/keyring_file.c',
    '../../contrib/pg_tde/src/keyring/keyring_vault.c',
+   '../../contrib/pg_tde/src/keyring/keyring_kmip.c',
+   '../../contrib/pg_tde/src/keyring/keyring_kmip_ereport.c',
+
+   '../../contrib/pg_tde/src/libkmip/libkmip/src/kmip.c',
+   '../../contrib/pg_tde/src/libkmip/libkmip/src/kmip_bio.c',
+   '../../contrib/pg_tde/src/libkmip/libkmip/src/kmip_locate.c',
+   '../../contrib/pg_tde/src/libkmip/libkmip/src/kmip_memset.c',
  )
 
-tde_include = include_directories('../../contrib/pg_tde/src/include')
+tde_include = include_directories(
+	'../../contrib/pg_tde/src/include',
+	'../../contrib/pg_tde/src/libkmip/libkmip/include'
+	)
 
 curldep = dependency('libcurl')
 tde_deps = [curldep]

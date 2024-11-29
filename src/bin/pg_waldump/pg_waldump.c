@@ -900,7 +900,7 @@ main(int argc, char **argv)
 		goto bad_argument;
 	}
 
-	while ((option = getopt_long(argc, argv, "bB:e:fF:n:p:qr:R:s:t:wx:z",
+	while ((option = getopt_long(argc, argv, "bB:e:fF:n:p:k:qr:R:s:t:wx:z",
 								 long_options, &optindex)) != -1)
 	{
 		switch (option)
