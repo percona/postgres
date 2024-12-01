@@ -24,6 +24,10 @@
 #include "filemap.h"
 #include "pg_rewind.h"
 
+#ifdef PERCONA_EXT
+#include "access/pg_tde_xlog_encrypt_fe.h"
+#endif
+
 /*
  * RmgrNames is an array of the built-in resource manager names, to make error
  * messages a bit nicer.
@@ -364,7 +368,11 @@ SimpleXLogPageRead(XLogReaderState *xlogreader, XLogRecPtr targetPagePtr,
 	}
 
 
+#ifdef PERCONA_EXT
+	r = xlog_smgr->seg_read(xlogreadfd, readBuf, XLOG_BLCKSZ, 0);
+#else
 	r = read(xlogreadfd, readBuf, XLOG_BLCKSZ);
+#endif
 	if (r != XLOG_BLCKSZ)
 	{
 		if (r < 0)
