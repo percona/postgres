@@ -20,9 +20,19 @@
 
 typedef uint8 SMgrId;
 
+typedef uint8 SmgrChainIndex;
+
 #define MaxSMgrId UINT8_MAX
 
-extern PGDLLIMPORT SMgrId storage_manager_id;
+#define MAX_SMGR_CHAIN 15
+
+typedef struct SMgrChain
+{
+	SMgrId		chain[MAX_SMGR_CHAIN];		/* storage manager selector */
+	uint8		size;
+} SMgrChain;
+
+extern PGDLLIMPORT SMgrChain storage_manager_chain;
 
 /*
  * smgr.c maintains a table of SMgrRelation objects, which are essentially
@@ -57,7 +67,7 @@ typedef struct SMgrRelationData
 	 * Fields below here are intended to be private to smgr.c and its
 	 * submodules.  Do not touch them from elsewhere.
 	 */
-	SMgrId		smgr_which;		/* storage manager selector */
+	SMgrChain	smgr_chain;
 	int			smgrrelation_size;	/* size of this struct, incl. smgr-specific data */
 
 	/*
@@ -73,6 +83,9 @@ typedef SMgrRelationData *SMgrRelation;
 #define SmgrIsTemp(smgr) \
 	RelFileLocatorBackendIsTemp((smgr)->smgr_rlocator)
 
+#define SMGR_CHAIN_TAIL 1
+#define SMGR_CHAIN_MODIFIER 2
+
 /*
  * This struct of function pointers defines the API between smgr.c and
  * any individual storage manager module.  Note that smgr subfunctions are
@@ -86,38 +99,42 @@ typedef SMgrRelationData *SMgrRelation;
 typedef struct f_smgr
 {
 	const char *name;
+	int			chain_position;
 	void		(*smgr_init) (void);	/* may be NULL */
 	void		(*smgr_shutdown) (void);	/* may be NULL */
-	void		(*smgr_open) (SMgrRelation reln);
-	void		(*smgr_close) (SMgrRelation reln, ForkNumber forknum);
+	void		(*smgr_open) (SMgrRelation reln, SmgrChainIndex chain_index);
+	void		(*smgr_close) (SMgrRelation reln, ForkNumber forknum, SmgrChainIndex chain_index);
 	void		(*smgr_create) (RelFileLocator relold, SMgrRelation reln, ForkNumber forknum,
-								bool isRedo);
-	bool		(*smgr_exists) (SMgrRelation reln, ForkNumber forknum);
+								bool isRedo, SmgrChainIndex chain_index);
+	bool		(*smgr_exists) (SMgrRelation reln, ForkNumber forknum, SmgrChainIndex chain_index);
 	void		(*smgr_unlink) (RelFileLocatorBackend rlocator, ForkNumber forknum,
-								bool isRedo);
+								bool isRedo, SmgrChainIndex chain_index);
 	void		(*smgr_extend) (SMgrRelation reln, ForkNumber forknum,
-								BlockNumber blocknum, const void *buffer, bool skipFsync);
+								BlockNumber blocknum, const void *buffer, bool skipFsync, SmgrChainIndex chain_index);
 	void		(*smgr_zeroextend) (SMgrRelation reln, ForkNumber forknum,
-									BlockNumber blocknum, int nblocks, bool skipFsync);
+									BlockNumber blocknum, int nblocks, bool skipFsync, SmgrChainIndex chain_index);
 	bool		(*smgr_prefetch) (SMgrRelation reln, ForkNumber forknum,
-								  BlockNumber blocknum, int nblocks);
+								  BlockNumber blocknum, int nblocks, SmgrChainIndex chain_index);
 	void		(*smgr_readv) (SMgrRelation reln, ForkNumber forknum,
 							   BlockNumber blocknum,
-							   void **buffers, BlockNumber nblocks);
+							   void **buffers, BlockNumber nblocks, SmgrChainIndex chain_index);
 	void		(*smgr_writev) (SMgrRelation reln, ForkNumber forknum,
 								BlockNumber blocknum,
 								const void **buffers, BlockNumber nblocks,
-								bool skipFsync);
+								bool skipFsync, SmgrChainIndex chain_index);
 	void		(*smgr_writeback) (SMgrRelation reln, ForkNumber forknum,
-								   BlockNumber blocknum, BlockNumber nblocks);
-	BlockNumber (*smgr_nblocks) (SMgrRelation reln, ForkNumber forknum);
+								   BlockNumber blocknum, BlockNumber nblocks, SmgrChainIndex chain_index);
+	BlockNumber (*smgr_nblocks) (SMgrRelation reln, ForkNumber forknum, SmgrChainIndex chain_index);
 	void		(*smgr_truncate) (SMgrRelation reln, ForkNumber forknum,
-								  BlockNumber nblocks);
-	void		(*smgr_immedsync) (SMgrRelation reln, ForkNumber forknum);
-	void		(*smgr_registersync) (SMgrRelation reln, ForkNumber forknum);
+								  BlockNumber nblocks, SmgrChainIndex chain_index);
+	void		(*smgr_immedsync) (SMgrRelation reln, ForkNumber forknum, SmgrChainIndex chain_index);
+	void		(*smgr_registersync) (SMgrRelation reln, ForkNumber forknum, SmgrChainIndex chain_index);
 } f_smgr;
 
 extern SMgrId smgr_register(const f_smgr *smgr, Size smgrrelation_size);
+extern SMgrId smgr_lookup(const char* name);
+
+extern f_smgr *smgrsw;
 
 extern void smgrinit(void);
 extern SMgrRelation smgropen(RelFileLocator rlocator, ProcNumber backend);
@@ -155,6 +172,43 @@ extern void smgrimmedsync(SMgrRelation reln, ForkNumber forknum);
 extern void smgrregistersync(SMgrRelation reln, ForkNumber forknum);
 extern void AtEOXact_SMgr(void);
 extern bool ProcessBarrierSmgrRelease(void);
+
+extern void
+smgr_open_next(SMgrRelation reln, SmgrChainIndex chain_index);
+extern void
+smgr_close_next(SMgrRelation reln, ForkNumber forknum, SmgrChainIndex chain_index);
+extern bool
+smgr_exists_next(SMgrRelation reln, ForkNumber forknum, SmgrChainIndex chain_index);
+extern void
+smgr_create_next(RelFileLocator relold, SMgrRelation reln, ForkNumber forknum, bool isRedo, SmgrChainIndex chain_index);
+extern void
+smgr_immedsync_next(SMgrRelation reln, ForkNumber forknum, SmgrChainIndex chain_index);
+extern void
+smgr_unlink_next(SMgrRelation reln, RelFileLocatorBackend rlocator, ForkNumber forknum, bool isRedo, SmgrChainIndex chain_index);
+extern void
+smgr_extend_next(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
+		   const void *buffer, bool skipFsync, SmgrChainIndex chain_index);
+extern void
+smgr_zeroextend_next(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
+		   int nblocks, bool skipFsync, SmgrChainIndex chain_index);
+extern bool
+smgr_prefetch_next(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
+			 int nblocks, SmgrChainIndex chain_index);
+extern void
+smgr_readv_next(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
+		  void **buffers, BlockNumber nblocks, SmgrChainIndex chain_index);
+extern void
+smgr_writev_next(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
+		   const void **buffers, BlockNumber nblocks, bool skipFsync, SmgrChainIndex chain_index);
+extern void
+smgr_writeback_next(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
+		   BlockNumber nblocks, SmgrChainIndex chain_index);
+extern BlockNumber
+smgr_nblocks_next(SMgrRelation reln, ForkNumber forknum, SmgrChainIndex chain_index);
+extern void
+smgr_truncate_next(SMgrRelation reln, ForkNumber forknum, BlockNumber nblocks, SmgrChainIndex chain_index);
+extern void
+smgr_registersync_next(SMgrRelation reln, ForkNumber forknum, SmgrChainIndex chain_index);
 
 static inline void
 smgrread(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,

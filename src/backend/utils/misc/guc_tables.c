@@ -4267,6 +4267,17 @@ struct config_string ConfigureNamesString[] =
 	},
 
 	{
+		{"smgr_chain", PGC_POSTMASTER, CLIENT_CONN_PRELOAD,
+			gettext_noop("Lists storage managers used by the server, in order."),
+			NULL,
+			GUC_LIST_INPUT | GUC_LIST_QUOTE | GUC_SUPERUSER_ONLY
+		},
+		&smgr_chain_string,
+		"md",
+		NULL, NULL, NULL
+	},
+
+	{
 		{"search_path", PGC_USERSET, CLIENT_CONN_STATEMENT,
 			gettext_noop("Sets the schema search order for names that are not schema-qualified."),
 			NULL,
