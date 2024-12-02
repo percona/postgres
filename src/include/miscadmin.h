@@ -505,6 +505,7 @@ extern PGDLLIMPORT bool process_shmem_requests_in_progress;
 extern PGDLLIMPORT char *session_preload_libraries_string;
 extern PGDLLIMPORT char *shared_preload_libraries_string;
 extern PGDLLIMPORT char *local_preload_libraries_string;
+extern PGDLLIMPORT char *smgr_chain_string;
 
 extern void CreateDataDirLockFile(bool amPostmaster);
 extern void CreateSocketLockFile(const char *socketfile, bool amPostmaster,
@@ -515,6 +516,7 @@ extern bool RecheckDataDirLockFile(void);
 extern void ValidatePgVersion(const char *path);
 extern void register_builtin_dynamic_managers(void);
 extern void process_shared_preload_libraries(void);
+extern void process_smgr_chain(void);
 extern void process_session_preload_libraries(void);
 extern void process_shmem_requests(void);
 extern void pg_bindtextdomain(const char *domain);

@@ -124,6 +124,33 @@ typedef MdSMgrRelationData *MdSMgrRelation;
 /* don't try to open a segment, if not already open */
 #define EXTENSION_DONT_OPEN			(1 << 5)
 
+/* md storage manager functionality */
+static void mdinit(void);
+static void mdopen(SMgrRelation reln, SmgrChainIndex chain_index);
+static void mdclose(SMgrRelation reln, ForkNumber forknum, SmgrChainIndex chain_index);
+static void mdcreate(RelFileLocator relold, SMgrRelation reln, ForkNumber forknum, bool isRedo, SmgrChainIndex chain_index);
+static bool mdexists(SMgrRelation reln, ForkNumber forknum, SmgrChainIndex chain_index);
+static void mdunlink(RelFileLocatorBackend rlocator, ForkNumber forknum, bool isRedo, SmgrChainIndex chain_index);
+static void mdextend(SMgrRelation reln, ForkNumber forknum,
+					 BlockNumber blocknum, const void *buffer, bool skipFsync, SmgrChainIndex chain_index);
+static void mdzeroextend(SMgrRelation reln, ForkNumber forknum,
+						 BlockNumber blocknum, int nblocks, bool skipFsync, SmgrChainIndex chain_index);
+static bool mdprefetch(SMgrRelation reln, ForkNumber forknum,
+					   BlockNumber blocknum, int nblocks, SmgrChainIndex chain_index);
+static uint32 mdmaxcombine(SMgrRelation reln, ForkNumber forknum,
+						   BlockNumber blocknum, SmgrChainIndex chain_index);
+static void mdreadv(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
+					void **buffers, BlockNumber nblocks, SmgrChainIndex chain_index);
+static void mdwritev(SMgrRelation reln, ForkNumber forknum,
+					 BlockNumber blocknum,
+					 const void **buffers, BlockNumber nblocks, bool skipFsync, SmgrChainIndex chain_index);
+static void mdwriteback(SMgrRelation reln, ForkNumber forknum,
+						BlockNumber blocknum, BlockNumber nblocks, SmgrChainIndex chain_index);
+static BlockNumber mdnblocks(SMgrRelation reln, ForkNumber forknum, SmgrChainIndex chain_index);
+static void mdtruncate(SMgrRelation reln, ForkNumber forknum,
+					   BlockNumber old_blocks, BlockNumber nblocks, SmgrChainIndex chain_index);
+static void mdimmedsync(SMgrRelation reln, ForkNumber forknum, SmgrChainIndex chain_index);
+static void mdregistersync(SMgrRelation reln, ForkNumber forknum, SmgrChainIndex chain_index);
 
 void
 mdsmgr_register(void)
@@ -131,6 +158,7 @@ mdsmgr_register(void)
 	/* magnetic disk */
 	f_smgr		md_smgr = (f_smgr) {
 		.name = "md",
+		.chain_position = SMGR_CHAIN_TAIL,
 		.smgr_init = mdinit,
 		.smgr_shutdown = NULL,
 		.smgr_open = mdopen,
@@ -190,7 +218,7 @@ _mdfd_open_flags(void)
 /*
  * mdinit() -- Initialize private state for magnetic disk storage manager.
  */
-void
+static void
 mdinit(void)
 {
 	MdCxt = AllocSetContextCreate(TopMemoryContext,
@@ -203,8 +231,8 @@ mdinit(void)
  *
  * Note: this will return true for lingering files, with pending deletions
  */
-bool
-mdexists(SMgrRelation reln, ForkNumber forknum)
+static bool
+mdexists(SMgrRelation reln, ForkNumber forknum, SmgrChainIndex chain_index)
 {
 	MdSMgrRelation mdreln = (MdSMgrRelation) reln;
 
@@ -214,7 +242,7 @@ mdexists(SMgrRelation reln, ForkNumber forknum)
 	 * which already closes relations when dropping them.
 	 */
 	if (!InRecovery)
-		mdclose(reln, forknum);
+		mdclose(reln, forknum, 0);
 
 	return (mdopenfork(mdreln, forknum, EXTENSION_RETURN_NULL) != NULL);
 }
@@ -224,8 +252,8 @@ mdexists(SMgrRelation reln, ForkNumber forknum)
  *
  * If isRedo is true, it's okay for the relation to exist already.
  */
-void
-mdcreate(RelFileLocator /* reln */, SMgrRelation reln, ForkNumber forknum, bool isRedo)
+static void
+mdcreate(RelFileLocator relold, SMgrRelation reln, ForkNumber forknum, bool isRedo, SmgrChainIndex chain_index)
 {
 	MdSMgrRelation mdreln = (MdSMgrRelation) reln;
 	MdfdVec    *mdfd;
@@ -342,8 +370,8 @@ mdcreate(RelFileLocator /* reln */, SMgrRelation reln, ForkNumber forknum, bool 
  * Note: any failure should be reported as WARNING not ERROR, because
  * we are usually not in a transaction anymore when this is called.
  */
-void
-mdunlink(RelFileLocatorBackend rlocator, ForkNumber forknum, bool isRedo)
+static void
+mdunlink(RelFileLocatorBackend rlocator, ForkNumber forknum, bool isRedo, SmgrChainIndex chain_index)
 {
 	/* Now do the per-fork work */
 	if (forknum == InvalidForkNumber)
@@ -495,9 +523,9 @@ mdunlinkfork(RelFileLocatorBackend rlocator, ForkNumber forknum, bool isRedo)
  * EOF).  Note that we assume writing a block beyond current EOF
  * causes intervening file space to become filled with zeroes.
  */
-void
+static void
 mdextend(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
-		 const void *buffer, bool skipFsync)
+		 const void *buffer, bool skipFsync, SmgrChainIndex chain_index)
 {
 	MdSMgrRelation mdreln = (MdSMgrRelation) reln;
 	off_t		seekpos;
@@ -561,9 +589,9 @@ mdextend(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
  * Similar to mdextend(), except the relation can be extended by multiple
  * blocks at once and the added blocks will be filled with zeroes.
  */
-void
+static void
 mdzeroextend(SMgrRelation reln, ForkNumber forknum,
-			 BlockNumber blocknum, int nblocks, bool skipFsync)
+			 BlockNumber blocknum, int nblocks, bool skipFsync, SmgrChainIndex chain_index)
 {
 	MdSMgrRelation mdreln = (MdSMgrRelation) reln;
 	MdfdVec    *v;
@@ -717,8 +745,8 @@ mdopenfork(MdSMgrRelation reln, ForkNumber forknum, int behavior)
 /*
  * mdopen() -- Initialize newly-opened relation.
  */
-void
-mdopen(SMgrRelation reln)
+static void
+mdopen(SMgrRelation reln, SmgrChainIndex chain_index)
 {
 	MdSMgrRelation mdreln = (MdSMgrRelation) reln;
 
@@ -730,8 +758,8 @@ mdopen(SMgrRelation reln)
 /*
  * mdclose() -- Close the specified relation, if it isn't closed already.
  */
-void
-mdclose(SMgrRelation reln, ForkNumber forknum)
+static void
+mdclose(SMgrRelation reln, ForkNumber forknum, SmgrChainIndex chain_index)
 {
 	MdSMgrRelation mdreln = (MdSMgrRelation) reln;
 	int			nopensegs = mdreln->md_num_open_segs[forknum];
@@ -754,9 +782,9 @@ mdclose(SMgrRelation reln, ForkNumber forknum)
 /*
  * mdprefetch() -- Initiate asynchronous read of the specified blocks of a relation
  */
-bool
+static bool
 mdprefetch(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
-		   int nblocks)
+		   int nblocks, SmgrChainIndex chain_index)
 {
 #ifdef USE_PREFETCH
 	MdSMgrRelation mdreln = (MdSMgrRelation) reln;
@@ -852,9 +880,9 @@ buffers_to_iovec(struct iovec *iov, void **buffers, int nblocks)
  * mdmaxcombine() -- Return the maximum number of total blocks that can be
  *				 combined with an IO starting at blocknum.
  */
-uint32
+static uint32
 mdmaxcombine(SMgrRelation reln, ForkNumber forknum,
-			 BlockNumber blocknum)
+			 BlockNumber blocknum, SmgrChainIndex index)
 {
 	BlockNumber segoff;
 
@@ -866,9 +894,9 @@ mdmaxcombine(SMgrRelation reln, ForkNumber forknum,
 /*
  * mdreadv() -- Read the specified blocks from a relation.
  */
-void
+static void
 mdreadv(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
-		void **buffers, BlockNumber nblocks)
+		void **buffers, BlockNumber nblocks, SmgrChainIndex chain_index)
 {
 	MdSMgrRelation mdreln = (MdSMgrRelation) reln;
 
@@ -989,9 +1017,9 @@ mdreadv(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
  * relation (ie, those before the current EOF).  To extend a relation,
  * use mdextend().
  */
-void
+static void
 mdwritev(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
-		 const void **buffers, BlockNumber nblocks, bool skipFsync)
+		 const void **buffers, BlockNumber nblocks, bool skipFsync, SmgrChainIndex chain_index)
 {
 	MdSMgrRelation mdreln = (MdSMgrRelation) reln;
 
@@ -1096,9 +1124,9 @@ mdwritev(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
  * This accepts a range of blocks because flushing several pages at once is
  * considerably more efficient than doing so individually.
  */
-void
+static void
 mdwriteback(SMgrRelation reln, ForkNumber forknum,
-			BlockNumber blocknum, BlockNumber nblocks)
+			BlockNumber blocknum, BlockNumber nblocks, SmgrChainIndex chain_index)
 {
 	MdSMgrRelation mdreln = (MdSMgrRelation) reln;
 
@@ -1157,8 +1185,8 @@ mdwriteback(SMgrRelation reln, ForkNumber forknum,
  * called, then only segments up to the last one actually touched
  * are present in the array.
  */
-BlockNumber
-mdnblocks(SMgrRelation reln, ForkNumber forknum)
+static BlockNumber
+mdnblocks(SMgrRelation reln, ForkNumber forknum, SmgrChainIndex chain_index)
 {
 	MdSMgrRelation mdreln = (MdSMgrRelation) reln;
 	MdfdVec    *v;
@@ -1222,9 +1250,9 @@ mdnblocks(SMgrRelation reln, ForkNumber forknum)
  * sure we have opened all active segments, so that truncate loop will get
  * them all!
  */
-void
+static void
 mdtruncate(SMgrRelation reln, ForkNumber forknum,
-		   BlockNumber curnblk, BlockNumber nblocks)
+		   BlockNumber curnblk, BlockNumber nblocks, SmgrChainIndex chain_index)
 {
 	MdSMgrRelation mdreln = (MdSMgrRelation) reln;
 	BlockNumber priorblocks;
@@ -1312,8 +1340,8 @@ mdtruncate(SMgrRelation reln, ForkNumber forknum,
 /*
  * mdregistersync() -- Mark whole relation as needing fsync
  */
-void
-mdregistersync(SMgrRelation reln, ForkNumber forknum)
+static void
+mdregistersync(SMgrRelation reln, ForkNumber forknum, SmgrChainIndex chain_index)
 {
 	MdSMgrRelation mdreln = (MdSMgrRelation) reln;
 	int			segno;
@@ -1323,7 +1351,7 @@ mdregistersync(SMgrRelation reln, ForkNumber forknum)
 	 * NOTE: mdnblocks makes sure we have opened all active segments, so that
 	 * the loop below will get them all!
 	 */
-	mdnblocks(reln, forknum);
+	mdnblocks(reln, forknum, 0);
 
 	min_inactive_seg = segno = mdreln->md_num_open_segs[forknum];
 
@@ -1364,8 +1392,8 @@ mdregistersync(SMgrRelation reln, ForkNumber forknum)
  * crash before the next checkpoint syncs the newly-inactive segment, that
  * segment may survive recovery, reintroducing unwanted data into the table.
  */
-void
-mdimmedsync(SMgrRelation reln, ForkNumber forknum)
+static void
+mdimmedsync(SMgrRelation reln, ForkNumber forknum, SmgrChainIndex chain_index)
 {
 	MdSMgrRelation mdreln = (MdSMgrRelation) reln;
 	int			segno;
@@ -1375,7 +1403,7 @@ mdimmedsync(SMgrRelation reln, ForkNumber forknum)
 	 * NOTE: mdnblocks makes sure we have opened all active segments, so that
 	 * the loop below will get them all!
 	 */
-	mdnblocks(reln, forknum);
+	mdnblocks(reln, forknum, 0);
 
 	min_inactive_seg = segno = mdreln->md_num_open_segs[forknum];
 
@@ -1745,7 +1773,7 @@ _mdfd_getseg(MdSMgrRelation reln, ForkNumber forknum, BlockNumber blkno,
 
 				mdextend((SMgrRelation) reln, forknum,
 						 nextsegno * ((BlockNumber) RELSEG_SIZE) - 1,
-						 zerobuf, skipFsync);
+						 zerobuf, skipFsync, 0);
 				pfree(zerobuf);
 			}
 			flags = O_CREAT;

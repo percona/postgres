@@ -775,6 +775,7 @@ autovacuum_worker_slots = 16	# autovacuum worker slots to allocate
 #session_preload_libraries = ''
 #shared_preload_libraries = ''		# (change requires restart)
 #jit_provider = 'llvmjit'		# JIT library to use
+#smgr_chain = 'md'			# SMGR implementations to use
 
 # - Other Defaults -
 

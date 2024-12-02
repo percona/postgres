@@ -63,13 +63,13 @@
 #include "utils/inval.h"
 #include "utils/memutils.h"
 
-static f_smgr *smgrsw;
+f_smgr	   *smgrsw;
 
 static int	NSmgr = 0;
 
 static Size LargestSMgrRelationSize = 0;
 
-SMgrId		storage_manager_id;
+SMgrChain	storage_manager_chain;
 
 /*
  * Each backend has a hashtable that stores all extant SMgrRelation objects.
@@ -98,20 +98,23 @@ smgr_register(const f_smgr *smgr, Size smgrrelation_size)
 	if (smgr->name == NULL || *smgr->name == 0)
 		elog(FATAL, "smgr registered with invalid name");
 
-	Assert(smgr->smgr_open != NULL);
-	Assert(smgr->smgr_close != NULL);
-	Assert(smgr->smgr_create != NULL);
-	Assert(smgr->smgr_exists != NULL);
-	Assert(smgr->smgr_unlink != NULL);
-	Assert(smgr->smgr_extend != NULL);
-	Assert(smgr->smgr_zeroextend != NULL);
-	Assert(smgr->smgr_prefetch != NULL);
-	Assert(smgr->smgr_readv != NULL);
-	Assert(smgr->smgr_writev != NULL);
-	Assert(smgr->smgr_writeback != NULL);
-	Assert(smgr->smgr_nblocks != NULL);
-	Assert(smgr->smgr_truncate != NULL);
-	Assert(smgr->smgr_immedsync != NULL);
+	if (smgr->chain_position == SMGR_CHAIN_TAIL)
+	{
+		Assert(smgr->smgr_open != NULL);
+		Assert(smgr->smgr_close != NULL);
+		Assert(smgr->smgr_create != NULL);
+		Assert(smgr->smgr_exists != NULL);
+		Assert(smgr->smgr_unlink != NULL);
+		Assert(smgr->smgr_extend != NULL);
+		Assert(smgr->smgr_zeroextend != NULL);
+		Assert(smgr->smgr_prefetch != NULL);
+		Assert(smgr->smgr_readv != NULL);
+		Assert(smgr->smgr_writev != NULL);
+		Assert(smgr->smgr_writeback != NULL);
+		Assert(smgr->smgr_nblocks != NULL);
+		Assert(smgr->smgr_truncate != NULL);
+		Assert(smgr->smgr_immedsync != NULL);
+	}
 
 	old = MemoryContextSwitchTo(TopMemoryContext);
 
@@ -136,6 +139,17 @@ smgr_register(const f_smgr *smgr, Size smgrrelation_size)
 	LargestSMgrRelationSize = Max(LargestSMgrRelationSize, smgrrelation_size);
 
 	return my_id;
+}
+
+SMgrId
+smgr_lookup(const char *name)
+{
+	for (int i = 0; i < NSmgr; i++)
+	{
+		if (strcmp(smgrsw[i].name, name) == 0)
+			return i;
+	}
+	elog(FATAL, "Storage manager not found with name: %s", name);
 }
 
 /*
@@ -174,6 +188,22 @@ smgrshutdown(int code, Datum arg)
 		if (smgrsw[i].smgr_shutdown)
 			smgrsw[i].smgr_shutdown();
 	}
+}
+
+#define SMGR_CHAIN_LOOKUP(SMGR_METHOD) \
+	do \
+	{ \
+		while (chain_index < reln->smgr_chain.size && smgrsw[reln->smgr_chain.chain[chain_index]].SMGR_METHOD == NULL) \
+			chain_index++; \
+		Assert(chain_index < reln->smgr_chain.size); \
+	} while (0)
+
+void
+smgr_open_next(SMgrRelation reln, SmgrChainIndex chain_index)
+{
+	SMGR_CHAIN_LOOKUP(smgr_open);
+
+	smgrsw[reln->smgr_chain.chain[chain_index]].smgr_open(reln, chain_index);
 }
 
 /*
@@ -229,10 +259,10 @@ smgropen(RelFileLocator rlocator, ProcNumber backend)
 		for (int i = 0; i <= MAX_FORKNUM; ++i)
 			reln->smgr_cached_nblocks[i] = InvalidBlockNumber;
 
-		reln->smgr_which = storage_manager_id;
+		memcpy(&reln->smgr_chain, &storage_manager_chain, sizeof(SMgrChain));
 
 		/* implementation-specific initialization */
-		smgrsw[reln->smgr_which].smgr_open(reln);
+		smgr_open_next(reln, 0);
 
 		/* it is not pinned yet */
 		reln->pincount = 0;
@@ -270,6 +300,14 @@ smgrunpin(SMgrRelation reln)
 		dlist_push_tail(&unpinned_relns, &reln->node);
 }
 
+void
+smgr_close_next(SMgrRelation reln, ForkNumber forknum, SmgrChainIndex chain_index)
+{
+	SMGR_CHAIN_LOOKUP(smgr_close);
+
+	smgrsw[reln->smgr_chain.chain[chain_index]].smgr_close(reln, forknum, chain_index);
+}
+
 /*
  * smgrdestroy() -- Delete an SMgrRelation object.
  */
@@ -281,7 +319,7 @@ smgrdestroy(SMgrRelation reln)
 	Assert(reln->pincount == 0);
 
 	for (forknum = 0; forknum <= MAX_FORKNUM; forknum++)
-		smgrsw[reln->smgr_which].smgr_close(reln, forknum);
+		smgr_close_next(reln, forknum, 0);
 
 	dlist_delete(&reln->node);
 
@@ -301,7 +339,7 @@ smgrrelease(SMgrRelation reln)
 {
 	for (ForkNumber forknum = 0; forknum <= MAX_FORKNUM; forknum++)
 	{
-		smgrsw[reln->smgr_which].smgr_close(reln, forknum);
+		smgr_close_next(reln, forknum, 0);
 		reln->smgr_cached_nblocks[forknum] = InvalidBlockNumber;
 	}
 	reln->smgr_targblock = InvalidBlockNumber;
@@ -391,13 +429,29 @@ smgrreleaserellocator(RelFileLocatorBackend rlocator)
 		smgrrelease(reln);
 }
 
+bool
+smgr_exists_next(SMgrRelation reln, ForkNumber forknum, SmgrChainIndex chain_index)
+{
+	SMGR_CHAIN_LOOKUP(smgr_exists);
+
+	return smgrsw[reln->smgr_chain.chain[chain_index]].smgr_exists(reln, forknum, chain_index);
+}
+
 /*
  * smgrexists() -- Does the underlying file for a fork exist?
  */
 bool
 smgrexists(SMgrRelation reln, ForkNumber forknum)
 {
-	return smgrsw[reln->smgr_which].smgr_exists(reln, forknum);
+	return smgr_exists_next(reln, forknum, 0);
+}
+
+void
+smgr_create_next(RelFileLocator relold, SMgrRelation reln, ForkNumber forknum, bool isRedo, SmgrChainIndex chain_index)
+{
+	SMGR_CHAIN_LOOKUP(smgr_create);
+
+	smgrsw[reln->smgr_chain.chain[chain_index]].smgr_create(relold, reln, forknum, isRedo, chain_index);
 }
 
 /*
@@ -410,7 +464,15 @@ smgrexists(SMgrRelation reln, ForkNumber forknum)
 void
 smgrcreate(RelFileLocator relold, SMgrRelation reln, ForkNumber forknum, bool isRedo)
 {
-	smgrsw[reln->smgr_which].smgr_create(relold, reln, forknum, isRedo);
+	smgr_create_next(relold, reln, forknum, isRedo, 0);
+}
+
+void
+smgr_immedsync_next(SMgrRelation reln, ForkNumber forknum, SmgrChainIndex chain_index)
+{
+	SMGR_CHAIN_LOOKUP(smgr_immedsync);
+
+	smgrsw[reln->smgr_chain.chain[chain_index]].smgr_immedsync(reln, forknum, chain_index);
 }
 
 /*
@@ -438,14 +500,20 @@ smgrdosyncall(SMgrRelation *rels, int nrels)
 	 */
 	for (i = 0; i < nrels; i++)
 	{
-		int			which = rels[i]->smgr_which;
-
 		for (forknum = 0; forknum <= MAX_FORKNUM; forknum++)
 		{
-			if (smgrsw[which].smgr_exists(rels[i], forknum))
-				smgrsw[which].smgr_immedsync(rels[i], forknum);
+			if (smgr_exists_next(rels[i], forknum, 0))
+				smgr_immedsync_next(rels[i], forknum, 0);
 		}
 	}
+}
+
+void
+smgr_unlink_next(SMgrRelation reln, RelFileLocatorBackend rlocator, ForkNumber forknum, bool isRedo, SmgrChainIndex chain_index)
+{
+	SMGR_CHAIN_LOOKUP(smgr_unlink);
+
+	smgrsw[reln->smgr_chain.chain[chain_index]].smgr_unlink(rlocator, forknum, isRedo, chain_index);
 }
 
 /*
@@ -482,13 +550,12 @@ smgrdounlinkall(SMgrRelation *rels, int nrels, bool isRedo)
 	for (i = 0; i < nrels; i++)
 	{
 		RelFileLocatorBackend rlocator = rels[i]->smgr_rlocator;
-		int			which = rels[i]->smgr_which;
 
 		rlocators[i] = rlocator;
 
 		/* Close the forks at smgr level */
 		for (forknum = 0; forknum <= MAX_FORKNUM; forknum++)
-			smgrsw[which].smgr_close(rels[i], forknum);
+			smgr_close_next(rels[i], forknum, 0);
 	}
 
 	/*
@@ -512,15 +579,22 @@ smgrdounlinkall(SMgrRelation *rels, int nrels, bool isRedo)
 
 	for (i = 0; i < nrels; i++)
 	{
-		int			which = rels[i]->smgr_which;
-
 		for (forknum = 0; forknum <= MAX_FORKNUM; forknum++)
-			smgrsw[which].smgr_unlink(rlocators[i], forknum, isRedo);
+			smgr_unlink_next(rels[i], rlocators[i], forknum, isRedo, 0);
 	}
 
 	pfree(rlocators);
 }
 
+void
+smgr_extend_next(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
+				 const void *buffer, bool skipFsync, SmgrChainIndex chain_index)
+{
+	SMGR_CHAIN_LOOKUP(smgr_extend);
+
+	smgrsw[reln->smgr_chain.chain[chain_index]].smgr_extend(reln, forknum, blocknum,
+															buffer, skipFsync, chain_index);
+}
 
 /*
  * smgrextend() -- Add a new block to a file.
@@ -535,8 +609,7 @@ void
 smgrextend(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
 		   const void *buffer, bool skipFsync)
 {
-	smgrsw[reln->smgr_which].smgr_extend(reln, forknum, blocknum,
-										 buffer, skipFsync);
+	smgr_extend_next(reln, forknum, blocknum, buffer, skipFsync, 0);
 
 	/*
 	 * Normally we expect this to increase nblocks by one, but if the cached
@@ -547,6 +620,16 @@ smgrextend(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
 		reln->smgr_cached_nblocks[forknum] = blocknum + 1;
 	else
 		reln->smgr_cached_nblocks[forknum] = InvalidBlockNumber;
+}
+
+void
+smgr_zeroextend_next(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
+					 int nblocks, bool skipFsync, SmgrChainIndex chain_index)
+{
+	SMGR_CHAIN_LOOKUP(smgr_zeroextend);
+
+	smgrsw[reln->smgr_chain.chain[chain_index]].smgr_zeroextend(reln, forknum, blocknum,
+																nblocks, skipFsync, chain_index);
 }
 
 /*
@@ -560,8 +643,7 @@ void
 smgrzeroextend(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
 			   int nblocks, bool skipFsync)
 {
-	smgrsw[reln->smgr_which].smgr_zeroextend(reln, forknum, blocknum,
-											 nblocks, skipFsync);
+	smgr_zeroextend_next(reln, forknum, blocknum, nblocks, skipFsync, 0);
 
 	/*
 	 * Normally we expect this to increase the fork size by nblocks, but if
@@ -572,6 +654,16 @@ smgrzeroextend(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
 		reln->smgr_cached_nblocks[forknum] = blocknum + nblocks;
 	else
 		reln->smgr_cached_nblocks[forknum] = InvalidBlockNumber;
+}
+
+bool
+smgr_prefetch_next(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
+				   int nblocks, SmgrChainIndex chain_index)
+{
+	SMGR_CHAIN_LOOKUP(smgr_prefetch);
+
+	return smgrsw[reln->smgr_chain.chain[chain_index]].smgr_prefetch(reln, forknum, blocknum,
+																	 nblocks, chain_index);
 }
 
 /*
@@ -585,7 +677,16 @@ bool
 smgrprefetch(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
 			 int nblocks)
 {
-	return smgrsw[reln->smgr_which].smgr_prefetch(reln, forknum, blocknum, nblocks);
+	return smgr_prefetch_next(reln, forknum, blocknum, nblocks, 0);
+}
+
+uint32
+smgr_maxcombine_next(SMgrRelation reln, ForkNumber forknum,
+					 BlockNumber blocknum, SmgrChainIndex chain_index)
+{
+	SMGR_CHAIN_LOOKUP(smgr_maxcombine);
+
+	return smgrsw[reln->smgr_chain.chain[chain_index]].smgr_maxcombine(reln, forknum, blocknum, chain_index);
 }
 
 /*
@@ -598,7 +699,17 @@ uint32
 smgrmaxcombine(SMgrRelation reln, ForkNumber forknum,
 			   BlockNumber blocknum)
 {
-	return smgrsw[reln->smgr_which].smgr_maxcombine(reln, forknum, blocknum);
+	return smgr_maxcombine_next(reln, forknum, blocknum, 0);
+}
+
+void
+smgr_readv_next(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
+				void **buffers, BlockNumber nblocks, SmgrChainIndex chain_index)
+{
+	SMGR_CHAIN_LOOKUP(smgr_readv);
+
+	smgrsw[reln->smgr_chain.chain[chain_index]].smgr_readv(reln, forknum, blocknum,
+														   buffers, nblocks, chain_index);
 }
 
 /*
@@ -616,8 +727,17 @@ void
 smgrreadv(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
 		  void **buffers, BlockNumber nblocks)
 {
-	smgrsw[reln->smgr_which].smgr_readv(reln, forknum, blocknum, buffers,
-										nblocks);
+	smgr_readv_next(reln, forknum, blocknum, buffers, nblocks, 0);
+}
+
+void
+smgr_writev_next(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
+				 const void **buffers, BlockNumber nblocks, bool skipFsync, SmgrChainIndex chain_index)
+{
+	SMGR_CHAIN_LOOKUP(smgr_writev);
+
+	smgrsw[reln->smgr_chain.chain[chain_index]].smgr_writev(reln, forknum, blocknum,
+															buffers, nblocks, skipFsync, chain_index);
 }
 
 /*
@@ -650,8 +770,17 @@ void
 smgrwritev(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
 		   const void **buffers, BlockNumber nblocks, bool skipFsync)
 {
-	smgrsw[reln->smgr_which].smgr_writev(reln, forknum, blocknum,
-										 buffers, nblocks, skipFsync);
+	smgr_writev_next(reln, forknum, blocknum,
+					 buffers, nblocks, skipFsync, 0);
+}
+
+void
+smgr_writeback_next(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
+					BlockNumber nblocks, SmgrChainIndex chain_index)
+{
+	SMGR_CHAIN_LOOKUP(smgr_writeback);
+
+	smgrsw[reln->smgr_chain.chain[chain_index]].smgr_writeback(reln, forknum, blocknum, nblocks, chain_index);
 }
 
 /*
@@ -662,8 +791,15 @@ void
 smgrwriteback(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
 			  BlockNumber nblocks)
 {
-	smgrsw[reln->smgr_which].smgr_writeback(reln, forknum, blocknum,
-											nblocks);
+	smgr_writeback_next(reln, forknum, blocknum, nblocks, 0);
+}
+
+extern BlockNumber
+smgr_nblocks_next(SMgrRelation reln, ForkNumber forknum, SmgrChainIndex chain_index)
+{
+	SMGR_CHAIN_LOOKUP(smgr_nblocks);
+
+	return smgrsw[reln->smgr_chain.chain[chain_index]].smgr_nblocks(reln, forknum, chain_index);
 }
 
 /*
@@ -680,7 +816,7 @@ smgrnblocks(SMgrRelation reln, ForkNumber forknum)
 	if (result != InvalidBlockNumber)
 		return result;
 
-	result = smgrsw[reln->smgr_which].smgr_nblocks(reln, forknum);
+	result = smgr_nblocks_next(reln, forknum, 0);
 
 	reln->smgr_cached_nblocks[forknum] = result;
 
@@ -706,6 +842,14 @@ smgrnblocks_cached(SMgrRelation reln, ForkNumber forknum)
 		return reln->smgr_cached_nblocks[forknum];
 
 	return InvalidBlockNumber;
+}
+
+void
+smgr_truncate_next(SMgrRelation reln, ForkNumber forknum, BlockNumber curnblk, BlockNumber nblocks, SmgrChainIndex chain_index)
+{
+	SMGR_CHAIN_LOOKUP(smgr_truncate);
+
+	smgrsw[reln->smgr_chain.chain[chain_index]].smgr_truncate(reln, forknum, curnblk, nblocks, chain_index);
 }
 
 /*
@@ -752,8 +896,7 @@ smgrtruncate(SMgrRelation reln, ForkNumber *forknum, int nforks,
 		/* Make the cached size is invalid if we encounter an error. */
 		reln->smgr_cached_nblocks[forknum[i]] = InvalidBlockNumber;
 
-		smgrsw[reln->smgr_which].smgr_truncate(reln, forknum[i],
-											   old_nblocks[i], nblocks[i]);
+		smgr_truncate_next(reln, forknum[i], old_nblocks[i], nblocks[i], 0);
 
 		/*
 		 * We might as well update the local smgr_cached_nblocks values. The
@@ -764,6 +907,14 @@ smgrtruncate(SMgrRelation reln, ForkNumber *forknum, int nforks,
 		 */
 		reln->smgr_cached_nblocks[forknum[i]] = nblocks[i];
 	}
+}
+
+void
+smgr_registersync_next(SMgrRelation reln, ForkNumber forknum, SmgrChainIndex chain_index)
+{
+	SMGR_CHAIN_LOOKUP(smgr_registersync);
+
+	smgrsw[reln->smgr_chain.chain[chain_index]].smgr_registersync(reln, forknum, chain_index);
 }
 
 /*
@@ -781,7 +932,7 @@ smgrtruncate(SMgrRelation reln, ForkNumber *forknum, int nforks,
 void
 smgrregistersync(SMgrRelation reln, ForkNumber forknum)
 {
-	smgrsw[reln->smgr_which].smgr_registersync(reln, forknum);
+	smgr_registersync_next(reln, forknum, 0);
 }
 
 /*
@@ -813,7 +964,7 @@ smgrregistersync(SMgrRelation reln, ForkNumber forknum)
 void
 smgrimmedsync(SMgrRelation reln, ForkNumber forknum)
 {
-	smgrsw[reln->smgr_which].smgr_immedsync(reln, forknum);
+	smgr_immedsync_next(reln, forknum, 0);
 }
 
 /*

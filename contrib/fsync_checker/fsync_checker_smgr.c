@@ -27,15 +27,15 @@ typedef struct
 void		_PG_init(void);
 
 static void fsync_checker_extend(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
-								 const void *buffer, bool skipFsync);
-static void fsync_checker_immedsync(SMgrRelation reln, ForkNumber forknum);
+								 const void *buffer, bool skipFsync, SmgrChainIndex chain_index);
+static void fsync_checker_immedsync(SMgrRelation reln, ForkNumber forknum, SmgrChainIndex chain_index);
 static void fsync_checker_writev(SMgrRelation reln, ForkNumber forknum,
 								 BlockNumber blocknum, const void **buffers,
-								 BlockNumber nblocks, bool skipFsync);
+								 BlockNumber nblocks, bool skipFsync, SmgrChainIndex chain_index);
 static void fsync_checker_writeback(SMgrRelation reln, ForkNumber forknum,
-									BlockNumber blocknum, BlockNumber nblocks);
+									BlockNumber blocknum, BlockNumber nblocks, SmgrChainIndex chain_index);
 static void fsync_checker_zeroextend(SMgrRelation reln, ForkNumber forknum,
-									 BlockNumber blocknum, int nblocks, bool skipFsync);
+									 BlockNumber blocknum, int nblocks, bool skipFsync, SmgrChainIndex chain_index);
 
 static void fsync_checker_checkpoint_create(const CheckPoint *checkPoint);
 static void fsync_checker_shmem_request(void);
@@ -47,24 +47,25 @@ static void remove_reln(SMgrRelation reln, ForkNumber forknum);
 static SMgrId fsync_checker_smgr_id;
 static const struct f_smgr fsync_checker_smgr = {
 	.name = "fsync_checker",
-	.smgr_init = mdinit,
+	.chain_position = SMGR_CHAIN_MODIFIER,
+	.smgr_init = NULL,
 	.smgr_shutdown = NULL,
-	.smgr_open = mdopen,
-	.smgr_close = mdclose,
-	.smgr_create = mdcreate,
-	.smgr_exists = mdexists,
-	.smgr_unlink = mdunlink,
+	.smgr_open = NULL,
+	.smgr_close = NULL,
+	.smgr_create = NULL,
+	.smgr_exists = NULL,
+	.smgr_unlink = NULL,
 	.smgr_extend = fsync_checker_extend,
 	.smgr_zeroextend = fsync_checker_zeroextend,
-	.smgr_prefetch = mdprefetch,
-	.smgr_maxcombine = mdmaxcombine,
-	.smgr_readv = mdreadv,
+	.smgr_prefetch = NULL,
+	.smgr_maxcombine = NULL,
+	.smgr_readv = NULL,
 	.smgr_writev = fsync_checker_writev,
 	.smgr_writeback = fsync_checker_writeback,
-	.smgr_nblocks = mdnblocks,
-	.smgr_truncate = mdtruncate,
+	.smgr_nblocks = NULL,
+	.smgr_truncate = NULL,
 	.smgr_immedsync = fsync_checker_immedsync,
-	.smgr_registersync = mdregistersync,
+	.smgr_registersync = NULL,
 };
 
 static HTAB *volatile_relns;
@@ -91,8 +92,6 @@ _PG_init(void)
 	 * could use MdSmgrRelation as the parent.
 	 */
 	fsync_checker_smgr_id = smgr_register(&fsync_checker_smgr, 0);
-
-	storage_manager_id = fsync_checker_smgr_id;
 }
 
 static void
@@ -202,50 +201,50 @@ remove_reln(SMgrRelation reln, ForkNumber forknum)
 
 static void
 fsync_checker_extend(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
-					 const void *buffer, bool skipFsync)
+					 const void *buffer, bool skipFsync, SmgrChainIndex chain_index)
 {
 	if (!SmgrIsTemp(reln) && !skipFsync)
 		add_reln(reln, forknum);
 
-	mdextend(reln, forknum, blocknum, buffer, skipFsync);
+	smgr_extend_next(reln, forknum, blocknum, buffer, skipFsync, chain_index + 1);
 }
 
 static void
-fsync_checker_immedsync(SMgrRelation reln, ForkNumber forknum)
+fsync_checker_immedsync(SMgrRelation reln, ForkNumber forknum, SmgrChainIndex chain_index)
 {
 	if (!SmgrIsTemp(reln))
 		remove_reln(reln, forknum);
 
-	mdimmedsync(reln, forknum);
+	smgr_immedsync_next(reln, forknum, chain_index + 1);
 }
 
 static void
 fsync_checker_writev(SMgrRelation reln, ForkNumber forknum,
 					 BlockNumber blocknum, const void **buffers,
-					 BlockNumber nblocks, bool skipFsync)
+					 BlockNumber nblocks, bool skipFsync, SmgrChainIndex chain_index)
 {
 	if (!SmgrIsTemp(reln) && !skipFsync)
 		add_reln(reln, forknum);
 
-	mdwritev(reln, forknum, blocknum, buffers, nblocks, skipFsync);
+	smgr_writev_next(reln, forknum, blocknum, buffers, nblocks, skipFsync, chain_index + 1);
 }
 
 static void
 fsync_checker_writeback(SMgrRelation reln, ForkNumber forknum,
-						BlockNumber blocknum, BlockNumber nblocks)
+						BlockNumber blocknum, BlockNumber nblocks, SmgrChainIndex chain_index)
 {
 	if (!SmgrIsTemp(reln))
 		remove_reln(reln, forknum);
 
-	mdwriteback(reln, forknum, blocknum, nblocks);
+	smgr_writeback_next(reln, forknum, blocknum, nblocks, chain_index + 1);
 }
 
 static void
 fsync_checker_zeroextend(SMgrRelation reln, ForkNumber forknum,
-						 BlockNumber blocknum, int nblocks, bool skipFsync)
+						 BlockNumber blocknum, int nblocks, bool skipFsync, SmgrChainIndex chain_index)
 {
 	if (!SmgrIsTemp(reln) && !skipFsync)
 		add_reln(reln, forknum);
 
-	mdzeroextend(reln, forknum, blocknum, nblocks, skipFsync);
+	smgr_zeroextend_next(reln, forknum, blocknum, nblocks, skipFsync, chain_index + 1);
 }

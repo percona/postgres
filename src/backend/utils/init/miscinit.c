@@ -56,6 +56,7 @@
 #include "utils/pidfile.h"
 #include "utils/syscache.h"
 #include "utils/varlena.h"
+#include "storage/smgr.h"
 
 
 #define DIRECTORY_LOCK_FILE		"postmaster.pid"
@@ -1834,6 +1835,8 @@ char	   *session_preload_libraries_string = NULL;
 char	   *shared_preload_libraries_string = NULL;
 char	   *local_preload_libraries_string = NULL;
 
+char	   *smgr_chain_string = NULL;
+
 /* Flag telling that we are loading shared_preload_libraries */
 bool		process_shared_preload_libraries_in_progress = false;
 bool		process_shared_preload_libraries_done = false;
@@ -1910,6 +1913,62 @@ process_shared_preload_libraries(void)
 	process_shared_preload_libraries_done = true;
 }
 
+void
+process_smgr_chain(void)
+{
+	char	   *rawstring;
+	List	   *elemlist;
+	ListCell   *l;
+	uint8		idx = 0;
+
+	if (smgr_chain_string == NULL || smgr_chain_string[0] == '\0')
+		return;					/* nothing to do */
+
+	/* Need a modifiable copy of string */
+	rawstring = pstrdup(smgr_chain_string);
+
+	/* Parse string into list of filename paths */
+	if (!SplitIdentifierString(rawstring, ',', &elemlist))
+	{
+		/* syntax error in list */
+		pfree(rawstring);
+		ereport(LOG,
+				(errcode(ERRCODE_SYNTAX_ERROR),
+				 errmsg("invalid list syntax in parameter \"%s\"",
+						"smgr_chain")));
+		return;
+	}
+
+	foreach(l, elemlist)
+	{
+		char	   *smgrname = (char *) lfirst(l);
+		SMgrId		id = smgr_lookup(smgrname);
+
+		storage_manager_chain.chain[idx++] = id;
+
+		ereport(DEBUG1,
+				(errmsg_internal("using storage manager in chain \"%s\"", smgrname)));
+	}
+
+	for (int i = 0; i < idx; ++i)
+	{
+		int			chain_position = smgrsw[storage_manager_chain.chain[i]].chain_position;
+
+		if (i == idx - 1 && chain_position != SMGR_CHAIN_TAIL)
+			ereport(FATAL,
+					(errmsg_internal("smgr_chain: the last element should be a `tail` implementation, not a modifier.")));
+
+		if (i != idx - 1 && chain_position != SMGR_CHAIN_MODIFIER)
+			ereport(FATAL,
+					(errmsg_internal("smgr_chain: element %i/%i %s is not a modifier.", i, idx, smgrsw[storage_manager_chain.chain[i]].name)));
+	}
+
+	storage_manager_chain.size = idx;
+
+	list_free(elemlist);
+	pfree(rawstring);
+}
+
 /*
  * process any libraries that should be preloaded at backend start
  */
@@ -1932,7 +1991,9 @@ register_builtin_dynamic_managers(void)
 {
 	mdsmgr_register();
 
-	storage_manager_id = MdSMgrId;
+	/* setup a dummy chain with md, for tools */
+	storage_manager_chain.chain[0] = MdSMgrId;
+	storage_manager_chain.size = 1;
 }
 
 /*

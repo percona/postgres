@@ -926,6 +926,8 @@ PostmasterMain(int argc, char *argv[])
 	 */
 	process_shared_preload_libraries();
 
+	process_smgr_chain();
+
 	/*
 	 * Initialize SSL library, if specified.
 	 */
