@@ -1429,7 +1429,6 @@
   variable => 'jit_provider',
   boot_val => '"llvmjit"',
 },
-
 { name => 'jit_tuple_deforming', type => 'bool', context => 'PGC_USERSET', group => 'DEVELOPER_OPTIONS',
   short_desc => 'Allow JIT compilation of tuple deforming.',
   flags => 'GUC_NOT_IN_SAMPLE',
@@ -2633,6 +2632,13 @@
   boot_val => '""',
 },
 
+
+{ name => 'smgr_chain', type => 'string', context => 'PGC_POSTMASTER', group => 'CLIENT_CONN_PRELOAD',
+  short_desc => 'Lists storage managers used by the server, in order.',
+  flags => 'GUC_LIST_INPUT | GUC_LIST_QUOTE | GUC_SUPERUSER_ONLY',
+  variable => 'smgr_chain_string',
+  boot_val => '"md"',
+},
 { name => 'ssl', type => 'bool', context => 'PGC_SIGHUP', group => 'CONN_AUTH_SSL',
   short_desc => 'Enables SSL connections.',
   variable => 'EnableSSL',
