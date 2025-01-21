@@ -14,4 +14,4 @@ if [ "$1" = "debugoptimized" ]; then
 fi
 
 ./configure --enable-debug --enable-cassert --enable-tap-tests --prefix=$INSTALL_DIR
-make install-world
+make install-world -j
