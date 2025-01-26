@@ -19,14 +19,15 @@ OBJS = \
 override CPPFLAGS := -DFRONTEND $(CPPFLAGS)
 
 ifeq ($(enable_percona_ext),yes)
-# TODO: Ideally should be built in pg_tde as a static lib
 include $(top_srcdir)/contrib/pg_tde/Makefile.tools
 
 TDE_OBJS2 = $(TDE_OBJS:%=$(top_srcdir)/contrib/pg_tde/%)
+TDE_OBJS3 = $(TDE_XLOG_OBJS:%=$(top_srcdir)/contrib/pg_tde/%)
 
 OBJS += \
 	$(top_srcdir)/src/fe_utils/simple_list.o \
-	$(TDE_OBJS2)
+	$(TDE_OBJS2) \
+	$(TDE_OBJS3)
 
 override CPPFLAGS := -I$(top_srcdir)/contrib/pg_tde/src/include -I$(top_srcdir)/contrib/pg_tde/src/libkmip/libkmip/include $(CPPFLAGS)
 endif
