@@ -79,7 +79,7 @@ tde_shmem_request(void)
 	int			required_locks = TdeRequiredLocksCount();
 
 #ifdef PERCONA_EXT
-	sz = add_size(sz, XLOG_TDE_ENC_BUFF_ALIGNED_SIZE);
+	sz = add_size(sz, TDEXLogEncryptStateSize());
 #endif
 
 	if (prev_shmem_request_hook)

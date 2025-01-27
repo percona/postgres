@@ -15,6 +15,7 @@
 #ifdef PERCONA_EXT
 #include "pg_tde.h"
 #include "pg_tde_defines.h"
+#include "pg_tde_guc.h"
 #include "access/xlog.h"
 #include "access/xlog_internal.h"
 #include "access/xloginsert.h"
@@ -27,8 +28,13 @@
 #include "catalog/tde_global_space.h"
 #include "encryption/enc_tde.h"
 
+#include <openssl/rand.h>
+#include <openssl/err.h>
+
 #ifdef FRONTEND
 #include "pg_tde_fe.h"
+#else
+#include "port/atomics.h"
 #endif
 
 #include "pg_tde_guc.h"
@@ -38,38 +44,29 @@ static const XLogSmgr tde_xlog_smgr = {
 	.seg_write = tdeheap_xlog_seg_write,
 };
 
-static XLogPageHeaderData DecryptCurrentPageHrd;
+static XLogLongPageHeaderData DecryptCurrentPageHrd;
 
 static void SetXLogPageIVPrefix(TimeLineID tli, XLogRecPtr lsn, char *iv_prefix);
 
 #ifndef FRONTEND
-/* GUC */
+static ssize_t TDEXLogWriteEncryptedPages(int fd, const void *buf, size_t count,
+											off_t offset, TimeLineID tli,
+											XLogSegNo segno);
+static RelKeyData *pg_tde_create_key_map_entry(const RelFileLocator *newrlocator, 
+												uint32 entry_type, XLogRecPtr start_lsn);
 
-static XLogPageHeaderData EncryptCurrentPageHrd;
+typedef struct EncryptionStateData {
+	char	*segBuf;
+	char	db_keydata_path[MAXPGPATH];
+	pg_atomic_uint64 enc_key_lsn; /* to sync with readers */
+} EncryptionStateData;
 
-static ssize_t TDEXLogWriteEncryptedPages(int fd, const void *buf, size_t count, off_t offset);
-static char *TDEXLogEncryptBuf = NULL;
+static EncryptionStateData *EncryptionState = NULL;
+
+/* TODO: can be swapped out to the disk */
+static RelKeyData *EncryptionKey = NULL;
+
 static int	XLOGChooseNumBuffers(void);
-
-Datum		pg_tde_create_wal_key(PG_FUNCTION_ARGS);
-
-PG_FUNCTION_INFO_V1(pg_tde_create_wal_key);
-
-Datum
-pg_tde_create_wal_key(PG_FUNCTION_ARGS)
-{
-	InternalKey *key = GetRelationKey(GLOBAL_SPACE_RLOCATOR(XLOG_TDE_OID), TDE_KEY_TYPE_GLOBAL, true);
-
-	if (key != NULL)
-	{
-		ereport(ERROR,
-				(errmsg("WAL key already exists.")));
-		PG_RETURN_BOOL(false);
-	}
-
-	pg_tde_create_global_key(&GLOBAL_SPACE_RLOCATOR(XLOG_TDE_OID));
-	PG_RETURN_BOOL(true);
-}
 
 /*  This can't be a GUC check hook, because that would run too soon during startup */
 void
@@ -79,10 +76,13 @@ TDEXlogCheckSane(void)
 	{
 		InternalKey *key = GetRelationKey(GLOBAL_SPACE_RLOCATOR(XLOG_TDE_OID), TDE_KEY_TYPE_GLOBAL, true);
 
+		LWLockAcquire(tde_lwlock_enc_keys(), LW_EXCLUSIVE);
+		key = GetPrincipalKey((GLOBAL_SPACE_RLOCATOR(XLOG_TDE_OID)).dbOid, LW_EXCLUSIVE);
+		LWLockRelease(tde_lwlock_enc_keys());
 		if (key == NULL)
 		{
 			ereport(ERROR,
-					(errmsg("WAL encryption can only be enabled with a properly configured key. Disable pg_tde.wal_encrypt and create one using pg_tde_create_wal_key() before enabling it.")));
+					(errmsg("WAL encryption can only be enabled with a properly configured principal key. Disable pg_tde.wal_encrypt and create one using pg_tde_set_server_principal_key() before enabling it.")));
 		}
 	}
 }
@@ -112,6 +112,17 @@ TDEXLogEncryptBuffSize(void)
 	return (Size) XLOG_BLCKSZ * xbuffers;
 }
 
+Size
+TDEXLogEncryptStateSize(void)
+{
+	Size sz;
+
+	sz = TYPEALIGN(PG_IO_ALIGN_SIZE, TDEXLogEncryptBuffSize());
+	sz = add_size(sz, sizeof(EncryptionStateData));
+
+	return MAXALIGN(sz);
+}
+
 /*
  * Alloc memory for the encryption buffer.
  *
@@ -126,121 +137,157 @@ void
 TDEXLogShmemInit(void)
 {
 	bool		foundBuf;
+	char	   *allocptr;
 
-	if (EncryptXLog)
-	{
-		TDEXLogEncryptBuf = (char *)
-			TYPEALIGN(PG_IO_ALIGN_SIZE,
-					  ShmemInitStruct("TDE XLog Encryption Buffer",
-									  XLOG_TDE_ENC_BUFF_ALIGNED_SIZE,
-									  &foundBuf));
+	/* 
+	 * TODO: we need enc_key_lsn all the time but encrypt buffer only when
+	 * EncryptXLog is on
+	 */
+	EncryptionState = (EncryptionStateData *)
+							ShmemInitStruct("TDE XLog Encryption State",
+									TDEXLogEncryptStateSize(),
+									&foundBuf);
 
-		elog(DEBUG1, "pg_tde: initialized encryption buffer %lu bytes", XLOG_TDE_ENC_BUFF_ALIGNED_SIZE);
-	}
+	allocptr = ((char *) EncryptionState) + TYPEALIGN(PG_IO_ALIGN_SIZE, sizeof(EncryptionStateData));
+	EncryptionState->segBuf = allocptr;
+
+	pg_atomic_init_u64(&EncryptionState->enc_key_lsn, 0);
+
+	elog(DEBUG1, "pg_tde: initialized encryption buffer %lu bytes", TDEXLogEncryptStateSize());
 }
 
 /*
  * Encrypt XLog page(s) from the buf and write to the segment file.
  */
 static ssize_t
-TDEXLogWriteEncryptedPages(int fd, const void *buf, size_t count, off_t offset)
+TDEXLogWriteEncryptedPages(int fd, const void *buf, size_t count, off_t offset, 
+							TimeLineID tli, XLogSegNo segno)
 {
-	char		iv_prefix[16] = {0,};
-	size_t		data_size = 0;
-	XLogPageHeader curr_page_hdr = &EncryptCurrentPageHrd;
-	XLogPageHeader enc_buf_page = NULL;
-	InternalKey *key = GetTdeGlobaleRelationKey(GLOBAL_SPACE_RLOCATOR(XLOG_TDE_OID));
-	off_t		enc_off;
-	size_t		page_size = XLOG_BLCKSZ - offset % XLOG_BLCKSZ;
-	uint32		iv_ctr = 0;
+	char iv_prefix[16] = {0,};
+	RelKeyData *key = EncryptionKey;
+	char *enc_buff = EncryptionState->segBuf;
 
 #ifdef TDE_XLOG_DEBUG
-	elog(DEBUG1, "write encrypted WAL, pages amount: %d, size: %lu offset: %ld", count / (Size) XLOG_BLCKSZ, count, offset);
+	elog(DEBUG1, "write encrypted WAL, size: %lu, offset: %ld [%lX], seg: %X/%X, key_start_lsn: %X/%X", 
+					count, offset, offset, LSN_FORMAT_ARGS(segno), LSN_FORMAT_ARGS(key->internal_key.start_lsn));
 #endif
 
-	/*
-	 * Go through the buf page-by-page and encrypt them. We may start or
-	 * finish writing from/in the middle of the page (walsender or
-	 * `full_page_writes = off`). So preserve a page header for the IV init
-	 * data.
-	 *
-	 * TODO: check if walsender restarts form the beggining of the page in
-	 * case of the crash.
-	 */
-	for (enc_off = 0; enc_off < count;)
+	SetXLogPageIVPrefix(tli, segno, iv_prefix);
+	PG_TDE_ENCRYPT_DATA(iv_prefix, offset,
+						(char *) buf, count,
+						enc_buff, key);
+
+	return pg_pwrite(fd, enc_buff, count, offset);
+}
+
+
+static RelKeyData *
+pg_tde_create_key_map_entry(const RelFileLocator *newrlocator, uint32 entry_type, XLogRecPtr start_lsn)
+{
+	InternalKey int_key;
+	RelKeyData *rel_key_data;
+	RelKeyData *enc_rel_key_data;
+	TDEPrincipalKey *principal_key;
+
+	principal_key = get_principal_key_from_keyring(newrlocator->dbOid, false);
+	if (principal_key == NULL)
 	{
-		data_size = Min(page_size, count);
+		ereport(ERROR,
+				(errmsg("failed to retrieve principal key. Create one using pg_tde_set_principal_key before using encrypted tables.")));
 
-		if (page_size == XLOG_BLCKSZ)
-		{
-			memcpy((char *) curr_page_hdr, (char *) buf + enc_off, SizeOfXLogShortPHD);
-
-			/*
-			 * Need to use a separate buf for the encryption so the page
-			 * remains non-crypted in the XLog buf (XLogInsert has to have
-			 * access to records' lsn).
-			 */
-			enc_buf_page = (XLogPageHeader) (TDEXLogEncryptBuf + enc_off);
-			memcpy((char *) enc_buf_page, (char *) buf + enc_off, (Size) XLogPageHeaderSize(curr_page_hdr));
-			enc_buf_page->xlp_info |= XLP_ENCRYPTED;
-
-			enc_off += XLogPageHeaderSize(curr_page_hdr);
-			data_size -= XLogPageHeaderSize(curr_page_hdr);
-			/* it's a beginning of the page */
-			iv_ctr = 0;
-		}
-		else
-		{
-			/* we're in the middle of the page */
-			iv_ctr = (offset % XLOG_BLCKSZ) - XLogPageHeaderSize(curr_page_hdr);
-		}
-
-		if (data_size + enc_off > count)
-		{
-			data_size = count - enc_off;
-		}
-
-		/*
-		 * The page is zeroed (no data), no sense to encrypt. This may happen
-		 * when base_backup or other requests XLOG SWITCH and some pages in
-		 * XLog buffer still not used.
-		 */
-		if (curr_page_hdr->xlp_magic == 0)
-		{
-			/* ensure all the page is {0} */
-			Assert((*((char *) buf + enc_off) == 0) &&
-				   memcmp((char *) buf + enc_off, (char *) buf + enc_off + 1, data_size - 1) == 0);
-
-			enc_buf_page = (XLogPageHeader) (TDEXLogEncryptBuf + enc_off);
-			memcpy((char *) enc_buf_page, (char *) buf + enc_off, data_size);
-		}
-		else
-		{
-			SetXLogPageIVPrefix(curr_page_hdr->xlp_tli, curr_page_hdr->xlp_pageaddr, iv_prefix);
-			PG_TDE_ENCRYPT_DATA(iv_prefix, iv_ctr, (char *) buf + enc_off, data_size,
-								TDEXLogEncryptBuf + enc_off, key);
-		}
-
-		page_size = XLOG_BLCKSZ;
-		enc_off += data_size;
+		return NULL;
 	}
 
-	return pg_pwrite(fd, TDEXLogEncryptBuf, count, offset);
+	memset(&int_key, 0, sizeof(InternalKey));
+
+	int_key.rel_type = entry_type;
+	int_key.start_lsn = start_lsn;
+
+	if (!RAND_bytes(int_key.key, INTERNAL_KEY_LEN))
+	{
+		ereport(ERROR,
+				(errcode(ERRCODE_INTERNAL_ERROR),
+				 errmsg("could not generate internal key for relation \"%s\": %s",
+						"TODO", ERR_error_string(ERR_get_error(), NULL))));
+
+		return NULL;
+	}
+
+	/* Encrypt the key */
+	rel_key_data = tde_create_rel_key(newrlocator->relNumber, &int_key, &principal_key->keyInfo);
+	enc_rel_key_data = tde_encrypt_rel_key(principal_key, rel_key_data, newrlocator->dbOid);
+
+	/*
+	 * Add the encrypted key to the key map data file structure.
+	 */
+	pg_tde_write_key_map_entry(newrlocator, enc_rel_key_data, &principal_key->keyInfo);
+	pfree(enc_rel_key_data);
+	return rel_key_data;
 }
 #endif							/* !FRONTEND */
 
 void
 TDEXLogSmgrInit(void)
 {
+#ifndef FRONTEND
+	/* TODO: move to the separate func, it's not an SMGR init */
+	RelKeyData *key = pg_tde_read_last_wal_key();
+
+	/* TDOO: clean-up this mess */
+	if ((!key && EncryptXLog) || (key &&
+		((key->internal_key.rel_type & TDE_KEY_TYPE_WAL_ENCRYPTED && !EncryptXLog) || 
+		(key->internal_key.rel_type & TDE_KEY_TYPE_WAL_UNENCRYPTED && EncryptXLog))))
+	{
+		RelKeyData *new_key;
+
+		new_key = pg_tde_create_key_map_entry(
+								&GLOBAL_SPACE_RLOCATOR(XLOG_TDE_OID), 
+								TDE_KEY_TYPE_GLOBAL | (EncryptXLog ? TDE_KEY_TYPE_WAL_ENCRYPTED : TDE_KEY_TYPE_WAL_UNENCRYPTED),
+								InvalidXLogRecPtr);
+
+		if (!EncryptionKey) 
+			EncryptionKey = (RelKeyData *) MemoryContextAlloc(TopMemoryContext, sizeof(RelKeyData));
+		memcpy(EncryptionKey, new_key, sizeof(RelKeyData));
+	} else if (key)
+	{
+		if (!EncryptionKey) 
+			EncryptionKey = (RelKeyData *) MemoryContextAlloc(TopMemoryContext, sizeof(RelKeyData));
+		memcpy(EncryptionKey, key, sizeof(RelKeyData));
+		pfree(key);
+	}
+
+	pg_tde_set_db_file_paths(GLOBAL_SPACE_RLOCATOR(XLOG_TDE_OID).dbOid, NULL, EncryptionState->db_keydata_path);
+
+#endif
+
 	SetXLogSmgr(&tde_xlog_smgr);
 }
 
 ssize_t
-tdeheap_xlog_seg_write(int fd, const void *buf, size_t count, off_t offset)
+tdeheap_xlog_seg_write(int fd, const void *buf, size_t count, off_t offset,
+						TimeLineID tli, XLogSegNo segno)
 {
 #ifndef FRONTEND
+
+	/* 
+	 * Set the last (most recent) key's start LSN is not set.
+	 *  
+	 * This func called with WALWriteLock held, so no need in any extra sync.
+	 */
+	if (EncryptionKey && EncryptionKey->internal_key.rel_type & TDE_KEY_TYPE_GLOBAL &&
+		EncryptionKey->internal_key.start_lsn == 0)
+	{
+		XLogRecPtr lsn;
+
+		XLogSegNoOffsetToRecPtr(segno, offset, wal_segment_size, lsn);
+
+		pg_tde_wal_last_key_set_lsn(lsn, EncryptionState->db_keydata_path);
+		EncryptionKey->internal_key.start_lsn = lsn;
+		pg_atomic_write_u64(&EncryptionState->enc_key_lsn, lsn);
+	}
+
 	if (EncryptXLog)
-		return TDEXLogWriteEncryptedPages(fd, buf, count, offset);
+		return TDEXLogWriteEncryptedPages(fd, buf, count, offset, tli, segno);
 	else
 #endif
 		return pg_pwrite(fd, buf, count, offset);
@@ -250,81 +297,103 @@ tdeheap_xlog_seg_write(int fd, const void *buf, size_t count, off_t offset)
  * Read the XLog pages from the segment file and dectypt if need.
  */
 ssize_t
-tdeheap_xlog_seg_read(int fd, void *buf, size_t count, off_t offset)
+tdeheap_xlog_seg_read(int fd, void *buf, size_t count, off_t offset, 
+						TimeLineID tli, XLogSegNo segno)
 {
-	ssize_t		readsz;
-	char		iv_prefix[16] = {0,};
-	size_t		data_size = 0;
-	XLogPageHeader curr_page_hdr = &DecryptCurrentPageHrd;
-	InternalKey *key = NULL;
-	size_t		page_size = XLOG_BLCKSZ - offset % XLOG_BLCKSZ;
-	off_t		dec_off;
-	uint32		iv_ctr = 0;
+	ssize_t readsz;
+	char iv_prefix[16] = {0,};
+	WALKeyCacheRec *keys = pg_tde_get_wal_cache_keys();
+	XLogRecPtr write_key_lsn = 0;
+	WALKeyCacheRec *curr_key = NULL;
+	off_t dec_off = 0;
+	size_t dec_sz = 0;
+	XLogRecPtr data_start;
+	XLogRecPtr data_end;
+
+	/* !!! TODO: should be passed as the arg? */
+	static const int wal_segsz_bytes = 16 << 20; // 16Mb
 
 #ifdef TDE_XLOG_DEBUG
-	elog(DEBUG1, "read from a WAL segment, pages amount: %d, size: %lu offset: %ld", count / (Size) XLOG_BLCKSZ, count, offset);
+	elog(DEBUG1, "read from a WAL segment, size: %lu offset: %ld [%lX], seg: %X/%X", 
+					count, offset, offset, LSN_FORMAT_ARGS(segno));
 #endif
 
+	/* 
+	 * Read data from disk
+	 */
 	readsz = pg_pread(fd, buf, count, offset);
 
-	/*
-	 * Read the buf page by page and decypt ecnrypted pages. We may start or
-	 * fihish reading from/in the middle of the page (walreceiver) in such a
-	 * case we should preserve the last read page header for the IV data and
-	 * the encryption state.
-	 *
-	 * TODO: check if walsender/receiver restarts form the beggining of the
-	 * page in case of the crash.
-	 */
-	for (dec_off = 0; dec_off < readsz;)
+	if (!keys)
 	{
-		data_size = Min(page_size, readsz);
+		/* cache is empty, try to read keys from disk */
+		keys = pg_tde_fetch_wal_keys(0);
+	}
 
-		if (page_size == XLOG_BLCKSZ)
+#ifndef FRONTEND
+	write_key_lsn = pg_atomic_read_u64(&EncryptionState->enc_key_lsn);
+#endif
+
+	if (write_key_lsn != 0)
+	{
+		WALKeyCacheRec *last_key = pg_tde_get_last_wal_key();
+		Assert(last_key);
+
+		/* write has generated a new key, need to fetch it */
+		if (last_key->start_lsn < write_key_lsn)
 		{
-			memcpy((char *) curr_page_hdr, (char *) buf + dec_off, SizeOfXLogShortPHD);
+			pg_tde_fetch_wal_keys(write_key_lsn);
 
-			/* set the flag to "not encrypted" for the walreceiver */
-			((XLogPageHeader) ((char *) buf + dec_off))->xlp_info &= ~XLP_ENCRYPTED;
-
-			Assert(curr_page_hdr->xlp_magic == XLOG_PAGE_MAGIC || curr_page_hdr->xlp_magic == 0);
-			dec_off += XLogPageHeaderSize(curr_page_hdr);
-			data_size -= XLogPageHeaderSize(curr_page_hdr);
-			/* it's a beginning of the page */
-			iv_ctr = 0;
+			/* in case cache was empty before */
+			keys = pg_tde_get_wal_cache_keys();
 		}
-		else
-		{
-			/* we're in the middle of the page */
-			iv_ctr = (offset % XLOG_BLCKSZ) - XLogPageHeaderSize(curr_page_hdr);
-		}
+	}
 
-		if ((data_size + dec_off) > readsz)
-		{
-			data_size = readsz - dec_off;
-		}
+	SetXLogPageIVPrefix(tli, segno, iv_prefix);
 
-		if (curr_page_hdr->xlp_info & XLP_ENCRYPTED)
+	XLogSegNoOffsetToRecPtr(segno, offset, wal_segsz_bytes, data_start);
+	XLogSegNoOffsetToRecPtr(segno, offset + count, wal_segsz_bytes, data_end);
+	
+	curr_key = keys;
+	while (curr_key)
+	{
+#ifdef TDE_XLOG_DEBUG
+		elog(DEBUG1, "WAL key %X/%X-%X/%X", LSN_FORMAT_ARGS(curr_key->start_lsn), LSN_FORMAT_ARGS(curr_key->end_lsn));
+#endif
+
+		if (curr_key->key->internal_key.start_lsn != InvalidXLogRecPtr &&
+				(curr_key->key->internal_key.rel_type & TDE_KEY_TYPE_WAL_ENCRYPTED))
 		{
-			if (key == NULL)
+			/* 
+			 * Check if the key's range overlaps with the buffer's and decypt
+			 * the part that does.
+			 */
+			if (data_start <= curr_key->end_lsn && curr_key->start_lsn <= data_end)
 			{
-				key = GetTdeGlobaleRelationKey(GLOBAL_SPACE_RLOCATOR(XLOG_TDE_OID));
+				dec_off = XLogSegmentOffset(Max(data_start, curr_key->start_lsn), wal_segsz_bytes);
+				dec_sz = XLogSegmentOffset(Min(data_end, curr_key->end_lsn), wal_segsz_bytes) - dec_off;
+#ifdef TDE_XLOG_DEBUG
+				elog(DEBUG1, "decrypt WAL, dec_off: %lu [buff_off %lu], sz: %lu", dec_off, offset - dec_off, dec_sz);
+#endif
+				PG_TDE_DECRYPT_DATA(iv_prefix, dec_off,
+							(char *) buf + (offset - dec_off),
+							dec_sz, (char *) buf + (offset - dec_off),
+							curr_key->key);
+
+				if (dec_off + dec_sz == offset)
+				{
+					break;
+				}
 			}
-			SetXLogPageIVPrefix(curr_page_hdr->xlp_tli, curr_page_hdr->xlp_pageaddr, iv_prefix);
-			PG_TDE_DECRYPT_DATA(
-								iv_prefix, iv_ctr,
-								(char *) buf + dec_off, data_size, (char *) buf + dec_off, key);
 		}
 
-		page_size = XLOG_BLCKSZ;
-		dec_off += data_size;
+		curr_key = curr_key->next;
 	}
 
 	return readsz;
 }
 
 /* IV: TLI(uint32) + XLogRecPtr(uint64)*/
-static void
+static inline void
 SetXLogPageIVPrefix(TimeLineID tli, XLogRecPtr lsn, char *iv_prefix)
 {
 	iv_prefix[0] = (tli >> 24);
