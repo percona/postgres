@@ -197,9 +197,7 @@ pg_tde_change_key_provider_internal(PG_FUNCTION_ARGS)
 	/* reports error if not found */
 	GenericKeyring *keyring = GetKeyProviderByName(provider_name, dbOid);
 
-#ifndef FRONTEND
 	pfree(keyring);
-#endif
 
 	strncpy(provider.options, options, sizeof(provider.options));
 	strncpy(provider.provider_name, provider_name, sizeof(provider.provider_name));
