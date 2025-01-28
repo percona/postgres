@@ -21,6 +21,20 @@ TDE_OBJS = \
 	src/keyring/keyring_kmip.frontend \
 	src/keyring/keyring_kmip_ereport.frontend
 
-%.frontend: %.c
-	$(CC) $(CPPFLAGS) -c $< -o $@
 
+TDE_OBJS2 = $(TDE_OBJS:%=$(top_srcdir)/contrib/pg_tde/%)
+TDE_XLOG_OBJS2 = $(TDE_XLOG_OBJS:%=$(top_srcdir)/contrib/pg_tde/%)
+
+%.frontend: %.c
+	$(CC) $(CPPFLAGS) -DFRONTEND -I$(top_srcdir)/contrib/pg_tde/src/include -I$(top_srcdir)/contrib/pg_tde/src/libkmip/libkmip/include  -c $< -o $@
+
+libtde.a: $(TDE_OBJS2)
+	rm -f $@
+	$(AR) $(AROPT) $@ $^
+
+libtdexlog.a: $(TDE_XLOG_OBJS2)
+	rm -f $@
+	$(AR) $(AROPT) $@ $^
+
+
+tdelibs: libtde.a libtdexlog.a	

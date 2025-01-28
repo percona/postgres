@@ -13,6 +13,11 @@ subdir = src/bin
 top_builddir = ../..
 include $(top_builddir)/src/Makefile.global
 
+include $(top_srcdir)/contrib/pg_tde/Makefile.tools
+
+export TDE_OBJS
+export TDE_XLOG_OBJS
+
 SUBDIRS = \
 	initdb \
 	pg_amcheck \
@@ -42,6 +47,8 @@ SUBDIRS += pgevent
 else
 ALWAYS_SUBDIRS += pgevent
 endif
+
+all: tdelibs
 
 $(recurse)
 $(recurse_always)
