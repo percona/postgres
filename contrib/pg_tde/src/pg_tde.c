@@ -91,10 +91,12 @@ tde_shmem_startup(void)
 	AesInit();
 
 #ifdef PERCONA_EXT
-	TDEInitGlobalKeys(NULL);
+	/* TDEInitGlobalKeys(NULL); */
 
 	TDEXLogShmemInit();
 	TDEXLogSmgrInit();
+
+	TDEXlogCheckSane();
 #endif
 }
 
