@@ -967,7 +967,7 @@ pg_tde_get_key_from_file(const RelFileLocator *rlocator, uint32 key_type, bool n
 			return NULL;
 		}
 		ereport(ERROR,
-				(errmsg("failed to retrieve principal key. Create one using pg_tde_set_principal_key before using encrypted tables. 2")));
+				(errmsg("failed to retrieve principal key. Create one using pg_tde_set_principal_key before using encrypted tables.")));
 	}
 
 	/* Get the file paths */

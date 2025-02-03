@@ -38,13 +38,12 @@
 void
 TDEInitGlobalKeys(const char *dir)
 {
-	/* TODO: do we need this at all??  */
 	RelKeyData *ikey;
 
 	if (dir != NULL)
 		pg_tde_set_data_dir(dir);
 
-	ikey = pg_tde_get_key_from_file(&GLOBAL_SPACE_RLOCATOR(XLOG_TDE_OID), TDE_KEY_TYPE_GLOBAL, false);
+	ikey = pg_tde_get_key_from_file(&GLOBAL_SPACE_RLOCATOR(XLOG_TDE_OID), TDE_KEY_TYPE_GLOBAL, true);
 
 	/*
 	 * Internal Key should be in the TopMemmoryContext because of SSL
