@@ -8,7 +8,7 @@ CREATE type PG_TDE_GLOBAL AS ENUM('PG_TDE_GLOBAL');
 -- Key Provider Management
 CREATE OR REPLACE FUNCTION pg_tde_add_key_provider(provider_type VARCHAR(10), provider_name VARCHAR(128), options JSON)
 RETURNS INT
-AS 'MODULE_PATHNAME', 'pg_tde_add_key_provider_internal'
+AS 'MODULE_PATHNAME'
 LANGUAGE C;
 
 CREATE OR REPLACE FUNCTION pg_tde_add_key_provider_file(provider_name VARCHAR(128), file_path TEXT)
@@ -124,7 +124,7 @@ LANGUAGE C STRICT VOLATILE;
 -- Global Tablespace Key Provider Management
 CREATE OR REPLACE FUNCTION pg_tde_add_key_provider(PG_TDE_GLOBAL, provider_type VARCHAR(10), provider_name VARCHAR(128), options JSON)
 RETURNS INT
-AS 'MODULE_PATHNAME', 'pg_tde_add_key_provider_internal_global'
+AS 'MODULE_PATHNAME', 'pg_tde_add_key_provider_global'
 LANGUAGE C;
 
 CREATE OR REPLACE FUNCTION pg_tde_add_key_provider_file(PG_TDE_GLOBAL, provider_name VARCHAR(128), file_path TEXT)
@@ -231,7 +231,7 @@ LANGUAGE SQL;
 -- Key Provider Management
 CREATE OR REPLACE FUNCTION pg_tde_change_key_provider(provider_type VARCHAR(10), provider_name VARCHAR(128), options JSON)
 RETURNS INT
-AS 'MODULE_PATHNAME', 'pg_tde_change_key_provider_internal'
+AS 'MODULE_PATHNAME'
 LANGUAGE C;
 
 CREATE OR REPLACE FUNCTION pg_tde_change_key_provider_file(provider_name VARCHAR(128), file_path TEXT)
@@ -329,7 +329,7 @@ LANGUAGE SQL;
 -- Global Tablespace Key Provider Management
 CREATE OR REPLACE FUNCTION pg_tde_change_key_provider(PG_TDE_GLOBAL, provider_type VARCHAR(10), provider_name VARCHAR(128), options JSON)
 RETURNS INT
-AS 'MODULE_PATHNAME', 'pg_tde_change_key_provider_internal_global'
+AS 'MODULE_PATHNAME', 'pg_tde_change_key_provider_global'
 LANGUAGE C;
 
 CREATE OR REPLACE FUNCTION pg_tde_change_key_provider_file(PG_TDE_GLOBAL, provider_name VARCHAR(128), file_path TEXT)
@@ -459,17 +459,17 @@ LANGUAGE SQL;
 
 CREATE FUNCTION pg_tde_set_principal_key(principal_key_name VARCHAR(255), provider_name VARCHAR(255) DEFAULT NULL, ensure_new_key BOOLEAN DEFAULT FALSE)
 RETURNS boolean
-AS 'MODULE_PATHNAME', 'pg_tde_set_principal_key_internal'
+AS 'MODULE_PATHNAME'
 LANGUAGE C;
 
 CREATE FUNCTION pg_tde_set_principal_key(principal_key_name VARCHAR(255), PG_TDE_GLOBAL, provider_name VARCHAR(255) DEFAULT NULL, ensure_new_key BOOLEAN DEFAULT FALSE)
 RETURNS boolean
-AS 'MODULE_PATHNAME', 'pg_tde_set_principal_key_internal_global'
+AS 'MODULE_PATHNAME', 'pg_tde_set_principal_key_global'
 LANGUAGE C;
 
 CREATE FUNCTION pg_tde_set_server_principal_key(principal_key_name VARCHAR(255), PG_TDE_GLOBAL, provider_name VARCHAR(255) DEFAULT NULL, ensure_new_key BOOLEAN DEFAULT FALSE)
 RETURNS boolean
-AS 'MODULE_PATHNAME', 'pg_tde_set_principal_key_internal_server'
+AS 'MODULE_PATHNAME', 'pg_tde_set_principal_key_server'
 LANGUAGE C;
 
 CREATE FUNCTION pg_tde_create_wal_key()
@@ -487,7 +487,7 @@ RETURNS TABLE ( principal_key_name text,
                 key_provider_name text,
                 key_provider_id integer,
                 key_createion_time timestamp with time zone)
-AS 'MODULE_PATHNAME', 'pg_tde_principal_key_info_internal'
+AS 'MODULE_PATHNAME'
 LANGUAGE C;
 
 CREATE FUNCTION pg_tde_principal_key_info(PG_TDE_GLOBAL)
@@ -495,17 +495,17 @@ RETURNS TABLE ( principal_key_name text,
                 key_provider_name text,
                 key_provider_id integer,
                 key_createion_time timestamp with time zone)
-AS 'MODULE_PATHNAME', 'pg_tde_principal_key_info_internal_global'
+AS 'MODULE_PATHNAME', 'pg_tde_principal_key_info_global'
 LANGUAGE C;
 
 CREATE FUNCTION pg_tde_delete_key_provider(PG_TDE_GLOBAL, provider_name VARCHAR)
 RETURNS VOID
-AS 'MODULE_PATHNAME', 'pg_tde_delete_key_provider_internal_global'
+AS 'MODULE_PATHNAME', 'pg_tde_delete_key_provider_global'
 LANGUAGE C;
 
 CREATE FUNCTION pg_tde_delete_key_provider(provider_name VARCHAR)
 RETURNS VOID
-AS 'MODULE_PATHNAME', 'pg_tde_delete_key_provider_internal'
+AS 'MODULE_PATHNAME'
 LANGUAGE C;
 
 CREATE FUNCTION pg_tde_version() RETURNS TEXT AS 'MODULE_PATHNAME' LANGUAGE C;

@@ -72,21 +72,24 @@ static void simple_list_free(SimplePtrList *list);
 
 static List *scan_key_provider_file(ProviderScanType scanType, void *scanKey, Oid dbOid);
 
-PG_FUNCTION_INFO_V1(pg_tde_add_key_provider_internal);
-Datum		pg_tde_add_key_provider_internal(PG_FUNCTION_ARGS);
+PG_FUNCTION_INFO_V1(pg_tde_add_key_provider);
+Datum		pg_tde_add_key_provider(PG_FUNCTION_ARGS);
 
-PG_FUNCTION_INFO_V1(pg_tde_add_key_provider_internal_global);
-Datum		pg_tde_add_key_provider_internal_global(PG_FUNCTION_ARGS);
+PG_FUNCTION_INFO_V1(pg_tde_add_key_provider_global);
+Datum		pg_tde_add_key_provider_global(PG_FUNCTION_ARGS);
 
-PG_FUNCTION_INFO_V1(pg_tde_change_key_provider_internal);
-Datum		pg_tde_change_key_provider_internal(PG_FUNCTION_ARGS);
+PG_FUNCTION_INFO_V1(pg_tde_change_key_provider);
+Datum		pg_tde_change_key_provider(PG_FUNCTION_ARGS);
 
-PG_FUNCTION_INFO_V1(pg_tde_change_key_provider_internal_global);
-Datum		pg_tde_change_key_provider_internal_global(PG_FUNCTION_ARGS);
-
+PG_FUNCTION_INFO_V1(pg_tde_change_key_provider_global);
+Datum		pg_tde_change_key_provider_global(PG_FUNCTION_ARGS);
 
 PG_FUNCTION_INFO_V1(pg_tde_list_all_key_providers);
 Datum		pg_tde_list_all_key_providers(PG_FUNCTION_ARGS);
+
+static Datum pg_tde_change_key_provider_internal(PG_FUNCTION_ARGS, Oid dbOid, int shift);
+
+static Datum pg_tde_add_key_provider_internal(PG_FUNCTION_ARGS, Oid dbOid, int shift);
 
 #define PG_TDE_LIST_PROVIDERS_COLS 4
 
@@ -191,23 +194,20 @@ cleanup_key_provider_info(Oid databaseId)
 	PathNameDeleteTemporaryFile(kp_info_path, false);
 }
 
-static Datum
-			pg_tde_change_key_provider_c(PG_FUNCTION_ARGS, Oid dbOid, int shift);
-
 Datum
-pg_tde_change_key_provider_internal(PG_FUNCTION_ARGS)
+pg_tde_change_key_provider(PG_FUNCTION_ARGS)
 {
-	return pg_tde_change_key_provider_c(fcinfo, MyDatabaseId, 0);
+	return pg_tde_change_key_provider_internal(fcinfo, MyDatabaseId, 0);
 }
 
 Datum
-pg_tde_change_key_provider_internal_global(PG_FUNCTION_ARGS)
+pg_tde_change_key_provider_global(PG_FUNCTION_ARGS)
 {
-	return pg_tde_change_key_provider_c(fcinfo, GLOBAL_DATA_TDE_OID, 1);
+	return pg_tde_change_key_provider_internal(fcinfo, GLOBAL_DATA_TDE_OID, 1);
 }
 
 static Datum
-pg_tde_change_key_provider_c(PG_FUNCTION_ARGS, Oid dbOid, int shift)
+pg_tde_change_key_provider_internal(PG_FUNCTION_ARGS, Oid dbOid, int shift)
 {
 	char	   *provider_type = text_to_cstring(PG_GETARG_TEXT_PP(0 + shift));
 	char	   *provider_name = text_to_cstring(PG_GETARG_TEXT_PP(1 + shift));
@@ -228,24 +228,20 @@ pg_tde_change_key_provider_c(PG_FUNCTION_ARGS, Oid dbOid, int shift)
 	PG_RETURN_INT32(provider.provider_id);
 }
 
-
-static Datum
-			pg_tde_add_key_provider_internal_c(PG_FUNCTION_ARGS, Oid dbOid, int shift);
-
 Datum
-pg_tde_add_key_provider_internal(PG_FUNCTION_ARGS)
+pg_tde_add_key_provider(PG_FUNCTION_ARGS)
 {
-	return pg_tde_add_key_provider_internal_c(fcinfo, MyDatabaseId, 0);
+	return pg_tde_add_key_provider_internal(fcinfo, MyDatabaseId, 0);
 }
 
 Datum
-pg_tde_add_key_provider_internal_global(PG_FUNCTION_ARGS)
+pg_tde_add_key_provider_global(PG_FUNCTION_ARGS)
 {
-	return pg_tde_add_key_provider_internal_c(fcinfo, GLOBAL_DATA_TDE_OID, 1);
+	return pg_tde_add_key_provider_internal(fcinfo, GLOBAL_DATA_TDE_OID, 1);
 }
 
 Datum
-pg_tde_add_key_provider_internal_c(PG_FUNCTION_ARGS, Oid dbOid, int shift)
+pg_tde_add_key_provider_internal(PG_FUNCTION_ARGS, Oid dbOid, int shift)
 {
 	char	   *provider_type = text_to_cstring(PG_GETARG_TEXT_PP(0 + shift));
 	char	   *provider_name = text_to_cstring(PG_GETARG_TEXT_PP(1 + shift));
