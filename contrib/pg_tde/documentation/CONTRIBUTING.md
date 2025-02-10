@@ -27,7 +27,7 @@ Please make sure to read and agree to our [Code of Conduct](https://github.com/p
 
 ## Submitting a pull request
 
-All bug reports, enhancements and feature requests are tracked in [GitHub issues](https://github.com/percona/pg_tde/issues). Though not mandatory, we encourage you to first check for a bug report among the issues and in the PR list: perhaps the bug has already been addressed. 
+All bug reports, enhancements and feature requests are tracked in [Jira](https://perconadev.atlassian.net/jira/software/c/projects/PG/issues). Though not mandatory, we encourage you to first check for a bug report among the issues and in the PR list: perhaps the bug has already been addressed. 
 
 For feature requests and enhancements, we do ask you to create a GitHub issue, describe your idea and discuss the design with us. This way we align your ideas with our vision for the product development.
 
@@ -35,7 +35,7 @@ If the bug hasn’t been reported / addressed, or we’ve agreed on the enhancem
 
 1. [Fork](https://docs.github.com/en/github/getting-started-with-github/fork-a-repo) this repository
 2. Clone this repository on your machine. 
-3. Create a separate branch for your changes. If you work on a GitHub issue, please [create a branch from it](https://docs.github.com/en/issues/tracking-your-work-with-issues/linking-a-pull-request-to-an-issue#manually-linking-a-pull-request-or-branch-to-an-issue-using-the-issue-sidebar). This makes it easier to track your contribution.
+3. Create a separate branch for your changes. If you work on a Jira issue, please follow this pattern for a branch name: `<PG-123>-name`. This makes it easier to track your contribution.
 4. Make your changes. Please follow the following guidelines to improve code readability:
 
     - [PostgreSQL coding conventions](https://www.postgresql.org/docs/current/source.html)
@@ -107,25 +107,26 @@ The steps are the following:
 2. Clone the repository on your machine:
 
 ```sh
-git clone git@github.com:<your-name>/pg_tde.git
+git clone git@github.com:<your-name>/postgres.git
+```
 
-3. Change the directory to ``pg_tde`` and add the remote upstream repository:
+3. Change the directory to `contrib/pg_tde` and add the remote upstream repository:
 
 ```sh
-git remote add upstream git@github.com:percona/pg_tde.git
+git remote add upstream git@github.com:percona/postgres.git
 ```
 
 4. Pull the latest changes from upstream
 
 ```sh
 git fetch upstream
-git merge upstream/main
+git merge upstream/TDE_REL_17_STABLE
 ```
 
 5. Create a separate branch for your changes
 
 ```sh
-git checkout -b <my_branch>
+git checkout -b <PG-123-my_branch>
 ```
 
 6. Make changes
@@ -145,7 +146,7 @@ To verify how your changes look, generate the static site with the documentation
 2. We use [our Docker image](https://hub.docker.com/repository/docker/perconalab/pmm-doc-md) to build documentation. Run the following command:
 
 ```sh
-cd documentation
+cd contrib/pg_tde/documentation
 docker run --rm -v $(pwd):/docs perconalab/pmm-doc-md mkdocs build
 ```
    If Docker can't find the image locally, it first downloads the image, and then runs it to build the documentation.
@@ -155,7 +156,7 @@ docker run --rm -v $(pwd):/docs perconalab/pmm-doc-md mkdocs build
 If you want to see the changes as you edit the docs, use this command instead:
 
 ```sh
-cd documentation
+cd contrib/pg_tde/documentation
 docker run --rm -v $(pwd):/docs -p 8000:8000 perconalab/pmm-doc-md mkdocs serve --dev-addr=0.0.0.0:8000
 ```
 
@@ -174,7 +175,7 @@ Wait until you see `INFO    -  Start detecting changes`, then enter `0.0.0.0:800
 3. Build the site:
 
     ```sh
-    cd documentation
+    cd contrib/pg_tde/documentation
     mkdocs build
     ```
 
@@ -183,7 +184,7 @@ Wait until you see `INFO    -  Start detecting changes`, then enter `0.0.0.0:800
 Or, to run the built-in web server:
 
 ```sh
-cd documentation
+cd contrib/pg_tde/documentation
 mkdocs serve
 ```
 
@@ -205,7 +206,7 @@ To build a PDF version of the documentation, do the following:
     ENABLE_PDF_EXPORT=1 mkdocs build -f mkdocs-pdf.yml
     ``` 
 
-    The PDF document is in the ``site/pdf`` folder.
+    The PDF document is in the ``contrib/pg_tde/documentation/site/pdf`` folder.
 
 [MkDocs]: https://www.mkdocs.org/
 [Markdown]: https://daringfireball.net/projects/markdown/
