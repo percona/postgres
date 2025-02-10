@@ -156,6 +156,7 @@ extra:
 
 nav:
   - Home: index.md
+  - get-help.md
   - features.md
   - Get started:
     - "Install": "install.md"
