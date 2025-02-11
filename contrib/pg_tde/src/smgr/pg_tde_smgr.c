@@ -32,17 +32,16 @@ tde_smgr_get_key(SMgrRelation reln, RelFileLocator *old_locator, bool can_create
 	TdeCreateEvent *event;
 	InternalKey *key;
 
-	if (IsCatalogRelationOid(reln->smgr_rlocator.locator.relNumber))
-	{
-		/* do not try to encrypt/decrypt catalog tables */
-		return NULL;
-	}
-
 	/* see if we have a key for the relation, and return if yes */
 	key = GetSMGRRelationKey(reln->smgr_rlocator);
 	if (key != NULL)
 	{
 		return key;
+	}
+
+	if (IsCatalogRelationOid(reln->smgr_rlocator.locator.relNumber) && can_create)
+	{
+		return pg_tde_create_smgr_key(&reln->smgr_rlocator);
 	}
 
 	event = GetCurrentTdeCreateEvent();
