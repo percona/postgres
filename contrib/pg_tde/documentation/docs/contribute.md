@@ -31,7 +31,7 @@ All bug reports, enhancements and feature requests are tracked in [Jira](https:/
 
 For feature requests and enhancements, we do ask you to create a GitHub issue, describe your idea and discuss the design with us. This way we align your ideas with our vision for the product development.
 
-If the bug hasn't been reported / addressed, or weve agreed on the enhancement implementation with you, do the following:
+If the bug hasn't been reported / addressed, or we've agreed on the enhancement implementation with you, do the following:
 
 1. [Fork](https://docs.github.com/en/github/getting-started-with-github/fork-a-repo) this repository
 2. Clone this repository on your machine. 
@@ -42,7 +42,7 @@ If the bug hasn't been reported / addressed, or weve agreed on the enhancement i
     - [C style and Coding rules](https://github.com/MaJerle/c-code-style) 
 
 6. Write the documentation for your changes. See the [Write the docs] cheat sheet for details.
-7. [Build `pg_tde`](https://github.com/percona/postgres/wiki/Make-builds-for-developers) and [test your changes locally](#run-local-tests). 
+7. [Build the code](https://github.com/percona/postgres/wiki/Howtos) and [test your changes locally](#run-local-tests). 
 8. Commit the changes. The [commit message guidelines](https://gist.github.com/robertpainsi/b632364184e70900af4ab688decf6f53) will help you with writing great commit messages
 9. Open a pull request to Percona.
 10. Our team will review your code and documentation. If everything is correct, will merge it. 
@@ -55,8 +55,8 @@ When you work, you should periodically run tests to check that your changes donâ
 To run the tests, use the following command:
 
 ```
-cd pg_tde
-make USE_PGXS=1 installcheck
+source ci_scripts/setup-keyring-servers.sh
+ci_scripts/make-test.sh
 ```
 
 You can run tests on your local machine with whatever operating system you have. After you submit the pull request, we will check your patch on multiple operating systems.
@@ -107,7 +107,7 @@ The steps are the following:
 2. Clone the repository on your machine:
 
 ```sh
-git clone git@github.com:<your-name>/postgres.git
+git clone --recursive git@github.com:<your-name>/postgres.git
 
 3. Change the directory to `contrib/pg_tde` and add the remote upstream repository:
 
@@ -119,13 +119,12 @@ git remote add upstream git@github.com:percona/postgres.git
 
 ```sh
 git fetch upstream
-git merge upstream/{{tdebranch}}
 ```
 
 5. Create a separate branch for your changes
 
 ```sh
-git checkout -b <my_branch>
+git checkout -b <PG-123-my_branch> upstream/{{tdebranch}}
 ```
 
 6. Make changes

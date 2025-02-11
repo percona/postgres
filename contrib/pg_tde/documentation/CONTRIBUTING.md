@@ -27,9 +27,9 @@ Please make sure to read and agree to our [Code of Conduct](https://github.com/p
 
 ## Submitting a pull request
 
-All bug reports, enhancements and feature requests are tracked in [Jira](https://perconadev.atlassian.net/jira/software/c/projects/PG/issues). Though not mandatory, we encourage you to first check for a bug report among the issues and in the PR list: perhaps the bug has already been addressed. 
+All bug reports, enhancements and feature requests are tracked in [Jira](https://perconadev.atlassian.net/jira/software/c/projects/PG/issues). Though not mandatory, we encourage you to first check for a bug report among the issues and in the PR list: perhaps the bug has already been addressed.
 
-For feature requests and enhancements, we do ask you to create a GitHub issue, describe your idea and discuss the design with us. This way we align your ideas with our vision for the product development.
+For feature requests and enhancements, we do ask you to create a Jira issue, describe your idea and discuss the design with us. This way we align your ideas with our vision for the product development.
 
 If the bug hasn’t been reported / addressed, or we’ve agreed on the enhancement implementation with you, do the following:
 
@@ -42,7 +42,7 @@ If the bug hasn’t been reported / addressed, or we’ve agreed on the enhancem
     - [C style and Coding rules](https://github.com/MaJerle/c-code-style) 
 
 6. Write the documentation for your changes. See the [Write the docs] cheat sheet for details.
-7. [Build `pg_tde`](https://github.com/percona/pg_tde/wiki/Make-builds-for-developers) and [test your changes locally](#run-local-tests). 
+7. [Build the code](https://github.com/percona/postgres/wiki/Howtos) and [test your changes locally](#run-local-tests). 
 8. Commit the changes. The [commit message guidelines](https://gist.github.com/robertpainsi/b632364184e70900af4ab688decf6f53) will help you with writing great commit messages
 9. Open a pull request to Percona.
 10. Our team will review your code and documentation. If everything is correct, will merge it. 
@@ -55,8 +55,8 @@ When you work, you should periodically run tests to check that your changes don�
 To run the tests, use the following command:
 
 ```
-cd pg_tde
-make USE_PGXS=1 installcheck
+source ci_scripts/setup-keyring-servers.sh
+ci_scripts/make-test.sh
 ```
 
 You can run tests on your local machine with whatever operating system you have. After you submit the pull request, we will check your patch on multiple operating systems.
@@ -68,7 +68,7 @@ You can run tests on your local machine with whatever operating system you have.
 
 Before you start, learn what [Markdown] is and how to write it. For your convenience, there's also a [Markdown cheat sheet] to help you with the syntax. 
 
-The doc files are in the `documentation/docs` directory.
+The doc files are in the `contrib/pg_tde/documentation/docs` directory.
 
 ### Write the docs
 
@@ -107,7 +107,7 @@ The steps are the following:
 2. Clone the repository on your machine:
 
 ```sh
-git clone git@github.com:<your-name>/postgres.git
+git clone --recursive git@github.com:<your-name>/postgres.git
 ```
 
 3. Change the directory to `contrib/pg_tde` and add the remote upstream repository:
@@ -120,13 +120,12 @@ git remote add upstream git@github.com:percona/postgres.git
 
 ```sh
 git fetch upstream
-git merge upstream/TDE_REL_17_STABLE
 ```
 
 5. Create a separate branch for your changes
 
 ```sh
-git checkout -b <PG-123-my_branch>
+git checkout -b <PG-123-my_branch> upstream/TDE_REL_17_STABLE
 ```
 
 6. Make changes
@@ -188,7 +187,7 @@ cd contrib/pg_tde/documentation
 mkdocs serve
 ```
 
-View the site at <http://0.0.0.0:8000>
+View the site at <http://127.0.0.1:8000>
 
 #### Build PDF file
 
