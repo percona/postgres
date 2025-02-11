@@ -42,12 +42,6 @@ tde_smgr_get_key(SMgrRelation reln, RelFileLocator *old_locator, bool can_create
 	InternalKey *key;
 	TDEPrincipalKey *pk;
 
-	if (IsCatalogRelationOid(reln->smgr_rlocator.locator.relNumber))
-	{
-		/* do not try to encrypt/decrypt catalog tables */
-		return NULL;
-	}
-
 	LWLockAcquire(tde_lwlock_enc_keys(), LW_SHARED);
 	pk = GetPrincipalKey(reln->smgr_rlocator.locator.dbOid, LW_SHARED);
 	LWLockRelease(tde_lwlock_enc_keys());
@@ -56,8 +50,6 @@ tde_smgr_get_key(SMgrRelation reln, RelFileLocator *old_locator, bool can_create
 		return NULL;
 	}
 
-	event = GetCurrentTdeCreateEvent();
-
 	/* see if we have a key for the relation, and return if yes */
 	key = GetSMGRRelationKey(reln->smgr_rlocator);
 
@@ -65,6 +57,15 @@ tde_smgr_get_key(SMgrRelation reln, RelFileLocator *old_locator, bool can_create
 	{
 		return key;
 	}
+
+	if (IsCatalogRelationOid(reln->smgr_rlocator.locator.relNumber) && can_create)
+	{
+		return pg_tde_create_smgr_key(&reln->smgr_rlocator);
+	}
+
+	event = GetCurrentTdeCreateEvent();
+
+	Assert(event != NULL);
 
 	/*
 	 * Can be many things, such as: CREATE TABLE ALTER TABLE SET ACCESS METHOD
