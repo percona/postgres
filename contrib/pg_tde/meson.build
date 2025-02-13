@@ -109,6 +109,7 @@ sql_tests = [
       'update_basic',
       'key_provider',
       'wal_key',
+      'relocate',
 ]
 
 tap_tests = [
@@ -149,6 +150,10 @@ if get_variable('percona_ext', false)
       't/008_tde_heap.pl',
   ]
 endif
+
+sql_tests += [
+    'default_principal_key',
+]
 
 tests += {
   'name': 'pg_tde',
