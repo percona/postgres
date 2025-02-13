@@ -31,17 +31,17 @@ All bug reports, enhancements and feature requests are tracked in [Jira](https:/
 
 For feature requests and enhancements, we do ask you to create a Jira issue, describe your idea and discuss the design with us. This way we align your ideas with our vision for the product development.
 
-If the bug hasn’t been reported / addressed, or we’ve agreed on the enhancement implementation with you, do the following:
+If the bug hasn't been reported / addressed, or we've agreed on the enhancement implementation with you, do the following:
 
 1. [Fork](https://docs.github.com/en/github/getting-started-with-github/fork-a-repo) this repository
 2. Clone this repository on your machine. 
 3. Create a separate branch for your changes. If you work on a Jira issue, please follow this pattern for a branch name: `<PG-123>-name`. This makes it easier to track your contribution.
-4. Make your changes. Please follow the following guidelines to improve code readability:
+4. Make your changes. Please follow the following guidelines to improve code readability according to the order listed:
 
     - [PostgreSQL coding conventions](https://www.postgresql.org/docs/current/source.html)
     - [C style and Coding rules](https://github.com/MaJerle/c-code-style) 
 
-6. Write the documentation for your changes. See the [Write the docs] cheat sheet for details.
+6. Write the documentation for your changes. See the [Write the docs](#write-the-docs) cheat sheet for details.
 7. [Build the code](https://github.com/percona/postgres/wiki/Howtos) and [test your changes locally](#run-local-tests). 
 8. Commit the changes. The [commit message guidelines](https://gist.github.com/robertpainsi/b632364184e70900af4ab688decf6f53) will help you with writing great commit messages
 9. Open a pull request to Percona.
