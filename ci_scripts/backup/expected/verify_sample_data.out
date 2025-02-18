@@ -1,0 +1,279 @@
+-- Set datestyle for consistency
+SET datestyle TO 'iso, dmy';
+SET
+-- =====================================================
+-- 1. Verify Tables Exist
+-- =====================================================
+SELECT table_name
+FROM information_schema.tables
+WHERE table_schema = 'public'
+AND table_name IN ('dept', 'emp', 'jobhist');
+ table_name 
+------------
+ dept
+ emp
+ jobhist
+(3 rows)
+
+-- =====================================================
+-- 2. Verify Views Exist
+-- =====================================================
+SELECT table_name
+FROM information_schema.views
+WHERE table_schema = 'public'
+AND table_name = 'salesemp';
+ table_name 
+------------
+ salesemp
+(1 row)
+
+-- =====================================================
+-- 3. Verify Columns of Tables
+-- =====================================================
+-- Dept Table
+SELECT column_name, data_type
+FROM information_schema.columns
+WHERE table_name = 'dept'
+ORDER BY ordinal_position;
+ column_name |     data_type     
+-------------+-------------------
+ deptno      | numeric
+ dname       | character varying
+ loc         | character varying
+(3 rows)
+
+-- Emp Table
+SELECT column_name, data_type
+FROM information_schema.columns
+WHERE table_name = 'emp'
+ORDER BY ordinal_position;
+ column_name |     data_type     
+-------------+-------------------
+ empno       | numeric
+ ename       | character varying
+ job         | character varying
+ mgr         | numeric
+ hiredate    | date
+ sal         | numeric
+ comm        | numeric
+ deptno      | numeric
+(8 rows)
+
+-- Jobhist Table
+SELECT column_name, data_type
+FROM information_schema.columns
+WHERE table_name = 'jobhist'
+ORDER BY ordinal_position;
+ column_name |          data_type          
+-------------+-----------------------------
+ empno       | numeric
+ startdate   | timestamp without time zone
+ enddate     | timestamp without time zone
+ job         | character varying
+ sal         | numeric
+ comm        | numeric
+ deptno      | numeric
+ chgdesc     | character varying
+(8 rows)
+
+-- =====================================================
+-- 4. Verify Sequences Exist
+-- =====================================================
+SELECT relname
+FROM pg_class
+WHERE relkind = 'S'
+AND relname = 'next_empno';
+  relname   
+------------
+ next_empno
+(1 row)
+
+-- =====================================================
+-- 5. Verify Functions Exist
+-- =====================================================
+SELECT proname, prorettype::regtype
+FROM pg_proc
+JOIN pg_namespace ON pg_proc.pronamespace = pg_namespace.oid
+WHERE nspname = 'public'
+AND proname IN ('list_emp', 'select_emp', 'emp_query', 'emp_query_caller', 
+                'emp_comp', 'new_empno', 'hire_clerk', 'hire_salesman');
+     proname      | prorettype 
+------------------+------------
+ list_emp         | void
+ select_emp       | void
+ emp_query        | record
+ emp_query_caller | void
+ emp_comp         | numeric
+ new_empno        | integer
+ hire_clerk       | numeric
+ hire_salesman    | numeric
+(8 rows)
+
+-- =====================================================
+-- 6. Verify Data in Tables
+-- =====================================================
+-- Count rows in each table
+SELECT 'dept' AS table_name, COUNT(*) FROM dept
+UNION ALL
+SELECT 'emp', COUNT(*) FROM emp
+UNION ALL
+SELECT 'jobhist', COUNT(*) FROM jobhist;
+ table_name | count 
+------------+-------
+ dept       |     4
+ emp        |    14
+ jobhist    |    17
+(3 rows)
+
+-- Check if `emp` employees belong to valid `dept`
+SELECT emp.empno, emp.ename, emp.deptno, dept.deptno
+FROM emp
+LEFT JOIN dept ON emp.deptno = dept.deptno
+WHERE dept.deptno IS NULL;
+ empno | ename | deptno | deptno 
+-------+-------+--------+--------
+(0 rows)
+
+-- Check if `jobhist` records have valid `empno`
+SELECT jobhist.empno, jobhist.job, jobhist.sal
+FROM jobhist
+LEFT JOIN emp ON jobhist.empno = emp.empno
+WHERE emp.empno IS NULL;
+ empno | job | sal 
+-------+-----+-----
+(0 rows)
+
+-- =====================================================
+-- 7. Verify Expected Data in Tables
+-- =====================================================
+-- Sample Data from `dept`
+SELECT * FROM dept LIMIT 5;
+ deptno |   dname    |   loc    
+--------+------------+----------
+     10 | ACCOUNTING | NEW YORK
+     20 | RESEARCH   | DALLAS
+     30 | SALES      | CHICAGO
+     40 | OPERATIONS | BOSTON
+(4 rows)
+
+-- Sample Data from `emp`
+SELECT * FROM emp ORDER BY empno LIMIT 5;
+ empno | ename  |   job    | mgr  |  hiredate  |   sal   |  comm   | deptno 
+-------+--------+----------+------+------------+---------+---------+--------
+  7369 | SMITH  | CLERK    | 7902 | 1980-12-17 |  800.00 |         |     20
+  7499 | ALLEN  | SALESMAN | 7698 | 1981-02-20 | 1600.00 |  300.00 |     30
+  7521 | WARD   | SALESMAN | 7698 | 1981-02-22 | 1250.00 |  500.00 |     30
+  7566 | JONES  | MANAGER  | 7839 | 1981-04-02 | 2975.00 |         |     20
+  7654 | MARTIN | SALESMAN | 7698 | 1981-09-28 | 1250.00 | 1400.00 |     30
+(5 rows)
+
+-- Sample Data from `jobhist`
+SELECT * FROM jobhist ORDER BY empno LIMIT 5;
+ empno |      startdate      | enddate |   job    |   sal   |  comm   | deptno | chgdesc  
+-------+---------------------+---------+----------+---------+---------+--------+----------
+  7369 | 1980-12-17 00:00:00 |         | CLERK    |  800.00 |         |     20 | New Hire
+  7499 | 1981-02-20 00:00:00 |         | SALESMAN | 1600.00 |  300.00 |     30 | New Hire
+  7521 | 1981-02-22 00:00:00 |         | SALESMAN | 1250.00 |  500.00 |     30 | New Hire
+  7566 | 1981-04-02 00:00:00 |         | MANAGER  | 2975.00 |         |     20 | New Hire
+  7654 | 1981-09-28 00:00:00 |         | SALESMAN | 1250.00 | 1400.00 |     30 | New Hire
+(5 rows)
+
+SELECT * FROM salesemp;
+ empno | ename  |  hiredate  |   sal   |  comm   
+-------+--------+------------+---------+---------
+  7499 | ALLEN  | 1981-02-20 | 1600.00 |  300.00
+  7521 | WARD   | 1981-02-22 | 1250.00 |  500.00
+  7654 | MARTIN | 1981-09-28 | 1250.00 | 1400.00
+  7844 | TURNER | 1981-09-08 | 1500.00 |    0.00
+(4 rows)
+
+-- Validate if department names follow expected values
+SELECT deptno, dname FROM dept
+WHERE dname NOT IN ('HR', 'Finance', 'Sales', 'IT', 'Admin');
+ deptno |   dname    
+--------+------------
+     10 | ACCOUNTING
+     20 | RESEARCH
+     30 | SALES
+     40 | OPERATIONS
+(4 rows)
+
+-- Validate if `emp` salaries are within expected range
+SELECT empno, ename, job, sal
+FROM emp
+WHERE sal < 3000 OR sal > 20000;
+ empno | ename  |   job    |   sal   
+-------+--------+----------+---------
+  7369 | SMITH  | CLERK    |  800.00
+  7499 | ALLEN  | SALESMAN | 1600.00
+  7521 | WARD   | SALESMAN | 1250.00
+  7566 | JONES  | MANAGER  | 2975.00
+  7654 | MARTIN | SALESMAN | 1250.00
+  7698 | BLAKE  | MANAGER  | 2850.00
+  7782 | CLARK  | MANAGER  | 2450.00
+  7844 | TURNER | SALESMAN | 1500.00
+  7876 | ADAMS  | CLERK    | 1100.00
+  7900 | JAMES  | CLERK    |  950.00
+  7934 | MILLER | CLERK    | 1300.00
+(11 rows)
+
+-- Check if any employees were hired before 2000 (if expected)
+SELECT empno, ename, hiredate FROM emp
+WHERE hiredate < '2000-01-01';
+ empno | ename  |  hiredate  
+-------+--------+------------
+  7369 | SMITH  | 1980-12-17
+  7499 | ALLEN  | 1981-02-20
+  7521 | WARD   | 1981-02-22
+  7566 | JONES  | 1981-04-02
+  7654 | MARTIN | 1981-09-28
+  7698 | BLAKE  | 1981-05-01
+  7782 | CLARK  | 1981-06-09
+  7788 | SCOTT  | 1987-04-19
+  7839 | KING   | 1981-11-17
+  7844 | TURNER | 1981-09-08
+  7876 | ADAMS  | 1987-05-23
+  7900 | JAMES  | 1981-12-03
+  7902 | FORD   | 1981-12-03
+  7934 | MILLER | 1982-01-23
+(14 rows)
+
+-- Verify sequence correctness (Check latest employee number)
+-- SELECT last_value FROM next_empno;
+-- Verify if function `new_empno()` returns next expected value
+-- SELECT new_empno();
+-- =====================================================
+-- 8. Verify Referential Integrity
+-- =====================================================
+-- Ensure all employees in `jobhist` exist in `emp`
+SELECT jobhist.empno FROM jobhist
+LEFT JOIN emp ON jobhist.empno = emp.empno
+WHERE emp.empno IS NULL;
+ empno 
+-------
+(0 rows)
+
+-- Ensure `emp.deptno` exists in `dept`
+SELECT emp.empno, emp.deptno FROM emp
+LEFT JOIN dept ON emp.deptno = dept.deptno
+WHERE dept.deptno IS NULL;
+ empno | deptno 
+-------+--------
+(0 rows)
+
+-- ===============================================
+-- 9. Verify tables are encrypted
+-- ===============================================
+-- Verify all tables exist and are encrypted
+SELECT tablename, pg_tde_is_encrypted(tablename::TEXT) AS is_encrypted
+FROM pg_tables
+WHERE schemaname = 'public'
+AND tablename IN ('dept', 'emp', 'jobhist')
+ORDER BY tablename;
+ tablename | is_encrypted 
+-----------+--------------
+ dept      | t
+ emp       | t
+ jobhist   | t
+(3 rows)
+
