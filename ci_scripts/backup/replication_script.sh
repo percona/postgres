@@ -19,6 +19,8 @@ DB_NAME=tde_db
 EXPECTED_DIR=$SCRIPT_DIR/backup/expected
 ACTUAL_DIR=$SCRIPT_DIR/actual
 LOGFILE=$INSTALL_DIR/replication.log
+TABLE_NAME="emp"
+SEARCHED_TEXT="SMITH"
 
 # Create directories for expected, actual, and archive files
 mkdir -p $EXPECTED_DIR $ACTUAL_DIR $ARCHIVE_DIR
@@ -64,7 +66,34 @@ verify_output() {
     else
         log_message "$sql_file output mismatch. ❌"
         diff "$expected_file" "$actual_file" > $diff_file
-	    log_message "See diff file. $diff_file "
+	log_message "See diff file. $diff_file "
+    fi
+}
+
+# Verify Data Encryption at Rest
+verify_encrypted_data_at_rest() {
+    local table_name="${1:-$TABLE_NAME}"
+    local search_text="${2:-$SEARCHED_TEXT}"
+    local pg_port="${3:-$MASTER_PORT}"
+    local db_name="${4:-$DB_NAME}"
+    # Get Data File Path
+    pg_relation_filepath=$(psql -p $pg_port -d "$db_name" -t -c "SELECT pg_relation_filepath('$table_name');" | xargs)
+    data_dir_path=$( psql -p $pg_port -d "$db_name" -t -c "SHOW data_directory" | xargs)
+    file_name="$data_dir_path/$pg_relation_filepath"
+
+    log_message "Verifying data encryption at rest for table: $table_name in database: $db_name on port: $pg_port"
+    log_message "Data file path: $file_name"
+
+    # Extract first 10 lines of raw data
+    raw_data=$(sudo hexdump -C "$file_name" | head -n 10 || true)
+    log_message "$raw_data"
+
+    readable_text=$(sudo strings "$file_name" | grep "$search_text" || true)
+    # Check if there is readable text in the data file
+    if [[ -n "$readable_text" ]]; then
+        log_message "Readable text detected! Data appears UNENCRYPTED.❌ "
+    else
+        log_message "Test Passed: Data appears to be encrypted! ✅ "
     fi
 }
 
@@ -163,6 +192,12 @@ data_verification() {
     verify_output verify_incremental_data.sql "${ACTUAL_DIR}/standby2"
 }
 
+verify_data_ondisk(){
+    verify_encrypted_data_at_rest $TABLE_NAME $SEARCHED_TEXT $MASTER_PORT $DB_NAME
+    verify_encrypted_data_at_rest $TABLE_NAME $SEARCHED_TEXT $STANDBY1_PORT $DB_NAME
+    verify_encrypted_data_at_rest $TABLE_NAME $SEARCHED_TEXT $STANDBY2_PORT $DB_NAME
+}
+
 promote_standby() {
     local standby_data=$1
     local standby_log=$standby_data/standby.log
@@ -180,6 +215,7 @@ main() {
     configure_standby $STANDBY1_DATA $STANDBY1_PORT
     configure_standby $STANDBY2_DATA $STANDBY2_PORT
     data_verification
+    verify_data_ondisk
     #promote_standby
     #pg_rewind
     echo "=== replication Test Automation Completed! === 🚀"
