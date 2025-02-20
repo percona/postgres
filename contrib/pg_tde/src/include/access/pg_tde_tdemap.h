@@ -37,6 +37,12 @@ typedef struct InternalKey
 
 #define INTERNAL_KEY_DAT_LEN	offsetof(InternalKey, ctx)
 
+#define WALKeySetInvalid(key) \
+	((key).rel_type &= ~(TDE_KEY_TYPE_WAL_ENCRYPTED | TDE_KEY_TYPE_WAL_UNENCRYPTED))
+#define WALKeyIsValid(key) \
+	(((key).rel_type & TDE_KEY_TYPE_WAL_UNENCRYPTED) != 0 || \
+	((key).rel_type & TDE_KEY_TYPE_WAL_ENCRYPTED) != 0)
+
 typedef struct XLogRelKey
 {
 	RelFileLocator rlocator;
@@ -44,9 +50,9 @@ typedef struct XLogRelKey
 	TDEPrincipalKeyInfo pkInfo;
 } XLogRelKey;
 
-extern RelKeyData *pg_tde_create_smgr_key(const RelFileLocator *newrlocator);
-extern RelKeyData *pg_tde_create_global_key(const RelFileLocator *newrlocator, XLogRecPtr start_lsn, uint32 flags);
-extern RelKeyData *pg_tde_create_heap_basic_key(const RelFileLocator *newrlocator);
+extern InternalKey *pg_tde_create_smgr_key(const RelFileLocator *newrlocator);
+extern InternalKey *pg_tde_create_global_key(const RelFileLocator *newrlocator, XLogRecPtr start_lsn, uint32 flags);
+extern InternalKey *pg_tde_create_heap_basic_key(const RelFileLocator *newrlocator);
 extern void pg_tde_write_key_map_entry(const RelFileLocator *rlocator, RelKeyData *enc_rel_key_data, TDEPrincipalKeyInfo *principal_key_info);
 extern void pg_tde_delete_key_map_entry(const RelFileLocator *rlocator, uint32 key_type);
 extern void pg_tde_free_key_map_entry(const RelFileLocator *rlocator, uint32 key_type, off_t offset);

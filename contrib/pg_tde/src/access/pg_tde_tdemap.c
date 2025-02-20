@@ -949,8 +949,9 @@ pg_tde_wal_last_key_set_lsn(XLogRecPtr lsn, const char *keyfile_path)
 	LWLock	   *lock_pk = tde_lwlock_enc_keys();
 	int			fd = -1;
 	off_t		write_pos,
-				file_idx;
-
+				last_key_idx,
+				prev_key_pos;
+	InternalKey	prev_key;
 
 	fd = BasicOpenFile(keyfile_path, O_RDWR | PG_BINARY);
 	if (fd < 0)
@@ -961,8 +962,8 @@ pg_tde_wal_last_key_set_lsn(XLogRecPtr lsn, const char *keyfile_path)
 					keyfile_path)));
 	}
 
-	file_idx = ((lseek(fd, 0, SEEK_END) - TDE_FILE_HEADER_SIZE) / INTERNAL_KEY_DAT_LEN) - 1;
-	write_pos = TDE_FILE_HEADER_SIZE + (file_idx * INTERNAL_KEY_DAT_LEN) + offsetof(InternalKey, start_lsn);
+	last_key_idx = ((lseek(fd, 0, SEEK_END) - TDE_FILE_HEADER_SIZE) / INTERNAL_KEY_DAT_LEN) - 1;
+	write_pos = TDE_FILE_HEADER_SIZE + (last_key_idx * INTERNAL_KEY_DAT_LEN) + offsetof(InternalKey, start_lsn);
 
 	LWLockAcquire(lock_pk, LW_EXCLUSIVE);
 	/* TODO: pgstat_report_wait_start / pgstat_report_wait_end */
@@ -973,6 +974,36 @@ pg_tde_wal_last_key_set_lsn(XLogRecPtr lsn, const char *keyfile_path)
 		ereport(ERROR,
 				(errcode_for_file_access(),
 				 errmsg("could not write tde key data file: %m")));
+	}
+
+	/* If the last key overlaps with the previous, then invalidate the previous
+	 * one. This may (and will) happen on replicas because it re-reads primary's
+	 * data from the beginning of the segment on restart.
+	 */
+	if (last_key_idx > 0)
+	{
+		prev_key_pos = TDE_FILE_HEADER_SIZE + ((last_key_idx - 1) * INTERNAL_KEY_DAT_LEN);
+		
+		if (pg_pread(fd, &prev_key, INTERNAL_KEY_DAT_LEN, prev_key_pos) != INTERNAL_KEY_DAT_LEN)
+		{
+			LWLockRelease(lock_pk);
+			ereport(WARNING,
+					(errcode_for_file_access(),
+					 errmsg("could not read previous WAL key: %m")));
+		}
+
+		if (prev_key.start_lsn >= lsn)
+		{
+			WALKeySetInvalid(prev_key);
+
+			if (pg_pwrite(fd, &prev_key, INTERNAL_KEY_DAT_LEN, prev_key_pos) != INTERNAL_KEY_DAT_LEN)
+			{
+				LWLockRelease(lock_pk);
+				ereport(ERROR,
+						(errcode_for_file_access(),
+						errmsg("could not write invalidated key: %m")));
+			}
+		}
 	}
 
 	if (pg_fsync(fd) != 0)
@@ -1588,8 +1619,9 @@ pg_tde_fetch_wal_keys(XLogRecPtr start_lsn)
 
 	keys_count = (lseek(fd, 0, SEEK_END) - TDE_FILE_HEADER_SIZE) / INTERNAL_KEY_DAT_LEN;
 	
-	/* If there is no keys, return a stub one (with the range 0-infinity) so
-	 * the reader won't try to check the disk all the time.
+	/* If there is no keys, return a fake one (with the range 0-infinity) so
+	 * the reader won't try to check the disk all the time. This for the 
+	 * walsender in case if WAL is unencrypted and never was. 
 	 */
 	if (keys_count == 0)
 	{
@@ -1608,7 +1640,12 @@ pg_tde_fetch_wal_keys(XLogRecPtr start_lsn)
 	for (int file_idx = 0; file_idx < keys_count; file_idx++)
 	{
 		enc_rel_key_data = pg_tde_read_one_keydata(fd, file_idx, principal_key);
-		if (enc_rel_key_data->internal_key.start_lsn >= start_lsn)
+		/* 
+		 * Skip new (just created but not updated by write) and invalid keys
+		 */
+		if (enc_rel_key_data->internal_key.start_lsn != InvalidXLogRecPtr &&
+				WALKeyIsValid(enc_rel_key_data->internal_key) &&
+				enc_rel_key_data->internal_key.start_lsn >= start_lsn)
 		{
 			rel_key_data = tde_decrypt_rel_key(principal_key, enc_rel_key_data, rlocator.dbOid);
 			cached_key = pg_tde_put_key_into_cache(rlocator.relNumber, rel_key_data);

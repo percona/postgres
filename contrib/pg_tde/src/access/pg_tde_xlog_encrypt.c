@@ -254,6 +254,7 @@ TDEXLogSmgrInit(void)
 			EncryptionKey = (RelKeyData *) MemoryContextAlloc(TopMemoryContext, sizeof(RelKeyData));
 		memcpy(EncryptionKey, key, sizeof(RelKeyData));
 		pfree(key);
+		pg_atomic_write_u64(&EncryptionState->enc_key_lsn, EncryptionKey->internal_key.start_lsn);
 	}
 
 	pg_tde_set_db_file_paths(GLOBAL_SPACE_RLOCATOR(XLOG_TDE_OID).dbOid, NULL, EncryptionState->db_keydata_path);
@@ -270,12 +271,12 @@ tdeheap_xlog_seg_write(int fd, const void *buf, size_t count, off_t offset,
 #ifndef FRONTEND
 
 	/* 
-	 * Set the last (most recent) key's start LSN is not set.
+	 * Set the last (most recent) key's start LSN if not set.
 	 *  
 	 * This func called with WALWriteLock held, so no need in any extra sync.
 	 */
 	if (EncryptionKey && EncryptionKey->internal_key.rel_type & TDE_KEY_TYPE_GLOBAL &&
-		EncryptionKey->internal_key.start_lsn == 0)
+		pg_atomic_read_u64(&EncryptionState->enc_key_lsn) == 0)
 	{
 		XLogRecPtr lsn;
 
@@ -357,7 +358,10 @@ tdeheap_xlog_seg_read(int fd, void *buf, size_t count, off_t offset,
 	while (curr_key)
 	{
 #ifdef TDE_XLOG_DEBUG
-		elog(DEBUG1, "WAL key %X/%X-%X/%X", LSN_FORMAT_ARGS(curr_key->start_lsn), LSN_FORMAT_ARGS(curr_key->end_lsn));
+		elog(DEBUG1, "WAL key %X/%X-%X/%X, encrypted: %s", 
+				LSN_FORMAT_ARGS(curr_key->start_lsn),
+				LSN_FORMAT_ARGS(curr_key->end_lsn),
+				curr_key->key->internal_key.rel_type & TDE_KEY_TYPE_WAL_ENCRYPTED ? "yes" : "no");
 #endif
 
 		if (curr_key->key->internal_key.start_lsn != InvalidXLogRecPtr &&
@@ -372,7 +376,8 @@ tdeheap_xlog_seg_read(int fd, void *buf, size_t count, off_t offset,
 				dec_off = XLogSegmentOffset(Max(data_start, curr_key->start_lsn), wal_segsz_bytes);
 				dec_sz = XLogSegmentOffset(Min(data_end, curr_key->end_lsn), wal_segsz_bytes) - dec_off;
 #ifdef TDE_XLOG_DEBUG
-				elog(DEBUG1, "decrypt WAL, dec_off: %lu [buff_off %lu], sz: %lu", dec_off, offset - dec_off, dec_sz);
+				elog(DEBUG1, "decrypt WAL, dec_off: %lu [buff_off %lu], sz: %lu | key %X/%X", 
+						dec_off, offset - dec_off, dec_sz, LSN_FORMAT_ARGS(curr_key->key->internal_key.start_lsn));
 #endif
 				PG_TDE_DECRYPT_DATA(iv_prefix, dec_off,
 							(char *) buf + (offset - dec_off),
