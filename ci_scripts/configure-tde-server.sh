@@ -16,7 +16,7 @@ export PGPORT="${2:-5432}"
 
 if [ -d "$PGDATA" ]; then
     if pg_ctl -D "$PGDATA" status -o "-p $PGPORT" >/dev/null; then
-        pg_ctl -D "$PGDATA" stop -o "-p $PGPORT"
+        pg_ctl -D "$PGDATA" stop -o "-p $PGPORT" >/dev/null;
     fi
 
     rm -rf "$PGDATA"
@@ -24,8 +24,8 @@ fi
 
 initdb -D "$PGDATA" --set shared_preload_libraries=pg_tde
 
-pg_ctl -D "$PGDATA" start -o "-p $PGPORT"
+pg_ctl -D "$PGDATA" start -o "-p $PGPORT" -l "$PGDATA/logfile"
 
 psql postgres -f "$SCRIPT_DIR/tde_setup_global.sql" -v ON_ERROR_STOP=on
 
-pg_ctl -D "$PGDATA" restart -o "-p $PGPORT"
+pg_ctl -D "$PGDATA" restart -o "-p $PGPORT" -l "$PGDATA/logfile"
