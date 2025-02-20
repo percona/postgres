@@ -17,10 +17,8 @@
 #include "access/pg_tde_tdemap.h"
 #include "keyring/keyring_api.h"
 
-extern void
-			pg_tde_crypt(const char *iv_prefix, uint32 start_offset, const char *data, uint32 data_len, char *out, RelKeyData *key, const char *context);
-extern void
-			pg_tde_crypt_tuple(HeapTuple tuple, HeapTuple out_tuple, RelKeyData *key, const char *context);
+extern void pg_tde_crypt(const char *iv_prefix, uint32 start_offset, const char *data, uint32 data_len, char *out, InternalKey *key, const char *context);
+extern void pg_tde_crypt_tuple(HeapTuple tuple, HeapTuple out_tuple, InternalKey *key, const char *context);
 
 /* A wrapper to encrypt a tuple before adding it to the buffer */
 extern OffsetNumber
@@ -52,7 +50,7 @@ extern OffsetNumber
 		pg_tde_crypt(_iv_prefix, _start_offset, _data, _data_len, _out, _key, "ENCRYPT-PAGE-ITEM"); \
 	} while(0)
 
-extern void AesEncryptKey(const TDEPrincipalKey *principal_key, Oid dbOid, RelKeyData *rel_key_data, RelKeyData **p_enc_rel_key_data, size_t *enc_key_bytes);
-extern void AesDecryptKey(const TDEPrincipalKey *principal_key, Oid dbOid, RelKeyData **p_rel_key_data, RelKeyData *enc_rel_key_data, size_t *key_bytes);
+extern void AesEncryptKey(const TDEPrincipalKey *principal_key, Oid dbOid, InternalKey *rel_key_data, InternalKey **p_enc_rel_key_data, size_t *enc_key_bytes);
+extern void AesDecryptKey(const TDEPrincipalKey *principal_key, Oid dbOid, InternalKey **p_rel_key_data, InternalKey *enc_rel_key_data, size_t *key_bytes);
 
 #endif							/* ENC_TDE_H */

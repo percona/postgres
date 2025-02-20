@@ -10,6 +10,10 @@
 #include "storage/bufmgr.h"
 #include "keyring/keyring_api.h"
 
+#define AES_BLOCK_SIZE 		        16
+#define NUM_AES_BLOCKS_IN_BATCH     200
+#define DATA_BYTES_PER_AES_BATCH    (NUM_AES_BLOCKS_IN_BATCH * AES_BLOCK_SIZE)
+
 #ifdef ENCRYPTION_DEBUG
 static void
 iv_prefix_debug(const char *iv_prefix, char *out_hex)
@@ -55,7 +59,7 @@ SetIVPrefix(ItemPointerData *ip, char *iv_prefix)
  * This function assumes that everything is in a single block, and has an assertion ensuring this
  */
 static void
-pg_tde_crypt_simple(const char *iv_prefix, uint32 start_offset, const char *data, uint32 data_len, char *out, RelKeyData *key, const char *context)
+pg_tde_crypt_simple(const char *iv_prefix, uint32 start_offset, const char *data, uint32 data_len, char *out, InternalKey *key, const char *context)
 {
 	const uint64 aes_start_block = start_offset / AES_BLOCK_SIZE;
 	const uint64 aes_end_block = (start_offset + data_len + (AES_BLOCK_SIZE - 1)) / AES_BLOCK_SIZE;
@@ -65,7 +69,7 @@ pg_tde_crypt_simple(const char *iv_prefix, uint32 start_offset, const char *data
 
 	Assert(aes_end_block - aes_start_block <= NUM_AES_BLOCKS_IN_BATCH + 1);
 
-	Aes128EncryptedZeroBlocks(&(key->internal_key.ctx), key->internal_key.key, iv_prefix, aes_start_block, aes_end_block, enc_key);
+	Aes128EncryptedZeroBlocks(&key->ctx, key->key, iv_prefix, aes_start_block, aes_end_block, enc_key);
 
 #ifdef ENCRYPTION_DEBUG
 	{
@@ -92,7 +96,7 @@ pg_tde_crypt_simple(const char *iv_prefix, uint32 start_offset, const char *data
  * This is a generic function intended for large data, that do not fit into a single block
  */
 static void
-pg_tde_crypt_complex(const char *iv_prefix, uint32 start_offset, const char *data, uint32 data_len, char *out, RelKeyData *key, const char *context)
+pg_tde_crypt_complex(const char *iv_prefix, uint32 start_offset, const char *data, uint32 data_len, char *out, InternalKey *key, const char *context)
 {
 	const uint64 aes_start_block = start_offset / AES_BLOCK_SIZE;
 	const uint64 aes_end_block = (start_offset + data_len + (AES_BLOCK_SIZE - 1)) / AES_BLOCK_SIZE;
@@ -108,7 +112,7 @@ pg_tde_crypt_complex(const char *iv_prefix, uint32 start_offset, const char *dat
 	{
 		batch_end_block = Min(batch_start_block + NUM_AES_BLOCKS_IN_BATCH, aes_end_block);
 
-		Aes128EncryptedZeroBlocks(&(key->internal_key.ctx), key->internal_key.key, iv_prefix, batch_start_block, batch_end_block, enc_key);
+		Aes128EncryptedZeroBlocks(&key->ctx, key->key, iv_prefix, batch_start_block, batch_end_block, enc_key);
 #ifdef ENCRYPTION_DEBUG
 		{
 			char		ivp_debug[33];
@@ -161,7 +165,7 @@ pg_tde_crypt_complex(const char *iv_prefix, uint32 start_offset, const char *dat
  * This function simply selects between the two above variations based on the data length
  */
 void
-pg_tde_crypt(const char *iv_prefix, uint32 start_offset, const char *data, uint32 data_len, char *out, RelKeyData *key, const char *context)
+pg_tde_crypt(const char *iv_prefix, uint32 start_offset, const char *data, uint32 data_len, char *out, InternalKey *key, const char *context)
 {
 	if (data_len >= DATA_BYTES_PER_AES_BATCH)
 	{
@@ -182,7 +186,7 @@ pg_tde_crypt(const char *iv_prefix, uint32 start_offset, const char *data, uint3
  * context: Optional context message to be used in debug log
  * */
 void
-pg_tde_crypt_tuple(HeapTuple tuple, HeapTuple out_tuple, RelKeyData *key, const char *context)
+pg_tde_crypt_tuple(HeapTuple tuple, HeapTuple out_tuple, InternalKey *key, const char *context)
 {
 	char		iv_prefix[16] = {0};
 	uint32		data_len = tuple->t_len - tuple->t_data->t_hoff;
@@ -224,7 +228,7 @@ PGTdePageAddItemExtended(RelFileLocator rel,
 
 	/* ctid stored in item is incorrect (not set) at this point */
 	ItemPointerData ip;
-	RelKeyData *key = GetHeapBaiscRelationKey(rel);
+	InternalKey *key = GetHeapBaiscRelationKey(rel);
 
 	ItemPointerSet(&ip, bn, off);
 
@@ -242,7 +246,7 @@ PGTdePageAddItemExtended(RelFileLocator rel,
  * short lifespan until it is written to disk.
  */
 void
-AesEncryptKey(const TDEPrincipalKey *principal_key, Oid dbOid, RelKeyData *rel_key_data, RelKeyData **p_enc_rel_key_data, size_t *enc_key_bytes)
+AesEncryptKey(const TDEPrincipalKey *principal_key, Oid dbOid, InternalKey *rel_key_data, InternalKey **p_enc_rel_key_data, size_t *enc_key_bytes)
 {
 	unsigned char iv[16] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
@@ -251,10 +255,10 @@ AesEncryptKey(const TDEPrincipalKey *principal_key, Oid dbOid, RelKeyData *rel_k
 
 	memcpy(iv, &dbOid, sizeof(Oid));
 
-	*p_enc_rel_key_data = (RelKeyData *) palloc(sizeof(RelKeyData));
-	memcpy(*p_enc_rel_key_data, rel_key_data, sizeof(RelKeyData));
+	*p_enc_rel_key_data = (InternalKey *) palloc(sizeof(InternalKey));
+	memcpy(*p_enc_rel_key_data, rel_key_data, sizeof(InternalKey));
 
-	AesEncrypt(principal_key->keyData, iv, ((unsigned char *) &rel_key_data->internal_key), INTERNAL_KEY_LEN, ((unsigned char *) &(*p_enc_rel_key_data)->internal_key), (int *) enc_key_bytes);
+	AesEncrypt(principal_key->keyData, iv, (unsigned char *) rel_key_data, INTERNAL_KEY_LEN, (unsigned char *) *p_enc_rel_key_data, (int *) enc_key_bytes);
 }
 
 #endif							/* FRONTEND */
@@ -267,7 +271,7 @@ AesEncryptKey(const TDEPrincipalKey *principal_key, Oid dbOid, RelKeyData *rel_k
  * to our key cache.
  */
 void
-AesDecryptKey(const TDEPrincipalKey *principal_key, Oid dbOid, RelKeyData **p_rel_key_data, RelKeyData *enc_rel_key_data, size_t *key_bytes)
+AesDecryptKey(const TDEPrincipalKey *principal_key, Oid dbOid, InternalKey **p_rel_key_data, InternalKey *enc_rel_key_data, size_t *key_bytes)
 {
 	unsigned char iv[16] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
@@ -284,15 +288,15 @@ AesDecryptKey(const TDEPrincipalKey *principal_key, Oid dbOid, RelKeyData **p_re
 	oldcontext = MemoryContextSwitchTo(TopMemoryContext);
 #endif
 
-	*p_rel_key_data = (RelKeyData *) palloc(sizeof(RelKeyData));
+	*p_rel_key_data = (InternalKey *) palloc(sizeof(InternalKey));
 
 #ifndef FRONTEND
 	MemoryContextSwitchTo(oldcontext);
 #endif
 
 	/* Fill in the structure */
-	memcpy(*p_rel_key_data, enc_rel_key_data, sizeof(RelKeyData));
-	(*p_rel_key_data)->internal_key.ctx = NULL;
+	memcpy(*p_rel_key_data, enc_rel_key_data, sizeof(InternalKey));
+	(*p_rel_key_data)->ctx = NULL;
 
-	AesDecrypt(principal_key->keyData, iv, ((unsigned char *) &enc_rel_key_data->internal_key), INTERNAL_KEY_LEN, ((unsigned char *) &(*p_rel_key_data)->internal_key), (int *) key_bytes);
+	AesDecrypt(principal_key->keyData, iv, (unsigned char *) enc_rel_key_data, INTERNAL_KEY_LEN, (unsigned char *) *p_rel_key_data, (int *) key_bytes);
 }

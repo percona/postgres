@@ -19,9 +19,7 @@
 #include "storage/lwlock.h"
 #endif
 
-#define DEFAULT_PRINCIPAL_KEY_VERSION 1
 #define PRINCIPAL_KEY_NAME_LEN TDE_KEY_NAME_LEN
-#define MAX_PRINCIPAL_KEY_VERSION_NUM 100000
 
 typedef struct TDEPrincipalKeyId
 {
@@ -61,8 +59,10 @@ extern void cleanup_principal_key_info(Oid databaseId);
 #ifndef FRONTEND
 extern LWLock *tde_lwlock_enc_keys(void);
 extern TDEPrincipalKey *GetPrincipalKey(Oid dbOid, LWLockMode lockMode);
+extern TDEPrincipalKey *GetPrincipalKeyNoDefault(Oid dbOid, LWLockMode lockMode);
 #else
 extern TDEPrincipalKey *GetPrincipalKey(Oid dbOid, void *lockMode);
+extern TDEPrincipalKey *GetPrincipalKeyNoDefault(Oid dbOid, void *lockMode);
 #endif
 
 extern bool create_principal_key_info(TDEPrincipalKeyInfo *principalKeyInfo);

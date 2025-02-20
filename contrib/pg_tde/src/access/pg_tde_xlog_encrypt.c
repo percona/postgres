@@ -33,6 +33,11 @@
 
 #include "pg_tde_guc.h"
 
+static const XLogSmgr tde_xlog_smgr = {
+	.seg_read = tdeheap_xlog_seg_read,
+	.seg_write = tdeheap_xlog_seg_write,
+};
+
 static XLogPageHeaderData DecryptCurrentPageHrd;
 
 static void SetXLogPageIVPrefix(TimeLineID tli, XLogRecPtr lsn, char *iv_prefix);
@@ -53,7 +58,7 @@ PG_FUNCTION_INFO_V1(pg_tde_create_wal_key);
 Datum
 pg_tde_create_wal_key(PG_FUNCTION_ARGS)
 {
-	RelKeyData *key = GetRelationKey(GLOBAL_SPACE_RLOCATOR(XLOG_TDE_OID), TDE_KEY_TYPE_GLOBAL, true);
+	InternalKey *key = GetRelationKey(GLOBAL_SPACE_RLOCATOR(XLOG_TDE_OID), TDE_KEY_TYPE_GLOBAL, true);
 
 	if (key != NULL)
 	{
@@ -72,12 +77,12 @@ TDEXlogCheckSane(void)
 {
 	if (EncryptXLog)
 	{
-		RelKeyData *key = GetRelationKey(GLOBAL_SPACE_RLOCATOR(XLOG_TDE_OID), TDE_KEY_TYPE_GLOBAL, true);
+		InternalKey *key = GetRelationKey(GLOBAL_SPACE_RLOCATOR(XLOG_TDE_OID), TDE_KEY_TYPE_GLOBAL, true);
 
 		if (key == NULL)
 		{
 			ereport(ERROR,
-					(errmsg("WAL encryption can only be enabled with a properly configured key. Disable pg_tde.wal_encrypt and create one using pg_tde_crete_wal_key() before enabling it.")));
+					(errmsg("WAL encryption can only be enabled with a properly configured key. Disable pg_tde.wal_encrypt and create one using pg_tde_create_wal_key() before enabling it.")));
 		}
 	}
 }
@@ -144,7 +149,7 @@ TDEXLogWriteEncryptedPages(int fd, const void *buf, size_t count, off_t offset)
 	size_t		data_size = 0;
 	XLogPageHeader curr_page_hdr = &EncryptCurrentPageHrd;
 	XLogPageHeader enc_buf_page = NULL;
-	RelKeyData *key = GetTdeGlobaleRelationKey(GLOBAL_SPACE_RLOCATOR(XLOG_TDE_OID));
+	InternalKey *key = GetTdeGlobaleRelationKey(GLOBAL_SPACE_RLOCATOR(XLOG_TDE_OID));
 	off_t		enc_off;
 	size_t		page_size = XLOG_BLCKSZ - offset % XLOG_BLCKSZ;
 	uint32		iv_ctr = 0;
@@ -251,7 +256,7 @@ tdeheap_xlog_seg_read(int fd, void *buf, size_t count, off_t offset)
 	char		iv_prefix[16] = {0,};
 	size_t		data_size = 0;
 	XLogPageHeader curr_page_hdr = &DecryptCurrentPageHrd;
-	RelKeyData *key = NULL;
+	InternalKey *key = NULL;
 	size_t		page_size = XLOG_BLCKSZ - offset % XLOG_BLCKSZ;
 	off_t		dec_off;
 	uint32		iv_ctr = 0;
