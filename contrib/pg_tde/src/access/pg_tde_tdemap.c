@@ -1603,13 +1603,12 @@ pg_tde_fetch_wal_keys(XLogRecPtr start_lsn)
 					*return_wal_rec = NULL;
 	bool		new_file;
 
-
 	LWLockAcquire(lock_pk, LW_SHARED);
 	principal_key = GetPrincipalKey(rlocator.dbOid, LW_SHARED);
 	if (principal_key == NULL)
 	{
 		LWLockRelease(lock_pk);
-		elog(DEBUG1, "tde WAL read: no principal key");
+		elog(INFO, "fetch WAL keys: no principal key");
 		return NULL;
 	}
 

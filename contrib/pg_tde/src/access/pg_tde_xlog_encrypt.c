@@ -260,7 +260,6 @@ TDEXLogSmgrInit(void)
 	pg_tde_set_db_file_paths(GLOBAL_SPACE_RLOCATOR(XLOG_TDE_OID).dbOid, NULL, EncryptionState->db_keydata_path);
 
 #endif
-
 	SetXLogSmgr(&tde_xlog_smgr);
 }
 

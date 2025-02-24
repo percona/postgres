@@ -16,6 +16,7 @@
 
 #include "access/pg_tde_tdemap.h"
 #include "catalog/tde_principal_key.h"
+#include "common/pg_tde_utils.h"
 
 /*
  * Needed for global data (WAL etc) keys identification in caches and storage.
@@ -37,6 +38,11 @@
 
 #define TDEisInGlobalSpace(dbOid) 	(dbOid == GLOBAL_DATA_TDE_OID)
 
-extern void TDEInitGlobalKeys(void);
+static inline void
+TDEInitGlobalKeys(const char *dir)
+{
+	if (dir != NULL)
+		pg_tde_set_data_dir(dir);
+}
 
 #endif							/* TDE_GLOBAL_CATALOG_H */
