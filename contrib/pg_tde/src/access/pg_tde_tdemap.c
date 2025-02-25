@@ -271,6 +271,7 @@ pg_tde_create_wal_key(InternalKey *rel_key_data, const RelFileLocator *newrlocat
 		return;
 	}
 
+	/* TODO: no need in generating key if TDE_KEY_TYPE_WAL_UNENCRYPTED */
 	pg_tde_generate_internal_key(rel_key_data, TDE_KEY_TYPE_GLOBAL | entry_type);
 	enc_rel_key_data = tde_encrypt_rel_key(principal_key, rel_key_data, newrlocator->dbOid);
 

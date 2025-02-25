@@ -294,6 +294,10 @@ tdeheap_xlog_seg_read(int fd, void *buf, size_t count, off_t offset,
 	XLogSegNoOffsetToRecPtr(segno, offset, segSize, data_start);
 	XLogSegNoOffsetToRecPtr(segno, offset + count, segSize, data_end);
 	
+	/* 
+	 * TODO: this is higly ineffective. We should get rid of linked list and
+	 * 		 search from the last key as this is what the walsender is useing.
+	 */
 	curr_key = keys;
 	while (curr_key)
 	{
