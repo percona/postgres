@@ -132,20 +132,7 @@ static bool pg_tde_read_one_map_entry(int fd, const RelFileLocator *rlocator, in
 static InternalKey *pg_tde_read_one_keydata(int keydata_fd, int32 key_index, TDEPrincipalKey *principal_key);
 static int	pg_tde_open_file(char *tde_filename, TDEPrincipalKeyInfo *principal_key_info, bool update_header, int fileFlags, bool *is_new_file, off_t *curr_pos);
 static InternalKey *pg_tde_get_key_from_cache(const RelFileLocator *rlocator, uint32 key_type);
-
-#define PG_TDE_MAP_FILENAME			"pg_tde_%d_map"
-#define PG_TDE_KEYDATA_FILENAME		"pg_tde_%d_dat"
-
-static inline void
-pg_tde_set_db_file_paths(Oid dbOid, char *map_path, char *keydata_path)
-{
-	if (map_path)
-		join_path_components(map_path, pg_tde_get_tde_data_dir(), psprintf(PG_TDE_MAP_FILENAME, dbOid));
-	if (keydata_path)
-		join_path_components(keydata_path, pg_tde_get_tde_data_dir(), psprintf(PG_TDE_KEYDATA_FILENAME, dbOid));
-}
-static RelKeyData *pg_tde_get_key_from_cache(RelFileNumber rel_number, uint32 key_type);
-static WALKeyCacheRec *pg_tde_add_wal_key_to_cache(RelKeyData *cached_key, XLogRecPtr start_lsn);
+static WALKeyCacheRec *pg_tde_add_wal_key_to_cache(InternalKey *cached_key, XLogRecPtr start_lsn);
 
 #ifndef FRONTEND
 
@@ -160,8 +147,6 @@ static void pg_tde_write_keydata(char *db_keydata_path, TDEPrincipalKeyInfo *pri
 static void pg_tde_write_one_keydata(int keydata_fd, int32 key_index, InternalKey *enc_rel_key_data);
 static int	keyrotation_init_file(TDEPrincipalKeyInfo *new_principal_key_info, char *rotated_filename, char *filename, bool *is_new_file, off_t *curr_pos);
 static void finalize_key_rotation(char *m_path_old, char *k_path_old, char *m_path_new, char *k_path_new);
-static RelKeyData *pg_tde_create_key_map_entry(const RelFileLocator *newrlocator, uint32 entry_type);
-static RelKeyData *pg_tde_create_wal_internal_key(const RelFileLocator *newrlocator, uint32 entry_type);
 
 InternalKey *
 pg_tde_create_smgr_key(const RelFileLocatorBackend *newrlocator)
@@ -170,12 +155,6 @@ pg_tde_create_smgr_key(const RelFileLocatorBackend *newrlocator)
 		return pg_tde_create_local_key(&newrlocator->locator, TDE_KEY_TYPE_SMGR);
 	else
 		return pg_tde_create_key_map_entry(&newrlocator->locator, TDE_KEY_TYPE_SMGR);
-}
-
-InternalKey *
-pg_tde_create_wal_key(const RelFileLocator *newrlocator, uint32 flags)
-{
-	return pg_tde_create_wal_internal_key(newrlocator, TDE_KEY_TYPE_GLOBAL | flags);
 }
 
 InternalKey *
@@ -246,6 +225,7 @@ static void
 pg_tde_generate_internal_key(InternalKey *int_key, uint32 entry_type)
 {
 	int_key->rel_type = entry_type;
+	int_key->start_lsn = InvalidXLogRecPtr;
 	int_key->ctx = NULL;
 
 	if (!RAND_bytes(int_key->key, INTERNAL_KEY_LEN))
@@ -268,46 +248,30 @@ tde_sprint_key(InternalKey *k)
 }
 
 /* 
- * Generates new internal key for WAL and adds it to the _dat file.
- * We have a special function for WAL it will be called during recovery (start)
- * and it's imposible to emit any XLog records, aquire locks, and read from cache.
- * The key is always created with start_lsn = InvalidXLogRecPtr. Which will be
- * updated with the actual lsn by the first WAL write.
+ * Generates a new internal key for WAL and adds it to the _dat file. It doesn't
+ * adds unecnrypted key into cache but rather sets it in `rel_key_data`. 
+ * 
+ * We have a special function for WAL as it is being called during recovery
+ * (start) so there should be no XLog records, aquired locks, and reads from
+ * cache. The key is always created with start_lsn = InvalidXLogRecPtr. Which 
+ * will be updated with the actual lsn by the first WAL write.
  */
-static RelKeyData *
-pg_tde_create_wal_internal_key(const RelFileLocator *newrlocator, uint32 entry_type)
+void
+pg_tde_create_wal_key(InternalKey *rel_key_data, const RelFileLocator *newrlocator, uint32 entry_type)
 {
-	InternalKey int_key;
-	RelKeyData *rel_key_data;
-	RelKeyData *enc_rel_key_data;
+	InternalKey *enc_rel_key_data;
 	TDEPrincipalKey *principal_key;
 
 	principal_key = get_principal_key_from_keyring(newrlocator->dbOid, false);
 	if (principal_key == NULL)
 	{
 		ereport(ERROR,
-				(errmsg("failed to retrieve principal key. Create one using pg_tde_set_principal_key before using encrypted tables.")));
+				(errmsg("failed to retrieve principal key. Create one using pg_tde_set_principal_key before using encrypted WAL.")));
 
-		return NULL;
+		return;
 	}
 
-	memset(&int_key, 0, sizeof(InternalKey));
-
-	int_key.rel_type = entry_type;
-	int_key.start_lsn = InvalidXLogRecPtr;
-
-	if (!RAND_bytes(int_key.key, INTERNAL_KEY_LEN))
-	{
-		ereport(ERROR,
-				(errcode(ERRCODE_INTERNAL_ERROR),
-				 errmsg("could not generate internal key for relation \"%s\": %s",
-						"TODO", ERR_error_string(ERR_get_error(), NULL))));
-
-		return NULL;
-	}
-
-	/* Encrypt the key */
-	rel_key_data = tde_create_rel_key(newrlocator->relNumber, &int_key, &principal_key->keyInfo);
+	pg_tde_generate_internal_key(rel_key_data, TDE_KEY_TYPE_GLOBAL | entry_type);
 	enc_rel_key_data = tde_encrypt_rel_key(principal_key, rel_key_data, newrlocator->dbOid);
 
 	/*
@@ -315,7 +279,6 @@ pg_tde_create_wal_internal_key(const RelFileLocator *newrlocator, uint32 entry_t
 	 */
 	pg_tde_write_key_map_entry(newrlocator, enc_rel_key_data, &principal_key->keyInfo);
 	pfree(enc_rel_key_data);
-	return rel_key_data;
 }
 
 /*
@@ -992,8 +955,8 @@ pg_tde_move_rel_key(const RelFileLocator *newrlocator, const RelFileLocator *old
 	pfree(enc_key);
 }
 
-/* It's called by seg_write in crit section so no pallocs, hence
- * need keyfile_path
+/* It's called by seg_write inside crit section so no pallocs, hence
+ * needs keyfile_path
  */
 void
 pg_tde_wal_last_key_set_lsn(XLogRecPtr lsn, const char *keyfile_path)
@@ -1046,7 +1009,7 @@ pg_tde_wal_last_key_set_lsn(XLogRecPtr lsn, const char *keyfile_path)
 
 		if (prev_key.start_lsn >= lsn)
 		{
-			WALKeySetInvalid(prev_key);
+			WALKeySetInvalid(&prev_key);
 
 			if (pg_pwrite(fd, &prev_key, INTERNAL_KEY_DAT_LEN, prev_key_pos) != INTERNAL_KEY_DAT_LEN)
 			{
@@ -1586,7 +1549,7 @@ pg_tde_get_wal_cache_keys(void)
 	return tde_wal_key_cache;
 }
 
-RelKeyData *
+InternalKey *
 pg_tde_read_last_wal_key(void)
 {
 	RelFileLocator rlocator = GLOBAL_SPACE_RLOCATOR(XLOG_TDE_OID);
@@ -1597,8 +1560,8 @@ pg_tde_read_last_wal_key(void)
 	int			fd = -1;
 	int 		file_idx = 0;
 	bool		is_new;
-	RelKeyData 	*enc_rel_key_data,
-				*rel_key_data;
+	InternalKey 	*enc_rel_key_data,
+					*rel_key_data;
 	off_t		fsize;
 
 	LWLockAcquire(lock_pk, LW_EXCLUSIVE);
@@ -1606,8 +1569,6 @@ pg_tde_read_last_wal_key(void)
 	if (principal_key == NULL)
 	{
 		LWLockRelease(lock_pk);
-		// ereport(ERROR,
-		// 		(errmsg("failed to retrieve principal key. Create one using pg_tde_set_principal_key before using encrypted WAL.")));
 		elog(DEBUG1, "init WAL encryption: no principal key");
 		return NULL;
 	}
@@ -1647,9 +1608,9 @@ pg_tde_fetch_wal_keys(XLogRecPtr start_lsn)
 	LWLock	   *lock_pk = tde_lwlock_enc_keys();
 	TDEPrincipalKey *principal_key;
 	int			fd = -1;
-	RelKeyData 	*enc_rel_key_data,
-				*rel_key_data,
-				*cached_key;
+	InternalKey 	*enc_rel_key_data,
+					*rel_key_data,
+					*cached_key;
 	int			keys_count;
 	WALKeyCacheRec	*wal_rec,
 					*return_wal_rec = NULL;
@@ -1676,11 +1637,11 @@ pg_tde_fetch_wal_keys(XLogRecPtr start_lsn)
 	 */
 	if (keys_count == 0)
 	{
-		RelKeyData stub_key = {
-			.internal_key.start_lsn = InvalidXLogRecPtr,
+		InternalKey stub_key = {
+			.start_lsn = InvalidXLogRecPtr,
 		};
 
-		cached_key = pg_tde_put_key_into_cache(rlocator.relNumber, &stub_key);
+		cached_key = pg_tde_put_key_into_cache(&rlocator, &stub_key);
 		wal_rec = pg_tde_add_wal_key_to_cache(cached_key, InvalidXLogRecPtr);
 
 		LWLockRelease(lock_pk);
@@ -1694,15 +1655,15 @@ pg_tde_fetch_wal_keys(XLogRecPtr start_lsn)
 		/* 
 		 * Skip new (just created but not updated by write) and invalid keys
 		 */
-		if (enc_rel_key_data->internal_key.start_lsn != InvalidXLogRecPtr &&
-				WALKeyIsValid(enc_rel_key_data->internal_key) &&
-				enc_rel_key_data->internal_key.start_lsn >= start_lsn)
+		if (enc_rel_key_data->start_lsn != InvalidXLogRecPtr &&
+				WALKeyIsValid(enc_rel_key_data) &&
+				enc_rel_key_data->start_lsn >= start_lsn)
 		{
 			rel_key_data = tde_decrypt_rel_key(principal_key, enc_rel_key_data, rlocator.dbOid);
-			cached_key = pg_tde_put_key_into_cache(rlocator.relNumber, rel_key_data);
+			cached_key = pg_tde_put_key_into_cache(&rlocator, rel_key_data);
 			pfree(rel_key_data);
 
-			wal_rec = pg_tde_add_wal_key_to_cache(cached_key, enc_rel_key_data->internal_key.start_lsn);
+			wal_rec = pg_tde_add_wal_key_to_cache(cached_key, enc_rel_key_data->start_lsn);
 			if (!return_wal_rec)
 				return_wal_rec = wal_rec;
 		}
@@ -1715,7 +1676,7 @@ pg_tde_fetch_wal_keys(XLogRecPtr start_lsn)
 }
 
 static WALKeyCacheRec *
-pg_tde_add_wal_key_to_cache(RelKeyData *cached_key, XLogRecPtr start_lsn)
+pg_tde_add_wal_key_to_cache(InternalKey *cached_key, XLogRecPtr start_lsn)
 {
 	WALKeyCacheRec *wal_rec;
 #ifndef FRONTEND

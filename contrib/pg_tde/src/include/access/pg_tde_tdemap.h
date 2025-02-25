@@ -38,10 +38,10 @@ typedef struct InternalKey
 #define INTERNAL_KEY_DAT_LEN	offsetof(InternalKey, ctx)
 
 #define WALKeySetInvalid(key) \
-	((key).rel_type &= ~(TDE_KEY_TYPE_WAL_ENCRYPTED | TDE_KEY_TYPE_WAL_UNENCRYPTED))
+	((key)->rel_type &= ~(TDE_KEY_TYPE_WAL_ENCRYPTED | TDE_KEY_TYPE_WAL_UNENCRYPTED))
 #define WALKeyIsValid(key) \
-	(((key).rel_type & TDE_KEY_TYPE_WAL_UNENCRYPTED) != 0 || \
-	((key).rel_type & TDE_KEY_TYPE_WAL_ENCRYPTED) != 0)
+	(((key)->rel_type & TDE_KEY_TYPE_WAL_UNENCRYPTED) != 0 || \
+	((key)->rel_type & TDE_KEY_TYPE_WAL_ENCRYPTED) != 0)
 
 typedef struct XLogRelKey
 {
@@ -50,12 +50,51 @@ typedef struct XLogRelKey
 	TDEPrincipalKeyInfo pkInfo;
 } XLogRelKey;
 
-extern InternalKey *pg_tde_create_smgr_key(const RelFileLocator *newrlocator);
-extern InternalKey *pg_tde_create_wal_key(const RelFileLocator *newrlocator, uint32 flags);
+/* 
+ * WALKeyCacheRec is built on top of the InternalKeys cache. We still don't
+ * want to key data be swapped out to the disk (implemented in the InternalKeys
+ * cache) but we need extra information and the ability to have and reference
+ * a sequence of keys.
+ * 
+ * TODO: For now it's a simple linked list which is no good. So consider having
+ * 			dedicated WAL keys cache inside some proper data structure.
+ */
+typedef struct WALKeyCacheRec
+ {
+ 	XLogRecPtr start_lsn;
+ 	XLogRecPtr end_lsn;
+
+ 	InternalKey *key;
+
+ 	struct WALKeyCacheRec *next;
+ } WALKeyCacheRec;
+
+
+ extern InternalKey *pg_tde_read_last_wal_key(void);
+
+ extern WALKeyCacheRec *pg_tde_get_last_wal_key(void);
+ extern WALKeyCacheRec *pg_tde_fetch_wal_keys(XLogRecPtr start_lsn);
+ extern WALKeyCacheRec *pg_tde_get_wal_cache_keys(void);
+ extern void pg_tde_wal_last_key_set_lsn(XLogRecPtr lsn, const char *keyfile_path);
+
+extern InternalKey *pg_tde_create_smgr_key(const RelFileLocatorBackend *newrlocator);
 extern InternalKey *pg_tde_create_heap_basic_key(const RelFileLocator *newrlocator);
-extern void pg_tde_write_key_map_entry(const RelFileLocator *rlocator, RelKeyData *enc_rel_key_data, TDEPrincipalKeyInfo *principal_key_info);
+extern void pg_tde_create_wal_key(InternalKey *rel_key_data, const RelFileLocator *newrlocator, uint32 flags);
+extern void pg_tde_write_key_map_entry(const RelFileLocator *rlocator, InternalKey *enc_rel_key_data, TDEPrincipalKeyInfo *principal_key_info);
 extern void pg_tde_delete_key_map_entry(const RelFileLocator *rlocator, uint32 key_type);
 extern void pg_tde_free_key_map_entry(const RelFileLocator *rlocator, uint32 key_type, off_t offset);
+
+#define PG_TDE_MAP_FILENAME			"pg_tde_%d_map"
+#define PG_TDE_KEYDATA_FILENAME		"pg_tde_%d_dat"
+
+static inline void
+pg_tde_set_db_file_paths(Oid dbOid, char *map_path, char *keydata_path)
+{
+	if (map_path)
+		join_path_components(map_path, pg_tde_get_tde_data_dir(), psprintf(PG_TDE_MAP_FILENAME, dbOid));
+	if (keydata_path)
+		join_path_components(keydata_path, pg_tde_get_tde_data_dir(), psprintf(PG_TDE_KEYDATA_FILENAME, dbOid));
+}
 
 extern InternalKey *GetRelationKey(RelFileLocator rel, uint32 entry_type, bool no_map_ok);
 extern InternalKey *GetSMGRRelationKey(RelFileLocatorBackend rel);
