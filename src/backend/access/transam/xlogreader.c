@@ -1575,7 +1575,7 @@ WALRead(XLogReaderState *state,
 		errno = 0;
 		readbytes = xlog_smgr->seg_read(state->seg.ws_file, p, segbytes, 
 											(off_t) startoff, state->seg.ws_tli,
-											state->seg.ws_segno);
+											state->seg.ws_segno, state->segcxt.ws_segsize);
 
 #ifndef FRONTEND
 		pgstat_report_wait_end();

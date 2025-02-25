@@ -298,7 +298,7 @@ tdeheap_xlog_seg_write(int fd, const void *buf, size_t count, off_t offset,
  */
 ssize_t
 tdeheap_xlog_seg_read(int fd, void *buf, size_t count, off_t offset, 
-						TimeLineID tli, XLogSegNo segno)
+						TimeLineID tli, XLogSegNo segno, int segSize)
 {
 	ssize_t readsz;
 	char iv_prefix[16] = {0,};
@@ -309,9 +309,6 @@ tdeheap_xlog_seg_read(int fd, void *buf, size_t count, off_t offset,
 	size_t dec_sz = 0;
 	XLogRecPtr data_start;
 	XLogRecPtr data_end;
-
-	/* !!! TODO: should be passed as the arg? */
-	static const int wal_segsz_bytes = 16 << 20; // 16Mb
 
 #ifdef TDE_XLOG_DEBUG
 	elog(DEBUG1, "read from a WAL segment, size: %lu offset: %ld [%lX], seg: %X/%X", 
@@ -350,8 +347,8 @@ tdeheap_xlog_seg_read(int fd, void *buf, size_t count, off_t offset,
 
 	SetXLogPageIVPrefix(tli, segno, iv_prefix);
 
-	XLogSegNoOffsetToRecPtr(segno, offset, wal_segsz_bytes, data_start);
-	XLogSegNoOffsetToRecPtr(segno, offset + count, wal_segsz_bytes, data_end);
+	XLogSegNoOffsetToRecPtr(segno, offset, segSize, data_start);
+	XLogSegNoOffsetToRecPtr(segno, offset + count, segSize, data_end);
 	
 	curr_key = keys;
 	while (curr_key)
@@ -372,8 +369,8 @@ tdeheap_xlog_seg_read(int fd, void *buf, size_t count, off_t offset,
 			 */
 			if (data_start <= curr_key->end_lsn && curr_key->start_lsn <= data_end)
 			{
-				dec_off = XLogSegmentOffset(Max(data_start, curr_key->start_lsn), wal_segsz_bytes);
-				dec_sz = XLogSegmentOffset(Min(data_end, curr_key->end_lsn), wal_segsz_bytes) - dec_off;
+				dec_off = XLogSegmentOffset(Max(data_start, curr_key->start_lsn), segSize);
+				dec_sz = XLogSegmentOffset(Min(data_end, curr_key->end_lsn), segSize) - dec_off;
 #ifdef TDE_XLOG_DEBUG
 				elog(DEBUG1, "decrypt WAL, dec_off: %lu [buff_off %lu], sz: %lu | key %X/%X", 
 						dec_off, offset - dec_off, dec_sz, LSN_FORMAT_ARGS(curr_key->key->internal_key.start_lsn));

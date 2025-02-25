@@ -265,7 +265,7 @@ search_directory(const char *directory, const char *fname)
 		fsize = lseek(fd, 0, SEEK_END);
 		XLogFromFileName(fname, &tli, &segno, fsize);
 
-	 	r = xlog_smgr->seg_read(fd, buf.data, XLOG_BLCKSZ, 0, tli, segno);
+	 	r = xlog_smgr->seg_read(fd, buf.data, XLOG_BLCKSZ, 0, tli, segno, fsize);
  #else
  		r = read(fd, buf.data, XLOG_BLCKSZ);
  #endif
