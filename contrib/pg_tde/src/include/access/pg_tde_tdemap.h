@@ -51,7 +51,7 @@ typedef struct XLogRelKey
 } XLogRelKey;
 
 extern InternalKey *pg_tde_create_smgr_key(const RelFileLocator *newrlocator);
-extern InternalKey *pg_tde_create_global_key(const RelFileLocator *newrlocator, XLogRecPtr start_lsn, uint32 flags);
+extern InternalKey *pg_tde_create_wal_key(const RelFileLocator *newrlocator, uint32 flags);
 extern InternalKey *pg_tde_create_heap_basic_key(const RelFileLocator *newrlocator);
 extern void pg_tde_write_key_map_entry(const RelFileLocator *rlocator, RelKeyData *enc_rel_key_data, TDEPrincipalKeyInfo *principal_key_info);
 extern void pg_tde_delete_key_map_entry(const RelFileLocator *rlocator, uint32 key_type);

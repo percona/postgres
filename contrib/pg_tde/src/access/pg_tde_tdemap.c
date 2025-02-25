@@ -160,7 +160,8 @@ static void pg_tde_write_keydata(char *db_keydata_path, TDEPrincipalKeyInfo *pri
 static void pg_tde_write_one_keydata(int keydata_fd, int32 key_index, InternalKey *enc_rel_key_data);
 static int	keyrotation_init_file(TDEPrincipalKeyInfo *new_principal_key_info, char *rotated_filename, char *filename, bool *is_new_file, off_t *curr_pos);
 static void finalize_key_rotation(char *m_path_old, char *k_path_old, char *m_path_new, char *k_path_new);
-static RelKeyData *pg_tde_create_key_map_entry(const RelFileLocator *newrlocator, uint32 entry_type, XLogRecPtr start_lsn);
+static RelKeyData *pg_tde_create_key_map_entry(const RelFileLocator *newrlocator, uint32 entry_type);
+static RelKeyData *pg_tde_create_wal_internal_key(const RelFileLocator *newrlocator, uint32 entry_type);
 
 InternalKey *
 pg_tde_create_smgr_key(const RelFileLocatorBackend *newrlocator)
@@ -172,15 +173,15 @@ pg_tde_create_smgr_key(const RelFileLocatorBackend *newrlocator)
 }
 
 InternalKey *
-pg_tde_create_global_key(const RelFileLocator *newrlocator, XLogRecPtr start_lsn, uint32 flags)
+pg_tde_create_wal_key(const RelFileLocator *newrlocator, uint32 flags)
 {
-	return pg_tde_create_key_map_entry(newrlocator, TDE_KEY_TYPE_GLOBAL | flags, start_lsn);
+	return pg_tde_create_wal_internal_key(newrlocator, TDE_KEY_TYPE_GLOBAL | flags);
 }
 
 InternalKey *
 pg_tde_create_heap_basic_key(const RelFileLocator *newrlocator)
 {
-	return pg_tde_create_key_map_entry(newrlocator, TDE_KEY_TYPE_HEAP_BASIC, 0);
+	return pg_tde_create_key_map_entry(newrlocator, TDE_KEY_TYPE_HEAP_BASIC);
 }
 
 /*
@@ -264,6 +265,57 @@ tde_sprint_key(InternalKey *k)
 		sprintf(buf + i, "%02X", k->key[i]);
 
 	return buf;
+}
+
+/* 
+ * Generates new internal key for WAL and adds it to the _dat file.
+ * We have a special function for WAL it will be called during recovery (start)
+ * and it's imposible to emit any XLog records, aquire locks, and read from cache.
+ * The key is always created with start_lsn = InvalidXLogRecPtr. Which will be
+ * updated with the actual lsn by the first WAL write.
+ */
+static RelKeyData *
+pg_tde_create_wal_internal_key(const RelFileLocator *newrlocator, uint32 entry_type)
+{
+	InternalKey int_key;
+	RelKeyData *rel_key_data;
+	RelKeyData *enc_rel_key_data;
+	TDEPrincipalKey *principal_key;
+
+	principal_key = get_principal_key_from_keyring(newrlocator->dbOid, false);
+	if (principal_key == NULL)
+	{
+		ereport(ERROR,
+				(errmsg("failed to retrieve principal key. Create one using pg_tde_set_principal_key before using encrypted tables.")));
+
+		return NULL;
+	}
+
+	memset(&int_key, 0, sizeof(InternalKey));
+
+	int_key.rel_type = entry_type;
+	int_key.start_lsn = InvalidXLogRecPtr;
+
+	if (!RAND_bytes(int_key.key, INTERNAL_KEY_LEN))
+	{
+		ereport(ERROR,
+				(errcode(ERRCODE_INTERNAL_ERROR),
+				 errmsg("could not generate internal key for relation \"%s\": %s",
+						"TODO", ERR_error_string(ERR_get_error(), NULL))));
+
+		return NULL;
+	}
+
+	/* Encrypt the key */
+	rel_key_data = tde_create_rel_key(newrlocator->relNumber, &int_key, &principal_key->keyInfo);
+	enc_rel_key_data = tde_encrypt_rel_key(principal_key, rel_key_data, newrlocator->dbOid);
+
+	/*
+	 * Add the encrypted key to the key map data file structure.
+	 */
+	pg_tde_write_key_map_entry(newrlocator, enc_rel_key_data, &principal_key->keyInfo);
+	pfree(enc_rel_key_data);
+	return rel_key_data;
 }
 
 /*
@@ -1608,7 +1660,7 @@ pg_tde_fetch_wal_keys(XLogRecPtr start_lsn)
 	if (principal_key == NULL)
 	{
 		LWLockRelease(lock_pk);
-		elog(INFO, "fetch WAL keys: no principal key");
+		elog(DEBUG1, "fetch WAL keys: no principal key");
 		return NULL;
 	}
 

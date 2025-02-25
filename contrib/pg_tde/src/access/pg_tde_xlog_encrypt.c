@@ -52,8 +52,6 @@ static void SetXLogPageIVPrefix(TimeLineID tli, XLogRecPtr lsn, char *iv_prefix)
 static ssize_t TDEXLogWriteEncryptedPages(int fd, const void *buf, size_t count,
 											off_t offset, TimeLineID tli,
 											XLogSegNo segno);
-static RelKeyData *pg_tde_create_key_map_entry(const RelFileLocator *newrlocator, 
-												uint32 entry_type, XLogRecPtr start_lsn);
 
 typedef struct EncryptionStateData {
 	char	*segBuf;
@@ -82,7 +80,7 @@ TDEXlogCheckSane(void)
 		if (key == NULL)
 		{
 			ereport(ERROR,
-					(errmsg("WAL encryption can only be enabled with a properly configured principal key. Disable pg_tde.wal_encrypt and create one using pg_tde_set_server_principal_key() before enabling it.")));
+					(errmsg("WAL encryption can only be enabled with a properly configured principal key. Disable pg_tde.wal_encrypt and create one using pg_tde_set_server_principal_key() or pg_tde_set_global_principal_key() before enabling it.")));
 		}
 	}
 }
@@ -180,50 +178,6 @@ TDEXLogWriteEncryptedPages(int fd, const void *buf, size_t count, off_t offset,
 	return pg_pwrite(fd, enc_buff, count, offset);
 }
 
-
-static RelKeyData *
-pg_tde_create_key_map_entry(const RelFileLocator *newrlocator, uint32 entry_type, XLogRecPtr start_lsn)
-{
-	InternalKey int_key;
-	RelKeyData *rel_key_data;
-	RelKeyData *enc_rel_key_data;
-	TDEPrincipalKey *principal_key;
-
-	principal_key = get_principal_key_from_keyring(newrlocator->dbOid, false);
-	if (principal_key == NULL)
-	{
-		ereport(ERROR,
-				(errmsg("failed to retrieve principal key. Create one using pg_tde_set_principal_key before using encrypted tables.")));
-
-		return NULL;
-	}
-
-	memset(&int_key, 0, sizeof(InternalKey));
-
-	int_key.rel_type = entry_type;
-	int_key.start_lsn = start_lsn;
-
-	if (!RAND_bytes(int_key.key, INTERNAL_KEY_LEN))
-	{
-		ereport(ERROR,
-				(errcode(ERRCODE_INTERNAL_ERROR),
-				 errmsg("could not generate internal key for relation \"%s\": %s",
-						"TODO", ERR_error_string(ERR_get_error(), NULL))));
-
-		return NULL;
-	}
-
-	/* Encrypt the key */
-	rel_key_data = tde_create_rel_key(newrlocator->relNumber, &int_key, &principal_key->keyInfo);
-	enc_rel_key_data = tde_encrypt_rel_key(principal_key, rel_key_data, newrlocator->dbOid);
-
-	/*
-	 * Add the encrypted key to the key map data file structure.
-	 */
-	pg_tde_write_key_map_entry(newrlocator, enc_rel_key_data, &principal_key->keyInfo);
-	pfree(enc_rel_key_data);
-	return rel_key_data;
-}
 #endif							/* !FRONTEND */
 
 void
@@ -240,10 +194,9 @@ TDEXLogSmgrInit(void)
 	{
 		RelKeyData *new_key;
 
-		new_key = pg_tde_create_key_map_entry(
+		new_key = pg_tde_create_wal_key(
 								&GLOBAL_SPACE_RLOCATOR(XLOG_TDE_OID), 
-								TDE_KEY_TYPE_GLOBAL | (EncryptXLog ? TDE_KEY_TYPE_WAL_ENCRYPTED : TDE_KEY_TYPE_WAL_UNENCRYPTED),
-								InvalidXLogRecPtr);
+								(EncryptXLog ? TDE_KEY_TYPE_WAL_ENCRYPTED : TDE_KEY_TYPE_WAL_UNENCRYPTED));
 
 		if (!EncryptionKey) 
 			EncryptionKey = (RelKeyData *) MemoryContextAlloc(TopMemoryContext, sizeof(RelKeyData));
