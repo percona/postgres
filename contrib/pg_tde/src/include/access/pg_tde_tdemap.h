@@ -60,22 +60,22 @@ typedef struct XLogRelKey
  * 			dedicated WAL keys cache inside some proper data structure.
  */
 typedef struct WALKeyCacheRec
- {
- 	XLogRecPtr start_lsn;
- 	XLogRecPtr end_lsn;
+{
+	XLogRecPtr start_lsn;
+	XLogRecPtr end_lsn;
 
- 	InternalKey *key;
+	InternalKey *key;
 
- 	struct WALKeyCacheRec *next;
- } WALKeyCacheRec;
+	struct WALKeyCacheRec *next;
+} WALKeyCacheRec;
 
 
- extern InternalKey *pg_tde_read_last_wal_key(void);
+extern InternalKey *pg_tde_read_last_wal_key(void);
 
- extern WALKeyCacheRec *pg_tde_get_last_wal_key(void);
- extern WALKeyCacheRec *pg_tde_fetch_wal_keys(XLogRecPtr start_lsn);
- extern WALKeyCacheRec *pg_tde_get_wal_cache_keys(void);
- extern void pg_tde_wal_last_key_set_lsn(XLogRecPtr lsn, const char *keyfile_path);
+extern WALKeyCacheRec *pg_tde_get_last_wal_key(void);
+extern WALKeyCacheRec *pg_tde_fetch_wal_keys(XLogRecPtr start_lsn);
+extern WALKeyCacheRec *pg_tde_get_wal_cache_keys(void);
+extern void pg_tde_wal_last_key_set_lsn(XLogRecPtr lsn, const char *keyfile_path);
 
 extern InternalKey *pg_tde_create_smgr_key(const RelFileLocatorBackend *newrlocator);
 extern InternalKey *pg_tde_create_heap_basic_key(const RelFileLocator *newrlocator);

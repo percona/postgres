@@ -14,8 +14,6 @@
 #include "postgres.h"
 #include "catalog/pg_tablespace_d.h"
 
-#include "access/pg_tde_tdemap.h"
-#include "catalog/tde_principal_key.h"
 #include "common/pg_tde_utils.h"
 
 /*
@@ -31,7 +29,6 @@
 	GLOBAL_DATA_TDE_OID, \
 	_obj_oid \
 }
-
 
 /*  Needed for using the same default key for multiple databases */
 #define DEFAULT_DATA_TDE_OID	DEFAULTTABLESPACE_OID

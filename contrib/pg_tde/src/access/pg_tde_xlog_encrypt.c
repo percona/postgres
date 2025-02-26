@@ -24,20 +24,16 @@
 #include "utils/guc.h"
 #include "utils/memutils.h"
 
+#include "access/pg_tde_tdemap.h"
 #include "access/pg_tde_xlog_encrypt.h"
 #include "catalog/tde_global_space.h"
 #include "encryption/enc_tde.h"
-
-#include <openssl/rand.h>
-#include <openssl/err.h>
 
 #ifdef FRONTEND
 #include "pg_tde_fe.h"
 #else
 #include "port/atomics.h"
 #endif
-
-#include "pg_tde_guc.h"
 
 static const XLogSmgr tde_xlog_smgr = {
 	.seg_read = tdeheap_xlog_seg_read,
