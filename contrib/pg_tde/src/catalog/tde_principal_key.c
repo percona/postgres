@@ -327,7 +327,7 @@ set_principal_key_with_keyring(const char *key_name, const char *provider_name,
 		}
 	}
 
-	if (keyInfo !=NULL && ensure_new_key)
+	if (keyInfo != NULL && ensure_new_key)
 	{
 		LWLockRelease(lock_files);
 
