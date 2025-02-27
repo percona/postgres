@@ -71,10 +71,10 @@ static void WALOpenSegmentInit(WALOpenSegment *seg, WALSegmentContext *segcxt,
  * Now it's here because pg_rewind and other tools compile only
  * w/ xlogreader.c
  */
-const		XLogSmgr *xlog_smgr = &xlog_smgr_standard;
+const XLogSmgr *xlog_smgr = &xlog_smgr_standard;
 
 void
-SetXLogSmgr(const XLogSmgr * xlsmgr)
+SetXLogSmgr(const XLogSmgr *xlsmgr)
 {
 	xlog_smgr = xlsmgr;
 }

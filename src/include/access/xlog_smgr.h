@@ -13,7 +13,7 @@ typedef struct XLogSmgr
 
 	ssize_t		(*seg_write) (int fd, const void *buf, size_t count, off_t offset,
 							  TimeLineID tli, XLogSegNo segno);
-}			XLogSmgr;
+} XLogSmgr;
 
 static inline ssize_t
 default_seg_write(int fd, const void *buf, size_t count, off_t offset,
@@ -36,6 +36,6 @@ static const XLogSmgr xlog_smgr_standard = {
 };
 
 extern const XLogSmgr *xlog_smgr;
-extern void SetXLogSmgr(const XLogSmgr * xlsmgr);
+extern void SetXLogSmgr(const XLogSmgr *xlsmgr);
 
 #endif							/* XLOG_SMGR_H */

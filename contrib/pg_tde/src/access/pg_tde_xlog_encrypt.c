@@ -52,16 +52,16 @@ typedef struct EncryptionStateData
 	char	   *segBuf;
 	char		db_keydata_path[MAXPGPATH];
 	pg_atomic_uint64 enc_key_lsn;	/* to sync with readers */
-}			EncryptionStateData;
+} EncryptionStateData;
 
-static EncryptionStateData * EncryptionState = NULL;
+static EncryptionStateData *EncryptionState = NULL;
 
 /* TODO: can be swapped out to the disk */
 static InternalKey EncryptionKey =
 {
 	.rel_type = MAP_ENTRY_EMPTY,
-		.start_lsn = InvalidXLogRecPtr,
-		.ctx = NULL,
+	.start_lsn = InvalidXLogRecPtr,
+	.ctx = NULL,
 };
 
 static int	XLOGChooseNumBuffers(void);
