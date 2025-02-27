@@ -16,7 +16,7 @@ export PGPORT="${2:-5432}"
 
 if [ -d "$PGDATA" ]; then
     if pg_ctl -D "$PGDATA" status -o "-p $PGPORT" >/dev/null; then
-        pg_ctl -D "$PGDATA" stop -o "-p $PGPORT" >/dev/null;
+        pg_ctl -D "$PGDATA" stop -o "-p $PGPORT"
     fi
 
     rm -rf "$PGDATA"
