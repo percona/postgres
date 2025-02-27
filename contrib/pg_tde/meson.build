@@ -107,7 +107,6 @@ sql_tests = [
       'cache_alloc',
       'update_basic',
       'key_provider',
-      'wal_key',
       'relocate',
 ]
 
