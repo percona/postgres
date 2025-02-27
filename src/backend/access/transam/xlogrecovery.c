@@ -3399,7 +3399,7 @@ retry:
 
 	pgstat_report_wait_start(WAIT_EVENT_WAL_READ);
 	r = xlog_smgr->seg_read(readFile, readBuf, XLOG_BLCKSZ, (off_t) readOff,
-								curFileTLI, readSegNo, wal_segment_size);
+							curFileTLI, readSegNo, wal_segment_size);
 	if (r != XLOG_BLCKSZ)
 	{
 		char		fname[MAXFNAMELEN];

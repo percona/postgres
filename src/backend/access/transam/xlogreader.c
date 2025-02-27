@@ -71,10 +71,10 @@ static void WALOpenSegmentInit(WALOpenSegment *seg, WALSegmentContext *segcxt,
  * Now it's here because pg_rewind and other tools compile only
  * w/ xlogreader.c
  */
-const XLogSmgr *xlog_smgr = &xlog_smgr_standard;
+const		XLogSmgr *xlog_smgr = &xlog_smgr_standard;
 
 void
-SetXLogSmgr(const XLogSmgr *xlsmgr)
+SetXLogSmgr(const XLogSmgr * xlsmgr)
 {
 	xlog_smgr = xlsmgr;
 }
@@ -1573,9 +1573,9 @@ WALRead(XLogReaderState *state,
 
 		/* Reset errno first; eases reporting non-errno-affecting errors */
 		errno = 0;
-		readbytes = xlog_smgr->seg_read(state->seg.ws_file, p, segbytes, 
-											(off_t) startoff, state->seg.ws_tli,
-											state->seg.ws_segno, state->segcxt.ws_segsize);
+		readbytes = xlog_smgr->seg_read(state->seg.ws_file, p, segbytes,
+										(off_t) startoff, state->seg.ws_tli,
+										state->seg.ws_segno, state->segcxt.ws_segsize);
 
 #ifndef FRONTEND
 		pgstat_report_wait_end();

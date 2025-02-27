@@ -59,7 +59,7 @@ typedef struct TdePrincipalKeySharedState
 	dshash_table_handle hashHandle;
 	void	   *rawDsaArea;		/* DSA area pointer */
 
-} TdePrincipalKeySharedState;
+}			TdePrincipalKeySharedState;
 
 typedef struct TdePrincipalKeylocalState
 {
@@ -67,7 +67,7 @@ typedef struct TdePrincipalKeylocalState
 	dsa_area   *dsa;			/* local dsa area for backend attached to the
 								 * dsa area created by postmaster at startup. */
 	dshash_table *sharedHash;
-} TdePrincipalKeylocalState;
+}			TdePrincipalKeylocalState;
 
 /* parameter for the principal key info shared hash */
 static dshash_parameters principal_key_dsh_params = {
@@ -84,13 +84,13 @@ static void initialize_objects_in_dsa_area(dsa_area *dsa, void *raw_dsa_area);
 static Size cache_area_size(void);
 static Size required_shared_mem_size(void);
 static void shared_memory_shutdown(int code, Datum arg);
-static void principal_key_startup_cleanup(int tde_tbl_count, XLogExtensionInstall *ext_info, bool redo, void *arg);
+static void principal_key_startup_cleanup(int tde_tbl_count, XLogExtensionInstall * ext_info, bool redo, void *arg);
 static void clear_principal_key_cache(Oid databaseId);
 static inline dshash_table *get_principal_key_Hash(void);
-static TDEPrincipalKey *get_principal_key_from_cache(Oid dbOid);
-static bool pg_tde_is_same_principal_key(TDEPrincipalKey *a, TDEPrincipalKey *b);
-static void pg_tde_update_global_principal_key_everywhere(TDEPrincipalKey *oldKey, TDEPrincipalKey *newKey);
-static void push_principal_key_to_cache(TDEPrincipalKey *principalKey);
+static TDEPrincipalKey * get_principal_key_from_cache(Oid dbOid);
+static bool pg_tde_is_same_principal_key(TDEPrincipalKey * a, TDEPrincipalKey * b);
+static void pg_tde_update_global_principal_key_everywhere(TDEPrincipalKey * oldKey, TDEPrincipalKey * newKey);
+static void push_principal_key_to_cache(TDEPrincipalKey * principalKey);
 static Datum pg_tde_get_key_info(PG_FUNCTION_ARGS, Oid dbOid);
 static bool set_principal_key_with_keyring(const char *key_name,
 										   const char *provider_name,
@@ -249,7 +249,7 @@ shared_memory_shutdown(int code, Datum arg)
 }
 
 bool
-create_principal_key_info(TDEPrincipalKeyInfo *principal_key_info)
+create_principal_key_info(TDEPrincipalKeyInfo * principal_key_info)
 {
 	Assert(principal_key_info != NULL);
 
@@ -257,7 +257,7 @@ create_principal_key_info(TDEPrincipalKeyInfo *principal_key_info)
 }
 
 bool
-update_principal_key_info(TDEPrincipalKeyInfo *principal_key_info)
+update_principal_key_info(TDEPrincipalKeyInfo * principal_key_info)
 {
 	Assert(principal_key_info != NULL);
 	return pg_tde_save_principal_key(principal_key_info, false, true);
@@ -405,7 +405,7 @@ set_principal_key_with_keyring(const char *key_name, const char *provider_name,
  * Rotate keys on a standby.
  */
 bool
-xl_tde_perform_rotate_key(XLogPrincipalKeyRotate *xlrec)
+xl_tde_perform_rotate_key(XLogPrincipalKeyRotate * xlrec)
 {
 	bool		ret;
 
@@ -492,7 +492,7 @@ get_principal_key_from_cache(Oid dbOid)
  * remove the cache entry when the database is dropped.
  */
 static void
-push_principal_key_to_cache(TDEPrincipalKey *principalKey)
+push_principal_key_to_cache(TDEPrincipalKey * principalKey)
 {
 	TDEPrincipalKey *cacheEntry = NULL;
 	Oid			databaseId = principalKey->keyInfo.databaseId;
@@ -521,7 +521,7 @@ push_principal_key_to_cache(TDEPrincipalKey *principalKey)
  * but unfortunately we do not have any such mechanism in PG.
 */
 static void
-principal_key_startup_cleanup(int tde_tbl_count, XLogExtensionInstall *ext_info, bool redo, void *arg)
+principal_key_startup_cleanup(int tde_tbl_count, XLogExtensionInstall * ext_info, bool redo, void *arg)
 {
 	if (tde_tbl_count > 0)
 	{
@@ -784,7 +784,7 @@ get_principal_key_from_keyring(Oid dbOid, bool pushToCache)
 	const KeyInfo *keyInfo = NULL;
 	KeyringReturnCodes keyring_ret;
 
-	// Assert(LWLockHeldByMeInMode(tde_lwlock_enc_keys(), LW_EXCLUSIVE));
+	/* Assert(LWLockHeldByMeInMode(tde_lwlock_enc_keys(), LW_EXCLUSIVE)); */
 
 	principalKeyInfo = pg_tde_get_principal_key_info(dbOid);
 	if (principalKeyInfo == NULL)
@@ -1016,13 +1016,13 @@ pg_tde_is_provider_used(Oid databaseOid, Oid providerId)
 }
 
 static bool
-pg_tde_is_same_principal_key(TDEPrincipalKey *a, TDEPrincipalKey *b)
+pg_tde_is_same_principal_key(TDEPrincipalKey * a, TDEPrincipalKey * b)
 {
 	return a != NULL && b != NULL && strncmp(a->keyInfo.name, b->keyInfo.name, PRINCIPAL_KEY_NAME_LEN) == 0 && a->keyInfo.keyringId == b->keyInfo.keyringId;
 }
 
 static void
-pg_tde_rotate_default_key_for_database(TDEPrincipalKey *oldKey, TDEPrincipalKey *newKeyTemplate)
+pg_tde_rotate_default_key_for_database(TDEPrincipalKey * oldKey, TDEPrincipalKey * newKeyTemplate)
 {
 	bool		is_rotated;
 
@@ -1044,7 +1044,7 @@ pg_tde_rotate_default_key_for_database(TDEPrincipalKey *oldKey, TDEPrincipalKey 
 }
 
 static void
-pg_tde_update_global_principal_key_everywhere(TDEPrincipalKey *oldKey, TDEPrincipalKey *newKey)
+pg_tde_update_global_principal_key_everywhere(TDEPrincipalKey * oldKey, TDEPrincipalKey * newKey)
 {
 	HeapTuple	tuple;
 	SysScanDesc scan;
