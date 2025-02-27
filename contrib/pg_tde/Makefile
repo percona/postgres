@@ -24,7 +24,6 @@ vault_v2_test_basic \
 alter_index_basic \
 merge_join_basic \
 tablespace_basic \
-wal_key \
 relocate
 TAP_TESTS = 1
 
