@@ -249,7 +249,7 @@ tde_sprint_key(InternalKey *k)
 
 /*
  * Generates a new internal key for WAL and adds it to the _dat file. It doesn't
- * adds unecnrypted key into cache but rather sets it in `rel_key_data`.
+ * add unecnrypted key into cache but rather sets it in `rel_key_data`.
  *
  * We have a special function for WAL as it is being called during recovery
  * (start) so there should be no XLog records, aquired locks, and reads from

@@ -133,4 +133,3 @@ Load the `pg_tde` at startup time. The extension requires additional shared memo
 ## Next steps
 
 [WAL encryption](wal-encryption.md){.md-button}
- 

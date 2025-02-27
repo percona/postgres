@@ -85,13 +85,13 @@ The principal key is used to encrypt the internal keys. The principal key is sto
 
 WAL encryption is done globally for the entire database cluster. All modifications to any database within a PostgreSQL cluster are written to the same WAL to maintain data consistency and integrity and ensure that PostgreSQL cluster can be restored to a consistent state. Therefore, WAL is encrypted globally. 
 
-When you turn on WAL encryption, `pg_tde` encrypts entire WAL files starting from the first write WAL after server was started with encryption ON.
+When you turn on WAL encryption, `pg_tde` encrypts entire WAL files starting from the first WAL write after server was started with encryption ON.
 
 The same 2-tier approach is used with WAL as with the table data: WAL pages are first encrypted with the internal key. Then the internal key is encrypted with the global principal key.
 
 You can turn WAL encryption on and off so WAL can contain both encrypted and unencrypted data. The WAL encryption GUC variable influences only writes.
 
-Whenever the WAL is being read (by the recovery process or tools), the decision on what pages should be decrypted is based solely on the metadata of WAL encryption keys.
+Whenever the WAL is being read (by the recovery process or tools), the decision on what should be decrypted is based solely on the metadata of WAL encryption keys.
 
 
 ## Should I encrypt all my data?
