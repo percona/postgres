@@ -1155,7 +1155,6 @@ main(int argc, char **argv)
 	if (kringdir != NULL)
 	{
 		pg_tde_fe_init(kringdir);
-		TDEInitGlobalKeys();
 		TDEXLogSmgrInit();
 	}
 #endif
