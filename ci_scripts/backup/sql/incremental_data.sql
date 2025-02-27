@@ -73,3 +73,4 @@ SELECT tgname, relname FROM pg_trigger JOIN pg_class ON pg_trigger.tgrelid = pg_
 
 -- Check WAL logs for plaintext leaks
 -- SELECT * FROM pg_walfile_name_offset(pg_current_wal_lsn());
+

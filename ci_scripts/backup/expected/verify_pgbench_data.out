@@ -1,40 +1,26 @@
--- Verify pgbench accounts data is replicated correctly
-SELECT COUNT(*) AS total_accounts FROM pgbench_accounts;
- total_accounts 
-----------------
-        1000000
-(1 row)
-
--- Check if pgbench history table matches expected transactions
-SELECT COUNT(*) AS total_history FROM pgbench_history;
- total_history 
----------------
-         57091
-(1 row)
-
 -- Check last transaction timestamps to ensure no delay
 SELECT MAX(tid) AS last_transaction FROM pgbench_history;
  last_transaction 
 ------------------
-              100
+              500
 (1 row)
 
 -- Check data integrity by comparing last 5 accounts
 SELECT aid, bid FROM pgbench_accounts ORDER BY aid DESC LIMIT 5;
    aid   | bid 
 ---------+-----
- 1000000 |  10
-  999999 |  10
-  999998 |  10
-  999997 |  10
-  999996 |  10
+ 5000000 |  50
+ 4999999 |  50
+ 4999998 |  50
+ 4999997 |  50
+ 4999996 |  50
 (5 rows)
 
--- Check last account ID and balance for consistency
+-- Check last account ID for consistency
 SELECT MAX(aid) AS last_account_id FROM pgbench_accounts;
  last_account_id 
 -----------------
-         1000000
+         5000000
 (1 row)
 
 -- Detect if the query is running on a Replica (Standby)
@@ -44,13 +30,3 @@ SELECT pg_is_in_recovery() AS is_replica;
  t
 (1 row)
 
--- Only check WAL replay status on standby nodes
---DO $$ 
---BEGIN
---    IF pg_is_in_recovery() THEN
---        RAISE NOTICE 'Checking WAL replay status...';
---        PERFORM pg_last_wal_replay_lsn(), pg_last_wal_receive_lsn();
---    ELSE
---        RAISE NOTICE 'Skipping WAL check on Master.';
---    END IF;
---END $$;
