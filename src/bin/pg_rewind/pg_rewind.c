@@ -32,6 +32,13 @@
 #include "rewind_source.h"
 #include "storage/bufpage.h"
 
+#ifdef PERCONA_EXT
+#include "pg_tde.h"
+#include "access/pg_tde_fe_init.h"
+#include "access/pg_tde_xlog_encrypt.h"
+#include "catalog/tde_global_space.h"
+#endif
+
 static void usage(const char *progname);
 
 static void perform_rewind(filemap_t *filemap, rewind_source *source,
@@ -363,6 +370,16 @@ main(int argc, char **argv)
 	/* Similarly for the target. */
 	target_tli = Max(ControlFile_target.minRecoveryPointTLI,
 					 ControlFile_target.checkPointCopy.ThisTimeLineID);
+
+#ifdef PERCONA_EXT
+	{
+		/* TDOD: tde_path setup should be moved to the pg_tde side */
+		char tde_path[MAXPGPATH];
+		snprintf(tde_path, sizeof(tde_path), "%s/%s", datadir_target, PG_TDE_DATA_DIR);
+		pg_tde_fe_init(tde_path);
+		TDEXLogSmgrInit();
+	}
+ #endif
 
 	/*
 	 * Find the common ancestor timeline between the clusters.
