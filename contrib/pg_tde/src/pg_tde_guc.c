@@ -14,8 +14,6 @@
 #include "postgres.h"
 #include "utils/guc.h"
 
-#ifndef FRONTEND
-
 bool		AllowInheritGlobalProviders = true;
 bool		EncryptXLog = false;
 bool		EnforceEncryption = false;
@@ -62,5 +60,3 @@ TdeGucInit(void)
 
 #endif
 }
-
-#endif

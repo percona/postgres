@@ -18,12 +18,11 @@
 
 /* Map entry flags */
 #define MAP_ENTRY_EMPTY					0x00
-#define TDE_KEY_TYPE_HEAP_BASIC			0x01
 #define TDE_KEY_TYPE_SMGR				0x02
 #define TDE_KEY_TYPE_GLOBAL				0x04
 #define TDE_KEY_TYPE_WAL_UNENCRYPTED	0x08
 #define TDE_KEY_TYPE_WAL_ENCRYPTED		0x10
-#define MAP_ENTRY_VALID (TDE_KEY_TYPE_HEAP_BASIC | TDE_KEY_TYPE_SMGR | TDE_KEY_TYPE_GLOBAL)
+#define MAP_ENTRY_VALID (TDE_KEY_TYPE_SMGR | TDE_KEY_TYPE_GLOBAL)
 
 typedef struct InternalKey
 {
@@ -82,7 +81,6 @@ extern WALKeyCacheRec *pg_tde_get_wal_cache_keys(void);
 extern void pg_tde_wal_last_key_set_lsn(XLogRecPtr lsn, const char *keyfile_path);
 
 extern InternalKey *pg_tde_create_smgr_key(const RelFileLocatorBackend *newrlocator);
-extern InternalKey *pg_tde_create_heap_basic_key(const RelFileLocator *newrlocator);
 extern void pg_tde_create_wal_key(InternalKey *rel_key_data, const RelFileLocator *newrlocator, uint32 flags);
 extern void pg_tde_write_key_map_entry(const RelFileLocator *rlocator, InternalKey *enc_rel_key_data, TDEPrincipalKeyInfo *principal_key_info);
 extern void pg_tde_delete_key_map_entry(const RelFileLocator *rlocator, uint32 key_type);

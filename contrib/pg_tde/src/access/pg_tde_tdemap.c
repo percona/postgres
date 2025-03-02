@@ -157,12 +157,6 @@ pg_tde_create_smgr_key(const RelFileLocatorBackend *newrlocator)
 		return pg_tde_create_key_map_entry(&newrlocator->locator, TDE_KEY_TYPE_SMGR);
 }
 
-InternalKey *
-pg_tde_create_heap_basic_key(const RelFileLocator *newrlocator)
-{
-	return pg_tde_create_key_map_entry(newrlocator, TDE_KEY_TYPE_HEAP_BASIC);
-}
-
 /*
  * Generate an encrypted key for the relation and store it in the keymap file.
  */
@@ -946,8 +940,8 @@ pg_tde_move_rel_key(const RelFileLocator *newrlocator, const RelFileLocator *old
 
 	/*
 	 * Clean-up map/dat entries. It will also remove physical files (*.map,
-	 * *.dat and keyring) if it was the last tde_heap_basic relation in the
-	 * old locator AND it was a custom tablespace.
+	 * *.dat and keyring) if it was the last tde_heap `relation in the old
+	 * locator AND it was a custom tablespace.
 	 */
 	pg_tde_free_key_map_entry(oldrlocator, MAP_ENTRY_VALID, offset);
 
@@ -1504,12 +1498,6 @@ GetSMGRRelationKey(RelFileLocatorBackend rel)
 		return pg_tde_get_key_from_cache(&rel.locator, TDE_KEY_TYPE_SMGR);
 	else
 		return GetRelationKey(rel.locator, TDE_KEY_TYPE_SMGR, true);
-}
-
-InternalKey *
-GetHeapBaiscRelationKey(RelFileLocator rel)
-{
-	return GetRelationKey(rel, TDE_KEY_TYPE_HEAP_BASIC, false);
 }
 
 InternalKey *
