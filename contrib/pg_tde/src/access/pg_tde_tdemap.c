@@ -940,7 +940,7 @@ pg_tde_move_rel_key(const RelFileLocator *newrlocator, const RelFileLocator *old
 
 	/*
 	 * Clean-up map/dat entries. It will also remove physical files (*.map,
-	 * *.dat and keyring) if it was the last tde_heap `relation in the old
+	 * *.dat and keyring) if it was the last tde_heap relation in the old
 	 * locator AND it was a custom tablespace.
 	 */
 	pg_tde_free_key_map_entry(oldrlocator, MAP_ENTRY_VALID, offset);

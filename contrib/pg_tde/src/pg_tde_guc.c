@@ -14,6 +14,8 @@
 #include "postgres.h"
 #include "utils/guc.h"
 
+#ifndef FRONTEND
+
 bool		AllowInheritGlobalProviders = true;
 bool		EncryptXLog = false;
 bool		EnforceEncryption = false;
@@ -33,7 +35,6 @@ TdeGucInit(void)
 							 NULL	/* show_hook */
 		);
 
-#ifdef PERCONA_EXT
 	DefineCustomBoolVariable("pg_tde.wal_encrypt",	/* name */
 							 "Enable/Disable encryption of WAL.",	/* short_desc */
 							 NULL,	/* long_desc */
@@ -58,5 +59,6 @@ TdeGucInit(void)
 							 NULL	/* show_hook */
 		);
 
-#endif
 }
+
+#endif

@@ -3,7 +3,7 @@ CREATE EXTENSION IF NOT EXISTS pg_tde;
 SELECT pg_tde_add_key_provider_file('file-vault','/tmp/pg_tde_test_keyring.per');
 SELECT pg_tde_set_principal_key('test-db-principal-key','file-vault');
 
-SET default_table_access_method = :"tde_am";
+SET default_table_access_method = "tde_heap";
 
 CREATE TABLE concur_reindex_part (c1 int, c2 int) PARTITION BY RANGE (c1);
 CREATE TABLE concur_reindex_part_0 PARTITION OF concur_reindex_part

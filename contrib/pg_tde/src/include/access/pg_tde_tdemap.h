@@ -100,7 +100,6 @@ pg_tde_set_db_file_paths(Oid dbOid, char *map_path, char *keydata_path)
 
 extern InternalKey *GetRelationKey(RelFileLocator rel, uint32 entry_type, bool no_map_ok);
 extern InternalKey *GetSMGRRelationKey(RelFileLocatorBackend rel);
-extern InternalKey *GetHeapBaiscRelationKey(RelFileLocator rel);
 extern InternalKey *GetTdeGlobaleRelationKey(RelFileLocator rel);
 
 extern void pg_tde_delete_tde_files(Oid dbOid);

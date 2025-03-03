@@ -229,7 +229,6 @@ pg_tde_version(PG_FUNCTION_ARGS)
 
 Datum
 pg_tdeam_handler(PG_FUNCTION_ARGS)
-
 {
 	PG_RETURN_POINTER(GetHeapamTableAmRoutine());
 }
