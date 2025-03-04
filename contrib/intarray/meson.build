@@ -22,6 +22,10 @@ intarray = shared_module('_int',
 )
 contrib_targets += intarray
 
+if llvm.found()
+  llvm_contrib_sources += intarray_sources
+endif
+
 install_data(
   'intarray.control',
   'intarray--1.0--1.1.sql',

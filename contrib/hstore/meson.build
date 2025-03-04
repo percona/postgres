@@ -25,6 +25,10 @@ hstore = shared_module('hstore',
 )
 contrib_targets += hstore
 
+if llvm.found()
+  llvm_contrib_sources += hstore_sources
+endif
+
 install_data(
   'hstore.control',
   'hstore--1.1--1.2.sql',

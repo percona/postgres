@@ -18,6 +18,10 @@ pg_stat_statements = shared_module('pg_stat_statements',
 )
 contrib_targets += pg_stat_statements
 
+if llvm.found()
+  llvm_contrib_sources += pg_stat_statements_sources
+endif
+
 install_data(
   'pg_stat_statements.control',
   'pg_stat_statements--1.4.sql',

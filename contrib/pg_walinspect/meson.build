@@ -16,6 +16,10 @@ pg_walinspect = shared_module('pg_walinspect',
 )
 contrib_targets += pg_walinspect
 
+if llvm.found()
+  llvm_contrib_sources += pg_walinspect_sources
+endif
+
 install_data(
   'pg_walinspect.control',
   'pg_walinspect--1.0.sql',

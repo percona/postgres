@@ -19,6 +19,10 @@ pgstattuple = shared_module('pgstattuple',
 )
 contrib_targets += pgstattuple
 
+if llvm.found()
+  llvm_contrib_sources += pgstattuple_sources
+endif
+
 install_data(
   'pgstattuple--1.0--1.1.sql',
   'pgstattuple--1.1--1.2.sql',

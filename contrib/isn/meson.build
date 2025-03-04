@@ -16,6 +16,10 @@ isn = shared_module('isn',
 )
 contrib_targets += isn
 
+if llvm.found()
+  llvm_contrib_sources += isn_sources
+endif
+
 install_data(
   'isn.control',
   'isn--1.0--1.1.sql',

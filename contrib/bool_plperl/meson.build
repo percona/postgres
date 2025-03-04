@@ -25,6 +25,24 @@ bool_plperl = shared_module('bool_plperl',
 )
 contrib_targets += bool_plperl
 
+if llvm.found()
+  llvm_contrib_bool_plperl_cflags = [
+    '-I@BUILD_ROOT@/contrib/bool_plperl',
+    '-I@SOURCE_ROOT@/contrib/bool_plperl',
+    '-I@BUILD_ROOT@/src/pl/plperl',
+    '-I@SOURCE_ROOT@/src/pl/plperl',
+  ]
+
+  llvm_gen_contrib_bool_plperl = generator(llvm_irgen_command,
+    arguments: llvm_irgen_args + bitcode_cflags + pg_mod_c_args + llvm_contrib_bool_plperl_cflags + perl_ccflags,
+    depends: bool_plperl,
+    depfile: '@BASENAME@.c.bc.d',
+    output: '@PLAINNAME@.bc',
+  )
+
+  bc_gen_custom_contrib += llvm_gen_contrib_bool_plperl.process(bool_plperl_sources)
+endif
+
 install_data(
   'bool_plperl.control',
   'bool_plperl--1.0.sql',

@@ -16,6 +16,10 @@ pg_surgery = shared_module('pg_surgery',
 )
 contrib_targets += pg_surgery
 
+if llvm.found()
+  llvm_contrib_sources += pg_surgery_sources
+endif
+
 install_data(
   'pg_surgery--1.0.sql',
   'pg_surgery.control',

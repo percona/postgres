@@ -15,3 +15,7 @@ auth_delay = shared_module('auth_delay',
   kwargs: contrib_mod_args,
 )
 contrib_targets += auth_delay
+
+if llvm.found()
+  llvm_contrib_sources += auth_delay_sources
+endif

@@ -16,6 +16,10 @@ file_fdw = shared_module('file_fdw',
 )
 contrib_targets += file_fdw
 
+if llvm.found()
+  llvm_contrib_sources += file_fdw_sources
+endif
+
 install_data(
   'file_fdw.control',
   'file_fdw--1.0.sql',

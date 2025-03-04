@@ -22,6 +22,10 @@ sslinfo = shared_module('sslinfo',
 )
 contrib_targets += sslinfo
 
+if llvm.found()
+  llvm_contrib_sources += sslinfo_sources
+endif
+
 install_data(
   'sslinfo--1.0--1.1.sql',
   'sslinfo--1.1--1.2.sql',

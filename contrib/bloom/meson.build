@@ -22,6 +22,11 @@ bloom = shared_module('bloom',
 )
 contrib_targets += bloom
 
+if llvm.found()
+  llvm_contrib_sources += bloom_sources
+endif
+
+
 install_data(
   'bloom.control',
   'bloom--1.0.sql',

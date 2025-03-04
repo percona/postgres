@@ -16,6 +16,10 @@ lo = shared_module('lo',
 )
 contrib_targets += lo
 
+if llvm.found()
+  llvm_contrib_sources += lo_sources
+endif
+
 install_data(
   'lo.control',
   'lo--1.0--1.1.sql',
