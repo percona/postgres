@@ -16,9 +16,9 @@
 
 This release provides the following features and improvements:
 
-* **Improved performance with reworked WAL encryption mechanism**. 
+* **Improved performance with redesigned WAL encryption**. 
 
-   The approach to WAL encryption has changed. Now, `pg_tde` encrypts entire WAL files starting from the first WAL write after the server was started with the encryption turned on. The information about what is encrypted is stored in the internal key metadata. This change improves WAL encryption flow with native replication and increases performance for large scale databases. 
+   The approach to WAL encryption has been redesigned. Now, `pg_tde` encrypts entire WAL files starting from the first WAL write after the server was started with the encryption turned on. The information about what is encrypted is stored in the internal key metadata. This change improves WAL encryption flow with native replication and increases performance for large scale databases. 
 
 * **Default encryption key for single-tenancy**. 
 
@@ -36,7 +36,9 @@ This release provides the following features and improvements:
 
    The new functions allow you to display additional information about principal keys and providers. This feature helps you to understand the current key configuration and troubleshoot issues related to key management.
 
-* The `tde_heap_basic` access method is deprecated and will be removed in future releases. Use the `tde_heap` access method instead.
+* **`tde_heap_basic` access method deprecation**
+
+   The `tde_heap_basic` access method has limitations in encryption capabilities and affects performance. Also, it poses a potential security risk when used in production environments due to indexes remaining unencrypted. Considering all the above, we decided to deprecate this access method and remove it in future releases. Use the `tde_heap` access method instead that is available with Percona Server for PostgreSQL 17 - a drop-in replacement for PostgreSQL Community.
 
 
 
