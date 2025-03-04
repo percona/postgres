@@ -31,7 +31,7 @@ CREATE DATABASE regress_pg_tde_other;
 
 CREATE EXTENSION pg_tde;
 
--- Should fail: no principal key for the database yet
+-- TODO
 SELECT  key_provider_id, key_provider_name, principal_key_name
 		FROM pg_tde_principal_key_info();
 
