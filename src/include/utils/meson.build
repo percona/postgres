@@ -69,7 +69,15 @@ fmgrtab_target = custom_target('fmgrtab',
 
 generated_backend_headers += fmgrtab_target[0]
 generated_backend_headers += fmgrtab_target[1]
-bc_generated_sources += fmgrtab_target[2]
+
+if llvm.found()
+  llvm_gen_fmgrtab = generator(llvm_irgen_command,
+    arguments: llvm_irgen_args + bitcode_cflags,
+    output: '@PLAINNAME@.bc',
+  )
+
+  bc_gen_custom_backend += llvm_gen_fmgrtab.process(fmgrtab_target[2])
+endif
 
 # autoconf generates the file there, ensure we get a conflict
 generated_sources_ac += {

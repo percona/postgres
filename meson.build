@@ -3355,7 +3355,7 @@ if llvm.found()
 
   llvm_gen = generator(llvm_irgen_command,
     arguments: llvm_irgen_args + bitcode_cflags,
-    depends: [transitive_depend_target, postgres_lib],
+    depends: transitive_depend_target,
     depfile: '@BASENAME@.c.bc.d',
     output: '@PLAINNAME@.bc',
   )
@@ -3370,21 +3370,11 @@ if llvm.found()
   bc_backend_sources = llvm_gen.process(backend_sources,
     preserve_path_from: meson.current_source_dir())
 
-  # need to convert generated filenames from relative to absolute paths.
-  # otherwise the generator will not find the files as it uses the current working
-  # directory as base for the filenames.
-  generated_filenames = []
-  foreach gen: bc_generated_sources
-    generated_filenames += gen.full_path()
-  endforeach
-
-  bc_gen_sources = llvm_gen.process(generated_filenames)
-
   bc_contrib_sources = llvm_gen_contrib.process(llvm_contrib_sources)
 
   postgres_llvm = custom_target('bitcode',
     output: ['bitcode'],
-    input: [bc_backend_sources, bc_gen_sources, bc_gen_custom_backend, bc_contrib_sources, bc_gen_custom_contrib],
+    input: [bc_backend_sources, bc_gen_custom_backend, bc_contrib_sources, bc_gen_custom_contrib],
     kwargs: llvm_irlink_kw,
   )
 
