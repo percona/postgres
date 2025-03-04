@@ -146,8 +146,6 @@ if llvm.found()
 
   llvm_jsonpath = generator(llvm_irgen_command,
     arguments: llvm_irgen_args + bitcode_cflags + llvm_jsonpath_cflags,
-    depends: [jsonpath_scan, jsonpath_gram],
-    depfile: '@BASENAME@.c.bc.d',
     output: '@PLAINNAME@.bc',
   )
 
