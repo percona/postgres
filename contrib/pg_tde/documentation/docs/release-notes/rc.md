@@ -18,7 +18,7 @@ This release provides the following features and improvements:
 
 * **Improved performance with redesigned WAL encryption**. 
 
-   The approach to WAL encryption has been redesigned. Now, `pg_tde` encrypts entire WAL files starting from the first WAL write after the server was started with the encryption turned on. The information about what is encrypted is stored in the internal key metadata. This change improves WAL encryption flow with native replication and increases performance for large scale databases. 
+   The approach to WAL encryption has been redesigned. Now, `pg_tde` encrypts entire WAL files starting from the first WAL write after the server was started with the encryption turned on. The information about what is encrypted is stored in the internal key metadata. This change improves WAL encryption flow with native replication and increases performance for large scale databases. Note that WAL encryption follows its own lifecycle and is in the tech preview stage.
 
 * **Default encryption key for single-tenancy**. 
 
@@ -45,8 +45,6 @@ This release provides the following features and improvements:
 ## Changelog
 
 ### New Features
- 
-* [PG-1002](https://perconadev.atlassian.net/browse/PG-1002) - Added the requirement of an explicit configuration of a WAL principal key to ensure correct WAL encryption
 
 * [PG-1234](https://perconadev.atlassian.net/browse/PG-1234) - Added functions for separate global and database key management permissions 
 
@@ -56,7 +54,7 @@ This release provides the following features and improvements:
 
 * [PG-1258](https://perconadev.atlassian.net/browse/PG-1258) - Added functions to display additional information  about principal keys / providers 
 
-* [PG-1294](https://perconadev.atlassian.net/browse/PG-1294) - Improve WAL encryption by encrypting entire WAL files
+* [PG-1294](https://perconadev.atlassian.net/browse/PG-1294) - Redesign WAL encryption
 
 * [PG-1303](https://perconadev.atlassian.net/browse/PG-1303) - Deprecated tde_heap_basic access method
 
@@ -64,7 +62,7 @@ This release provides the following features and improvements:
 
 * [PG-1361](https://perconadev.atlassian.net/browse/PG-1361) - Investigated and fixed pg_tde relocatability
 
-* [PG-1367](https://perconadev.atlassian.net/browse/PG-1367) - Created a separate generic script that is used to configure server with pg_tde from the existing make-test-tde.sh script
+* [PG-1380](https://perconadev.atlassian.net/browse/PG-1380) - Added support for `pg_tde_is_encrypted()` function on indexes and sequences
 
 ### Bugs Fixed
 
@@ -77,10 +75,6 @@ This release provides the following features and improvements:
 
 * [PG-1373](https://perconadev.atlassian.net/browse/PG-1373) Fixed the issue with potential unterminated strings by using the `memset()` or `palloc0()` instead of the `strncpy()` function.   
 
-* [PG-1376](https://perconadev.atlassian.net/browse/PG-1376) - Fixed the issue with getting a warning message when setting a default principal key by using the correct lock type during the function execution.
-
-* [PG-1378](https://perconadev.atlassian.net/browse/PG-1378) - Fixed the issue with toast tables created by ALTER TABLE command not being encrypted by fixing the sequence and alter table handling by event trigger 
-
-* [PG-1380](https://perconadev.atlassian.net/browse/PG-1380) Added support for `pg_tde_is_encrypted()` function on indexes and sequences
+* [PG-1378](https://perconadev.atlassian.net/browse/PG-1378) - Fixed the issue with toast tables created by ALTER TABLE command not being encrypted 
 
 * [PG-1222](https://perconadev.atlassian.net/browse/PG-1222) - Fixed the bug with  confused relations with the same `RelFileNumber` in different databases
