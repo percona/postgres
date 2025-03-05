@@ -28,9 +28,6 @@ Learn more [what is Transparent Data Encryption](tde.md#how-does-it-work) and [w
    
 * `pg_rewind` doesn't work with encrypted WAL for now. We plan to fix it in future releases.
 
-
-<i warning>:material-alert: Warning:</i> Note that introducing encryption/decryption affects performance. Our benchmark tests show less than 10% performance overhead for most situations. However, in some specific applications such as those using JSONB operations, performance degradation might be higher.
-
 ## Versions and supported PostgreSQL deployments
 
 The `pg_tde` extension comes in two distinct versions with specific access methods to encrypt the data. These versions are database-specific and differ in terms of what they encrypt and with what access method. Each version is characterized by the database it supports, the access method it provides, and the scope of encryption it offers.
