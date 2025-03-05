@@ -18,7 +18,7 @@ amcheck = shared_module('amcheck',
 contrib_targets += amcheck
 
 if llvm.found()
-  llvm_contrib_sources += amcheck_sources
+  llvm_contrib_sources += {'amcheck': {'sources': amcheck_sources}}
 endif
 
 install_data(

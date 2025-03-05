@@ -20,18 +20,15 @@ contrib_targets += dblink
 
 if llvm.found()
   llvm_contrib_dblink_cflags = [
-    '-I@SOURCE_ROOT@/src/interfaces/libpq',
+    '-I@0@/src/interfaces/libpq'.format(meson.source_root()),
   ]
 
-  llvm_gen_contrib_dblink = generator(llvm_irgen_command,
-    arguments: llvm_irgen_args + bitcode_cflags + pg_mod_c_args + llvm_contrib_dblink_cflags,
-    depends: dblink,
-    depfile: '@BASENAME@.c.bc.d',
-    output: '@PLAINNAME@.bc',
-  )
-
-  bc_gen_custom_contrib += llvm_gen_contrib_dblink.process(dblink_sources,
-    preserve_path_from: meson.current_source_dir())
+  llvm_contrib_sources += {
+    'dblink': {
+      'sources': dblink_sources,
+      'extra_args': llvm_contrib_dblink_cflags,
+    }
+  }
 endif
 
 install_data(

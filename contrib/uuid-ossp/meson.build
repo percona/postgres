@@ -22,10 +22,6 @@ uuid_ossp = shared_module('uuid-ossp',
 )
 contrib_targets += uuid_ossp
 
-if llvm.found()
-  llvm_contrib_sources += uuid_ossp_sources
-endif
-
 install_data(
   'uuid-ossp--1.0--1.1.sql',
   'uuid-ossp--1.1.sql',

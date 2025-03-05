@@ -17,7 +17,7 @@ pgrowlocks = shared_module('pgrowlocks',
 contrib_targets += pgrowlocks
 
 if llvm.found()
-  llvm_contrib_sources += pgrowlocks_sources
+  llvm_contrib_sources += {'pgrowlocks': {'sources': pgrowlocks_sources}}
 endif
 
 install_data(

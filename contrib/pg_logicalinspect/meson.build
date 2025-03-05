@@ -17,7 +17,7 @@ pg_logicalinspect = shared_module('pg_logicalinspect',
 contrib_targets += pg_logicalinspect
 
 if llvm.found()
-  llvm_contrib_sources += pg_logicalinspect_sources
+  llvm_contrib_sources += {'pg_logicalinspect': {'sources': pg_logicalinspect_sources}}
 endif
 
 install_data(

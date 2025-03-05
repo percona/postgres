@@ -20,7 +20,7 @@ pgstattuple = shared_module('pgstattuple',
 contrib_targets += pgstattuple
 
 if llvm.found()
-  llvm_contrib_sources += pgstattuple_sources
+  llvm_contrib_sources += {'pgstattuple': {'sources': pgstattuple_sources}}
 endif
 
 install_data(

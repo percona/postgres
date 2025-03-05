@@ -17,7 +17,7 @@ pg_buffercache = shared_module('pg_buffercache',
 contrib_targets += pg_buffercache
 
 if llvm.found()
-  llvm_contrib_sources += pg_buffercache_sources
+  llvm_contrib_sources += {'pg_buffercache': {'sources': pg_buffercache_sources}}
 endif
 
 install_data(

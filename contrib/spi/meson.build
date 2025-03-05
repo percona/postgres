@@ -17,7 +17,7 @@ autoinc = shared_module('autoinc',
 contrib_targets += autoinc
 
 if llvm.found()
-  llvm_contrib_sources += autoinc_sources
+  llvm_contrib_sources += {'autoinc': {'sources': autoinc_sources}}
 endif
 
 install_data('autoinc.control', 'autoinc--1.0.sql',
@@ -46,7 +46,7 @@ insert_username = shared_module('insert_username',
 contrib_targets += insert_username
 
 if llvm.found()
-  llvm_contrib_sources += insert_username_sources
+  llvm_contrib_sources += {'insert_username': {'sources': insert_username_sources}}
 endif
 
 install_data(
@@ -77,7 +77,7 @@ moddatetime = shared_module('moddatetime',
 contrib_targets += moddatetime
 
 if llvm.found()
-  llvm_contrib_sources += moddatetime_sources
+  llvm_contrib_sources += {'moddatetime': {'sources': moddatetime_sources}}
 endif
 
 install_data(
@@ -113,7 +113,7 @@ refint = shared_module('refint',
 contrib_targets += refint
 
 if llvm.found()
-  llvm_contrib_sources += refint_sources
+  llvm_contrib_sources += {'refint': {'sources': refint_sources}}
 endif
 
 install_data('refint.control', 'refint--1.0.sql',

@@ -25,23 +25,20 @@ ltree_plpython = shared_module('ltree_plpython3',
 contrib_targets += ltree_plpython
 
 if llvm.found()
-  pyinc = python3_inst.get_variable('INCLUDEPY')
   llvm_contrib_ltree_plpython_cflags = [
-    '-I@SOURCE_ROOT@/src/pl/plpython',
-    '-I@SOURCE_ROOT@/contrib',
-    '-I@SOURCE_ROOT@/contrib/ltree',
+    '-I@0@/src/pl/plpython'.format(meson.source_root()),
+    '-I@0@/contrib'.format(meson.source_root()),
+    '-I@0@/contrib/ltree'.format(meson.source_root()),
     '-DPLPYTHON_LIBNAME="plpython3"',
     '-I@0@'.format(pyinc),
   ]
 
-  llvm_gen_contrib_ltree_plpython = generator(llvm_irgen_command,
-    arguments: llvm_irgen_args + bitcode_cflags + pg_mod_c_args + llvm_contrib_ltree_plpython_cflags,
-    depends: ltree_plpython,
-    depfile: '@BASENAME@.c.bc.d',
-    output: '@PLAINNAME@.bc',
-  )
-
-  bc_gen_custom_contrib += llvm_gen_contrib_ltree_plpython.process(ltree_plpython_sources)
+  llvm_contrib_sources += {
+    'ltree_plpython3': {
+      'sources': ltree_plpython_sources,
+      'extra_args': llvm_contrib_ltree_plpython_cflags,
+    }
+  }
 endif
 
 install_data(

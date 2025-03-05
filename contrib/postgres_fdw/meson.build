@@ -24,17 +24,15 @@ contrib_targets += postgres_fdw
 
 if llvm.found()
   llvm_contrib_fdw_cflags = [
-    '-I@SOURCE_ROOT@/src/interfaces/libpq',
+    '-I@0@/src/interfaces/libpq'.format(meson.source_root()),
   ]
 
-  llvm_gen_contrib_fdw = generator(llvm_irgen_command,
-    arguments: llvm_irgen_args + bitcode_cflags + pg_mod_c_args + llvm_contrib_fdw_cflags,
-    depends: postgres_fdw,
-    depfile: '@BASENAME@.c.bc.d',
-    output: '@PLAINNAME@.bc',
-  )
-
-  bc_gen_custom_contrib += llvm_gen_contrib_fdw.process(postgres_fdw_sources)
+  llvm_contrib_sources += {
+    'postgres_fdw': {
+      'sources': postgres_fdw_sources,
+      'extra_args': llvm_contrib_fdw_cflags,
+    }
+  }
 endif
 
 install_data(

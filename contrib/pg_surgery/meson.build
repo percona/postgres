@@ -17,7 +17,7 @@ pg_surgery = shared_module('pg_surgery',
 contrib_targets += pg_surgery
 
 if llvm.found()
-  llvm_contrib_sources += pg_surgery_sources
+  llvm_contrib_sources += {'pg_surgery': {'sources': pg_surgery_sources}}
 endif
 
 install_data(

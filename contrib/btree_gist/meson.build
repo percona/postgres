@@ -41,7 +41,7 @@ btree_gist = shared_module('btree_gist',
 contrib_targets += btree_gist
 
 if llvm.found()
-  llvm_contrib_sources += btree_gist_sources
+  llvm_contrib_sources += {'btree_gist': {'sources': btree_gist_sources}}
 endif
 
 install_data(

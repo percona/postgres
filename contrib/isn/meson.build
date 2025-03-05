@@ -17,7 +17,7 @@ isn = shared_module('isn',
 contrib_targets += isn
 
 if llvm.found()
-  llvm_contrib_sources += isn_sources
+  llvm_contrib_sources += {'isn': {'sources': isn_sources}}
 endif
 
 install_data(

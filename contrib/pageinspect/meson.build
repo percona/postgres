@@ -24,7 +24,7 @@ pageinspect = shared_module('pageinspect',
 contrib_targets += pageinspect
 
 if llvm.found()
-  llvm_contrib_sources += pageinspect_sources
+  llvm_contrib_sources += {'pageinspect': {'sources': pageinspect_sources}}
 endif
 
 install_data(

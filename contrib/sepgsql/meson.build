@@ -41,7 +41,7 @@ contrib_targets += custom_target('sepgsql.sql',
 )
 
 if llvm.found()
-  llvm_contrib_sources += sepgsql_sources
+  llvm_contrib_sources += {'sepgsql': {'sources': sepgsql_sources}}
 endif
 
 tests += {

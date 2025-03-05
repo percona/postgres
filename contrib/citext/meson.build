@@ -17,7 +17,7 @@ citext = shared_module('citext',
 contrib_targets += citext
 
 if llvm.found()
-  llvm_contrib_sources += citext_sources
+  llvm_contrib_sources += {'citext': {'sources': citext_sources}}
 endif
 
 install_data(

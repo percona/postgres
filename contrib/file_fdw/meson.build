@@ -17,7 +17,7 @@ file_fdw = shared_module('file_fdw',
 contrib_targets += file_fdw
 
 if llvm.found()
-  llvm_contrib_sources += file_fdw_sources
+  llvm_contrib_sources += {'file_fdw': {'sources': file_fdw_sources}}
 endif
 
 install_data(

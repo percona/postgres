@@ -17,7 +17,8 @@ basebackup_to_shell = shared_module('basebackup_to_shell',
 contrib_targets += basebackup_to_shell
 
 if llvm.found()
-  llvm_contrib_sources += basebackup_to_shell_sources
+  llvm_contrib_sources += {'basebackup_to_shell':
+    {'sources': basebackup_to_shell_sources}}
 endif
 
 tests += {

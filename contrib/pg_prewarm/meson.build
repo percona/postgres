@@ -18,7 +18,7 @@ pg_prewarm = shared_module('pg_prewarm',
 contrib_targets += pg_prewarm
 
 if llvm.found()
-  llvm_contrib_sources += pg_prewarm_sources
+  llvm_contrib_sources += {'pg_prewarm': {'sources': pg_prewarm_sources}}
 endif
 
 install_data(

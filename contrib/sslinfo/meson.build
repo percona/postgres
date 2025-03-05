@@ -23,7 +23,7 @@ sslinfo = shared_module('sslinfo',
 contrib_targets += sslinfo
 
 if llvm.found()
-  llvm_contrib_sources += sslinfo_sources
+  llvm_contrib_sources += {'sslinfo': {'sources': sslinfo_sources}}
 endif
 
 install_data(

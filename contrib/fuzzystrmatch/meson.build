@@ -31,18 +31,16 @@ contrib_targets += fuzzystrmatch
 
 if llvm.found()
   llvm_contrib_fuzzystrmatch_cflags = [
-    '-I@BUILD_ROOT@/contrib/fuzzystrmatch',
-    '-I@SOURCE_ROOT@/contrib/fuzzystrmatch',
+    '-I@0@/contrib/fuzzystrmatch'.format(meson.build_root()),
+    '-I@0@/contrib/fuzzystrmatch'.format(meson.source_root()),
   ]
 
-  llvm_gen_contrib_fuzzystrmatch = generator(llvm_irgen_command,
-    arguments: llvm_irgen_args + bitcode_cflags + pg_mod_c_args + llvm_contrib_fuzzystrmatch_cflags,
-    depends: daitch_mokotoff_h,
-    depfile: '@BASENAME@.c.bc.d',
-    output: '@PLAINNAME@.bc',
-  )
-
-  bc_gen_custom_contrib += llvm_gen_contrib_fuzzystrmatch.process(bc_fuzzystrmatch_sources)
+  llvm_contrib_sources += {
+    'fuzzystrmatch': {
+      'sources': bc_fuzzystrmatch_sources,
+      'extra_args': llvm_contrib_fuzzystrmatch_cflags,
+    }
+  }
 endif
 install_data(
   'fuzzystrmatch.control',

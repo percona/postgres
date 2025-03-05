@@ -23,7 +23,7 @@ bloom = shared_module('bloom',
 contrib_targets += bloom
 
 if llvm.found()
-  llvm_contrib_sources += bloom_sources
+  llvm_contrib_sources += {'bloom': {'sources': bloom_sources}}
 endif
 
 

@@ -17,7 +17,7 @@ tcn = shared_module('tcn',
 contrib_targets += tcn
 
 if llvm.found()
-  llvm_contrib_sources += tcn_sources
+  llvm_contrib_sources += {'tcn': {'sources': tcn_sources}}
 endif
 
 install_data(

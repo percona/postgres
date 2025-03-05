@@ -26,7 +26,7 @@ hstore = shared_module('hstore',
 contrib_targets += hstore
 
 if llvm.found()
-  llvm_contrib_sources += hstore_sources
+  llvm_contrib_sources += {'hstore': {'sources': hstore_sources}}
 endif
 
 install_data(

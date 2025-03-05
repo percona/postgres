@@ -21,7 +21,7 @@ pg_trgm = shared_module('pg_trgm',
 contrib_targets += pg_trgm
 
 if llvm.found()
-  llvm_contrib_sources += pg_trgm_sources
+  llvm_contrib_sources += {'pg_trgm': {'sources': pg_trgm_sources}}
 endif
 
 install_data(

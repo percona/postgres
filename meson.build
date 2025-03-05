@@ -3110,16 +3110,21 @@ generated_sources = []
 generated_sources_ac = {}
 
 # contrib source files used to generate bitcode (--with-llvm)
-llvm_contrib_sources = []
-
-# bitcode files generated from generated source files (flex, bison, etc)_
-bc_generated_sources = []
+# dictionary format:
+# {
+#    <contrib_module_name (string)>: {
+#       'sources': <list of sources, file[], custom_tgt[], etc>,
+#       'extra_args' (optional): <list of strings, flags to pass to the compiler>
+#    }
+# }
+# example: { 'bloom': { 'sources': bloom_sources } }
+llvm_contrib_sources = {}
 
 # bitcode files generated from generated source files in backend with custom CFLAGS
 bc_gen_custom_backend = []
 
 # bitcode files generated from generated source files in contrib with custom CFLAGS
-bc_gen_custom_contrib = []
+bc_gen_sources_contrib = {}
 
 # First visit src/include - all targets creating headers are defined
 # within. That makes it easy to add the necessary dependencies for the
@@ -3361,7 +3366,7 @@ if llvm.found()
   )
 
   llvm_gen_contrib = generator(llvm_irgen_command,
-    arguments: llvm_irgen_args + bitcode_cflags + pg_mod_c_args,
+    arguments: llvm_irgen_args + bitcode_cflags + pg_mod_c_args + ['@EXTRA_ARGS@'],
     depends: [transitive_depend_target, contrib_targets],
     depfile: '@BASENAME@.c.bc.d',
     output: '@PLAINNAME@.bc',
@@ -3370,15 +3375,50 @@ if llvm.found()
   bc_backend_sources = llvm_gen.process(backend_sources,
     preserve_path_from: meson.current_source_dir())
 
-  bc_contrib_sources = llvm_gen_contrib.process(llvm_contrib_sources)
-
   postgres_llvm = custom_target('bitcode',
     output: ['bitcode'],
-    input: [bc_backend_sources, bc_gen_custom_backend, bc_contrib_sources, bc_gen_custom_contrib],
+    input: [bc_backend_sources, bc_gen_custom_backend],
     kwargs: llvm_irlink_kw,
   )
 
   backend_targets += postgres_llvm
+
+  # generate bitcode for each contrib module
+  foreach contrib_module, data: llvm_contrib_sources
+    sources = data['sources']
+    extra_args = data.has_key('extra_args') ? data['extra_args'] : []
+
+    bc_gen_sources_contrib += {
+      contrib_module: llvm_gen_contrib.process(sources,
+          preserve_path_from: meson.current_source_dir(), extra_args: extra_args)
+    }
+  endforeach
+
+  # generate bitcode index files for each contrib module
+  foreach contrib_module, bc_sources: bc_gen_sources_contrib
+    backend_targets += custom_target(contrib_module,
+      # keep it consistent with autoconf: contrib modules will have individual bitcode
+      # files in a folder with the same name, while the <module>.index.bc is one level above.
+      # example: assuming dir_lib_pkg is lib, for contrib/bloom module we'll have the
+      # following structure:
+      #   lib/bitcode/bloom/*.bc
+      #   lib/bitcode/bloom.index.bc
+      output: [contrib_module, '@0@.index.bc'.format(contrib_module)],
+      input: bc_sources,
+      kwargs: {
+        'command': [
+          irlink,
+          '--name', contrib_module,
+          '--lto', llvm_lto,
+          '--outdir', '.',
+          '--privdir', '@PRIVATE_DIR@',
+          '@INPUT@',
+        ],
+      'install': true,
+      'install_dir': dir_lib_pkg / 'bitcode',
+      }
+    )
+  endforeach
 endif
 
 

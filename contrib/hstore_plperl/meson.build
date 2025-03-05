@@ -27,20 +27,18 @@ contrib_targets += hstore_plperl
 
 if llvm.found()
   llvm_contrib_hstore_plperl_cflags = [
-    '-I@BUILD_ROOT@/src/pl/plperl',
-    '-I@SOURCE_ROOT@/src/pl/plperl',
-    '-I@SOURCE_ROOT@/contrib',
-    '-I@SOURCE_ROOT@/contrib/hstore',
+    '-I@0@/src/pl/plperl'.format(meson.build_root()),
+    '-I@0@/src/pl/plperl'.format(meson.source_root()),
+    '-I@0@/contrib'.format(meson.source_root()),
+    '-I@0@/contrib/hstore'.format(meson.source_root()),
   ]
 
-  llvm_gen_contrib_hstore_plperl = generator(llvm_irgen_command,
-    arguments: llvm_irgen_args + bitcode_cflags + pg_mod_c_args + llvm_contrib_hstore_plperl_cflags + perl_ccflags,
-    depends: hstore_plperl,
-    depfile: '@BASENAME@.c.bc.d',
-    output: '@PLAINNAME@.bc',
-  )
-
-  bc_gen_custom_contrib += llvm_gen_contrib_hstore_plperl.process(hstore_plperl_sources)
+  llvm_contrib_sources += {
+    'hstore_plperl': {
+      'sources': hstore_plperl_sources,
+      'extra_args': llvm_contrib_hstore_plperl_cflags + perl_ccflags,
+    }
+  }
 endif
 
 install_data(

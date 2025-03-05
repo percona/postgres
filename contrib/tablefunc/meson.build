@@ -17,7 +17,7 @@ tablefunc = shared_module('tablefunc',
 contrib_targets += tablefunc
 
 if llvm.found()
-  llvm_contrib_sources += tablefunc_sources
+  llvm_contrib_sources += {'tablefunc': {'sources': tablefunc_sources}}
 endif
 
 install_data(

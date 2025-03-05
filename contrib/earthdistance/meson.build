@@ -17,7 +17,7 @@ earthdistance = shared_module('earthdistance',
 contrib_targets += earthdistance
 
 if llvm.found()
-  llvm_contrib_sources += earthdistance_sources
+  llvm_contrib_sources += {'earthdistance': {'sources': earthdistance_sources}}
 endif
 
 install_data(

@@ -17,7 +17,7 @@ pg_walinspect = shared_module('pg_walinspect',
 contrib_targets += pg_walinspect
 
 if llvm.found()
-  llvm_contrib_sources += pg_walinspect_sources
+  llvm_contrib_sources += {'pg_walinspect': {'sources': pg_walinspect_sources}}
 endif
 
 install_data(

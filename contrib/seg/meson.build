@@ -47,9 +47,9 @@ if llvm.found()
     depends: seg,
     depfile: '@BASENAME@.c.bc.d',
     output: '@PLAINNAME@.bc',
-  )
+   )
 
-  bc_gen_custom_contrib += llvm_gen_contrib_seg.process(bc_seg_sources)
+  bc_gen_sources_contrib += {'seg': llvm_gen_contrib_seg.process(bc_seg_sources)}
 endif
 
 install_data(

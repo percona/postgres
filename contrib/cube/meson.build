@@ -35,10 +35,10 @@ cube = shared_module('cube',
 contrib_targets += cube
 
 if llvm.found()
-  llvm_contrib_cube_cflags = [
+   llvm_contrib_cube_cflags = [
     '-I@BUILD_ROOT@/contrib/cube',
     '-I@SOURCE_ROOT@/contrib/cube',
-  ]
+   ]
 
   llvm_gen_contrib_cube = generator(llvm_irgen_command,
     arguments: llvm_irgen_args + bitcode_cflags + pg_mod_c_args + llvm_contrib_cube_cflags,
@@ -47,7 +47,7 @@ if llvm.found()
     output: '@PLAINNAME@.bc',
   )
 
-  bc_gen_custom_contrib += llvm_gen_contrib_cube.process(bc_cube_sources)
+  bc_gen_sources_contrib += {'cube': llvm_gen_contrib_cube.process(bc_cube_sources)}
 endif
 
 install_data(

@@ -23,7 +23,7 @@ intarray = shared_module('_int',
 contrib_targets += intarray
 
 if llvm.found()
-  llvm_contrib_sources += intarray_sources
+  llvm_contrib_sources += {'_int': {'sources': intarray_sources}}
 endif
 
 install_data(

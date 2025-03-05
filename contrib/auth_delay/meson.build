@@ -17,5 +17,5 @@ auth_delay = shared_module('auth_delay',
 contrib_targets += auth_delay
 
 if llvm.found()
-  llvm_contrib_sources += auth_delay_sources
+  llvm_contrib_sources += {'auth_delay': {'sources': auth_delay_sources}}
 endif

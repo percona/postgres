@@ -89,7 +89,7 @@ pgcrypto = shared_module('pgcrypto',
 contrib_targets += pgcrypto
 
 if llvm.found()
-  llvm_contrib_sources += pgcrypto_sources
+  llvm_contrib_sources += {'pgcrypto': {'sources': pgcrypto_sources}}
 endif
 
 install_data(

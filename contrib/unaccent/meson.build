@@ -17,7 +17,7 @@ unaccent = shared_module('unaccent',
 contrib_targets += unaccent
 
 if llvm.found()
-  llvm_contrib_sources += unaccent_sources
+  llvm_contrib_sources += {'unaccent': {'sources': unaccent_sources}}
 endif
 
 install_data(
