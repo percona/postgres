@@ -1,27 +1,36 @@
 # Uninstall `pg_tde`
 
-If you no longer wish to use TDE in your deployment, you can remove the `pg_tde` extension. To do that, your user must have the superuser privileges or a database owner.
+If you no longer wish to use TDE in your deployment, you can remove the `pg_tde` extension. To do that, your user must have the superuser privileges, or a database owner in case you only want to remove it from a single database.
 
 Here's how to do it:
 
-1. Drop the extension using the `DROP EXTENSION` with `CASCADE` command.
-
-   <i warning>:material-alert: Warning:</i> The use of the CASCADE parameter deletes all tables that were created in the database with `pg_tde` enabled and also all dependencies upon the encrypted table (e.g. foreign keys in a non-encrypted table used in the encrypted one).
-
+1. Drop the extension using the `DROP EXTENSION` command:
    ```
-   DROP EXTENSION pg_tde CASCADE
+   DROP EXTENSION pg_tde;
    ```
 
-2. Run the `DROP EXTENSION` command against every database where you have enabled the `pg_tde` extension
+This command will fail if there are still encrypted tables in the database.
 
-3. Modify the `shared_preload_libraries` and remove the 'pg_tde' from it. Use the `ALTER SYSTEM` command for this purpose
+In this case, the dependent objects have to be dropped manually, or alternatively, the `DROP EXTENSION ... CASCADE` command will drop all dependent object automatically.
+
+Note that the `DROP EXTENSION` command does not delete the `pg_tde` data files related to the database.
+
+2. Run the `DROP EXTENSION` command against every database where you have enabled the `pg_tde` extension, if the goal is to completely remove the extension. This also includes the template databases, in case `pg_tde` was previosly enabled there.
+
+3. Remove any reference to pg_tde GUC variables from the Postgresql configuration file.
+
+4. Modify the `shared_preload_libraries` and remove the 'pg_tde' from it. Use the `ALTER SYSTEM` command for this purpose, or edit the configuration file.
+
+Warning: once `pg_tde` is removed from the shared_preload_libraries, reading any leftover encrypted files will fail. Removing the extension from the `shared_preload_libraries` is also possible if the extension is still installed in some databases.
+
+Be sure to only do this if the server has no encrypted files in its data directory.
 
 4. Start or restart the `postgresql` cluster to apply the changes.
 
     * On Debian and Ubuntu:    
 
        ```sh
-       sudo systemctl restart postgresql-17
+       sudo systemctl restart postgresql
        ```
     
     * On RHEL and derivatives
