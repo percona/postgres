@@ -19,7 +19,7 @@ SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename;
 
 -- Adding constraints
 ALTER TABLE tde_table ADD CONSTRAINT unique_name UNIQUE(name);
-ALTER TABLE tde_table ADD CONSTRAINT check_name_length CHECK (LENGTH(name) > 3);
+ALTER TABLE tde_table ADD CONSTRAINT check_name_length CHECK (LENGTH(name) > 2);
 
 SELECT conname, conrelid::regclass, contype FROM pg_constraint WHERE connamespace = 'public'::regnamespace ORDER BY conrelid;
 
@@ -68,7 +68,9 @@ CREATE TRIGGER tde_audit
 AFTER INSERT OR UPDATE OR DELETE ON tde_table 
 FOR EACH ROW EXECUTE FUNCTION audit_tde_changes();
 
+INSERT INTO tde_table (name) VALUES ('khan'), ('Bob2');
 SELECT tgname, relname FROM pg_trigger JOIN pg_class ON pg_trigger.tgrelid = pg_class.oid WHERE NOT tgisinternal ORDER BY relname;
 
 -- Check WAL logs for plaintext leaks
 -- SELECT * FROM pg_walfile_name_offset(pg_current_wal_lsn());
+

@@ -1,0 +1,163 @@
+-- ===============================================
+-- 1. Verify TDE Tables Exist
+-- ===============================================
+SELECT table_name
+FROM information_schema.tables
+WHERE table_schema = 'public'
+AND table_name IN ('tde_table', 'tde_child', 'audit_log', 'part_table', 'part1')
+ORDER BY table_name;
+ table_name 
+------------
+ audit_log
+ part1
+ part_table
+ tde_child
+ tde_table
+(5 rows)
+
+-- ===============================================
+-- 2. Verify Columns of Tables
+-- ===============================================
+SELECT column_name, data_type, table_name
+FROM information_schema.columns
+WHERE table_name IN ('tde_table', 'tde_child', 'audit_log', 'part_table', 'part1')
+ORDER BY table_name, ordinal_position;
+ column_name | data_type | table_name 
+-------------+-----------+------------
+ id          | integer   | audit_log
+ table_name  | text      | audit_log
+ operation   | text      | audit_log
+ id          | integer   | part1
+ data        | text      | part1
+ id          | integer   | part_table
+ data        | text      | part_table
+ id          | integer   | tde_child
+ parent_id   | integer   | tde_child
+ id          | integer   | tde_table
+ name        | text      | tde_table
+(11 rows)
+
+-- ===============================================
+-- 3. Verify Constraints Exist
+-- ===============================================
+SELECT conname, conrelid::regclass, contype
+FROM pg_constraint
+WHERE connamespace = 'public'::regnamespace
+AND conrelid::regclass::text IN ('tde_table', 'tde_child')
+ORDER BY conrelid;
+         conname          | conrelid  | contype 
+--------------------------+-----------+---------
+ tde_table_pkey           | tde_table | p
+ unique_name              | tde_table | u
+ check_name_length        | tde_table | c
+ tde_child_pkey           | tde_child | p
+ tde_child_parent_id_fkey | tde_child | f
+(5 rows)
+
+-- ===============================================
+-- 4. Verify Index Exists
+-- ===============================================
+SELECT indexname, tablename
+FROM pg_indexes
+WHERE schemaname = 'public' AND tablename = 'tde_table';
+   indexname    | tablename 
+----------------+-----------
+ tde_table_pkey | tde_table
+ idx_tde_name   | tde_table
+ unique_name    | tde_table
+(3 rows)
+
+-- ===============================================
+-- 5. Verify Functions Exist
+-- ===============================================
+SELECT proname, prorettype::regtype
+FROM pg_proc
+JOIN pg_namespace ON pg_proc.pronamespace = pg_namespace.oid
+WHERE nspname = 'public'
+AND proname = 'get_tde_data';
+   proname    | prorettype 
+--------------+------------
+ get_tde_data | record
+(1 row)
+
+-- ===============================================
+-- 6. Verify Function Output
+-- ===============================================
+SELECT * FROM get_tde_data();
+ id | name  
+----+-------
+  1 | Alice
+  2 | Bob
+  3 | khan
+  4 | Bob2
+(4 rows)
+
+-- ===============================================
+-- 7. Verify Partitioning
+-- ===============================================
+SELECT inhrelid::regclass AS partition_name, inhparent::regclass AS parent_table
+FROM pg_inherits
+WHERE inhparent::regclass::text = 'part_table'
+ORDER BY inhparent;
+ partition_name | parent_table 
+----------------+--------------
+ part1          | part_table
+(1 row)
+
+-- ===============================================
+-- 8. Verify Triggers Exist
+-- ===============================================
+SELECT tgname, relname
+FROM pg_trigger
+JOIN pg_class ON pg_trigger.tgrelid = pg_class.oid
+WHERE NOT tgisinternal AND relname = 'tde_table';
+  tgname   |  relname  
+-----------+-----------
+ tde_audit | tde_table
+(1 row)
+
+-- ===============================================
+-- 9. Verify Data Integrity
+-- ===============================================
+-- Check data counts
+SELECT 'tde_table' AS table_name, COUNT(*) FROM tde_table
+UNION ALL
+SELECT 'tde_child', COUNT(*) FROM tde_child
+UNION ALL
+SELECT 'audit_log', COUNT(*) FROM audit_log
+UNION ALL
+SELECT 'part_table', COUNT(*) FROM part_table;
+ table_name | count 
+------------+-------
+ tde_table  |     4
+ tde_child  |     1
+ audit_log  |     2
+ part_table |     1
+(4 rows)
+
+-- Ensure tde_child references valid parent_id
+SELECT tde_child.id, tde_child.parent_id
+FROM tde_child
+LEFT JOIN tde_table ON tde_child.parent_id = tde_table.id
+WHERE tde_table.id IS NULL;
+ id | parent_id 
+----+-----------
+(0 rows)
+
+-- ===============================================
+-- 10. Verify tables are encrypted
+-- ===============================================
+-- Verify all tables exist and are encrypted
+SELECT tablename, pg_tde_is_encrypted(tablename::regclass) AS is_encrypted
+FROM pg_tables
+WHERE schemaname = 'public'
+AND tablename IN ('tde_table', 'tde_child', 'part1','part_table')
+ORDER BY tablename;
+ tablename  | is_encrypted 
+------------+--------------
+ part1      | t
+ part_table | t
+ tde_child  | t
+ tde_table  | t
+(4 rows)
+
