@@ -1,4 +1,4 @@
-# Removing the encryption from an encrypted table
+# Remove the encryption from an encrypted table
 
 ## Method 1. Change the access method
 
@@ -8,7 +8,7 @@ If you encrypted a table with the `tde_heap` access method and need to remove th
 ALTER TABLE mytable SET ACCESS METHOD heap;
 ```
 
-Note that the `SET ACCESS METHOD` command drops hint bits and this may affect the performance. Running a plain `SELECT count(*)` or `VACUUM` commands on the entire table will check every tuple for visibility and set its hint bits. Therefore, after executing the `ALTER TABLE` command, run a simple `count(*)` on your tables:
+Note that the `SET ACCESS METHOD` command drops hint bits and this may affect performance. Running a plain `SELECT count(*)` or `VACUUM` commands on the entire table will check every tuple for visibility and set its hint bits. Therefore, after executing the `ALTER TABLE` command, run a simple `count(*)` on your tables:
 
 ```
 SELECT count(*) FROM mytable;
