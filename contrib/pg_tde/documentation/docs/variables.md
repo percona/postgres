@@ -32,12 +32,12 @@ Similarly, `ALTER TABLE <x> SET ACCESS METHOD` is only allowed, if the access me
 
 Other DDL operations are still allowed. For example other `ALTER` commands are allowed on unencrypted tables, as long as the access method isn't changed.
 
-You can set this variable at the following levels. 
+You can set this variable at the following levels: 
 
-* global - for the entire PostgreSQL cluster
-* database - for the current database
-* user - 
-* session - for the current user session.
+* global - for the entire PostgreSQL cluster.
+* database - for specific databases. 
+* user - for specific users.
+* session - for the current session.
 
 Setting or changing the value requires superuser permissions.
 
@@ -48,11 +48,16 @@ Setting or changing the value requires superuser permissions.
 
 A `boolean` variable controlling if databases can use global key providers for storing principal keys.
 
-This can be set at global, database, user or session level, but changing the value requires superuser permissions.
-
 If disabled, functions that change the key providers can only work with database local key providers.
+
 In this case, the default principal key, if set, is also disabled.
 
-This doesn't affect existing uses of global keys. It only prevents the creation of new principal keys using global providers.
+You can set this variable at the following levels: 
 
-The default value is true.
+* global - for the entire PostgreSQL cluster.
+* database - for specific databases. 
+* user - for specific users.
+* session - for the current session.
+
+
+Setting this variable doesn't affect existing uses of global keys. It only prevents the creation of new principal keys using global providers.
