@@ -16,6 +16,10 @@ pg_visibility = shared_module('pg_visibility',
 )
 contrib_targets += pg_visibility
 
+if llvm.found()
+  llvm_contrib_sources += {'pg_visibility': {'sources': pg_visibility_sources}}
+endif
+
 install_data(
   'pg_visibility--1.0--1.1.sql',
   'pg_visibility--1.1--1.2.sql',

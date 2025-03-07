@@ -18,6 +18,19 @@ dblink = shared_module('dblink',
 )
 contrib_targets += dblink
 
+if llvm.found()
+  llvm_contrib_dblink_cflags = [
+    '-I@0@/src/interfaces/libpq'.format(meson.source_root()),
+  ]
+
+  llvm_contrib_sources += {
+    'dblink': {
+      'sources': dblink_sources,
+      'extra_args': llvm_contrib_dblink_cflags,
+    }
+  }
+endif
+
 install_data(
   'dblink.control',
   'dblink--1.0--1.1.sql',

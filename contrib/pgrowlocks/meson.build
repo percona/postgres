@@ -16,6 +16,10 @@ pgrowlocks = shared_module('pgrowlocks',
 )
 contrib_targets += pgrowlocks
 
+if llvm.found()
+  llvm_contrib_sources += {'pgrowlocks': {'sources': pgrowlocks_sources}}
+endif
+
 install_data(
   'pgrowlocks--1.0--1.1.sql',
   'pgrowlocks--1.1--1.2.sql',

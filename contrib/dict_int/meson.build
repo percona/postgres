@@ -16,6 +16,10 @@ dict_int = shared_module('dict_int',
 )
 contrib_targets += dict_int
 
+if llvm.found()
+  llvm_contrib_sources += {'dict_int': {'sources': dict_int_sources}}
+endif
+
 install_data(
   'dict_int.control',
   'dict_int--1.0.sql',

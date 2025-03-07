@@ -24,6 +24,24 @@ jsonb_plpython = shared_module('jsonb_plpython3',
 )
 contrib_targets += jsonb_plpython
 
+if llvm.found()
+  pyinc = python3_inst.get_variable('INCLUDEPY')
+  llvm_contrib_jsonb_plpython_cflags = [
+    '-I@0@/src/pl/plpython'.format(meson.source_root()),
+    '-I@0@/contrib'.format(meson.source_root()),
+    '-I@0@/contrib/hstore'.format(meson.source_root()),
+    '-DPLPYTHON_LIBNAME="plpython3"',
+    '-I@0@'.format(pyinc),
+  ]
+
+  llvm_contrib_sources += {
+    'jsonb_plpython3': {
+      'sources': jsonb_plpython_sources,
+      'extra_args': llvm_contrib_jsonb_plpython_cflags,
+    }
+  }
+endif
+
 install_data(
   'jsonb_plpython3u.control',
   'jsonb_plpython3u--1.0.sql',

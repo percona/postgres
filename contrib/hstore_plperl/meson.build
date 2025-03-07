@@ -25,6 +25,22 @@ hstore_plperl = shared_module('hstore_plperl',
 )
 contrib_targets += hstore_plperl
 
+if llvm.found()
+  llvm_contrib_hstore_plperl_cflags = [
+    '-I@0@/src/pl/plperl'.format(meson.build_root()),
+    '-I@0@/src/pl/plperl'.format(meson.source_root()),
+    '-I@0@/contrib'.format(meson.source_root()),
+    '-I@0@/contrib/hstore'.format(meson.source_root()),
+  ]
+
+  llvm_contrib_sources += {
+    'hstore_plperl': {
+      'sources': hstore_plperl_sources,
+      'extra_args': llvm_contrib_hstore_plperl_cflags + perl_ccflags,
+    }
+  }
+endif
+
 install_data(
   'hstore_plperl.control',
   'hstore_plperl--1.0.sql',

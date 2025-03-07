@@ -16,6 +16,10 @@ earthdistance = shared_module('earthdistance',
 )
 contrib_targets += earthdistance
 
+if llvm.found()
+  llvm_contrib_sources += {'earthdistance': {'sources': earthdistance_sources}}
+endif
+
 install_data(
   'earthdistance.control',
   'earthdistance--1.0--1.1.sql',

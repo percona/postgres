@@ -814,6 +814,54 @@ if add_languages('cpp', required: llvmopt, native: false)
     # Some distros put LLVM and clang in different paths, so fallback to
     # find via PATH, too.
     clang = find_program(llvm_binpath / 'clang', 'clang', required: true)
+    llvm_lto = find_program(llvm_binpath / 'llvm-lto', required: true)
+    irlink = find_program('src/tools/irlink', native: true)
+
+    # Define a few bits and pieces used here and elsewhere to generate bitcode
+
+    llvm_irgen_args = [
+      '-c', '-o', '@OUTPUT@', '@INPUT@',
+      '-flto=thin', '-emit-llvm',
+      '-MD', '-MQ', '@OUTPUT@', '-MF', '@DEPFILE@',
+      '-O2',
+      '-Wno-ignored-attributes',
+      '-Wno-empty-body',
+    ]
+
+    if ccache.found()
+      llvm_irgen_command = ccache
+      llvm_irgen_args = [clang.path()] + llvm_irgen_args
+    else
+      llvm_irgen_command = clang
+    endif
+
+    llvm_irlink_kw = {
+      'command': [
+        irlink,
+        '--name', 'postgres',
+        '--lto', llvm_lto,
+        '--outdir', '@OUTPUT0@',
+        '--privdir', '@PRIVATE_DIR@',
+        '@INPUT@',
+      ],
+      'install': true,
+      'install_dir': dir_lib_pkg,
+    }
+
+    # XXX: Need to determine proper version of the function cflags for clang
+    bitcode_cflags = ['-fno-strict-aliasing', '-fwrapv']
+    bitcode_cflags += get_option('c_args')
+    bitcode_cflags += cppflags
+
+    # XXX: Worth improving on the logic to find directories here
+    bitcode_cflags += '-I@BUILD_ROOT@/src/include'
+    bitcode_cflags += '-I@BUILD_ROOT@/src/backend/utils/misc'
+    bitcode_cflags += '-I@SOURCE_ROOT@/src/include'
+    extra_inc = get_option('extra_include_dirs')
+    if extra_inc.length() > 0
+      bitcode_cflags += extra_inc
+    endif
+
   endif
 elif llvmopt.auto()
   message('llvm requires a C++ compiler')
@@ -3061,6 +3109,22 @@ generated_sources = []
 # elements are [dir, [files]]
 generated_sources_ac = {}
 
+# contrib source files used to generate bitcode (--with-llvm)
+# dictionary format:
+# {
+#    <contrib_module_name (string)>: {
+#       'sources': <list of sources, file[], custom_tgt[], etc>,
+#       'extra_args' (optional): <list of strings, flags to pass to the compiler>
+#    }
+# }
+# example: { 'bloom': { 'sources': bloom_sources } }
+llvm_contrib_sources = {}
+
+# bitcode files generated from generated source files in backend with custom CFLAGS
+bc_gen_custom_backend = []
+
+# bitcode files generated from generated source files in contrib with custom CFLAGS
+bc_gen_sources_contrib = {}
 
 # First visit src/include - all targets creating headers are defined
 # within. That makes it easy to add the necessary dependencies for the
@@ -3272,6 +3336,90 @@ above, or by running configure and then make maintainer-clean.
   error(errmsg_nonclean_base.format(errmsg_cleanup))
 endif
 
+
+###############################################################
+# emit LLVM bitcode of backend/contrib code for JIT inlining
+###############################################################
+
+if llvm.found()
+  # custom_target() insists on targeting files into the current
+  # directory. But we have files with the same name in different
+  # subdirectories.  generators() don't have that problem, but their results
+  # are not installable. The irlink command copies the files for us.
+  #
+  # generators don't accept CustomTargetIndex as input or 'depends', nor do
+  # they like targets with more than one output. However, a custom target
+  # accepts them as input without a problem. So we have the below transitive
+  # target :(
+
+  transitive_depend_target = custom_target('stamp',
+    input: generated_headers + generated_backend_headers + generated_backend_sources,
+    output: 'stamp',
+    command: ['touch', '@OUTPUT@'],
+    install: false)
+
+  llvm_gen = generator(llvm_irgen_command,
+    arguments: llvm_irgen_args + bitcode_cflags,
+    depends: transitive_depend_target,
+    depfile: '@BASENAME@.c.bc.d',
+    output: '@PLAINNAME@.bc',
+  )
+
+  llvm_gen_contrib = generator(llvm_irgen_command,
+    arguments: llvm_irgen_args + bitcode_cflags + pg_mod_c_args + ['@EXTRA_ARGS@'],
+    depends: [transitive_depend_target, contrib_targets],
+    depfile: '@BASENAME@.c.bc.d',
+    output: '@PLAINNAME@.bc',
+  )
+
+  bc_backend_sources = llvm_gen.process(backend_sources,
+    preserve_path_from: meson.current_source_dir())
+
+  postgres_llvm = custom_target('bitcode',
+    output: ['bitcode'],
+    input: [bc_backend_sources, bc_gen_custom_backend],
+    kwargs: llvm_irlink_kw,
+  )
+
+  backend_targets += postgres_llvm
+
+  # generate bitcode for each contrib module
+  foreach contrib_module, data: llvm_contrib_sources
+    sources = data['sources']
+    extra_args = data.has_key('extra_args') ? data['extra_args'] : []
+
+    bc_gen_sources_contrib += {
+      contrib_module: llvm_gen_contrib.process(sources,
+          preserve_path_from: meson.current_source_dir(), extra_args: extra_args)
+    }
+  endforeach
+
+  # generate bitcode index files for each contrib module
+  foreach contrib_module, bc_sources: bc_gen_sources_contrib
+    backend_targets += custom_target(contrib_module,
+      # keep it consistent with autoconf: contrib modules will have individual bitcode
+      # files in a folder with the same name, while the <module>.index.bc is one level above.
+      # example: assuming dir_lib_pkg is lib, for contrib/bloom module we'll have the
+      # following structure:
+      #   lib/bitcode/bloom/*.bc
+      #   lib/bitcode/bloom.index.bc
+      output: [contrib_module, '@0@.index.bc'.format(contrib_module)],
+      input: bc_sources,
+      kwargs: {
+        'command': [
+          irlink,
+          '--name', contrib_module,
+          '--lto', llvm_lto,
+          '--outdir', '.',
+          '--privdir', '@PRIVATE_DIR@',
+          '@INPUT@',
+        ],
+      'install': true,
+      'install_dir': dir_lib_pkg / 'bitcode',
+      }
+    )
+  endforeach
+endif
 
 
 ###############################################################

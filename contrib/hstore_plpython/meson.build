@@ -24,6 +24,25 @@ hstore_plpython = shared_module('hstore_plpython3',
 )
 contrib_targets += hstore_plpython
 
+if llvm.found()
+  pyinc = python3_inst.get_variable('INCLUDEPY')
+  llvm_contrib_hstore_plpython_cflags = [
+    '-I@0@/src/pl/plpython'.format(meson.source_root()),
+    '-I@0@/contrib'.format(meson.source_root()),
+    '-I@0@/contrib/hstore'.format(meson.source_root()),
+    '-DPLPYTHON_LIBNAME="plpython3"',
+    '-I@0@'.format(pyinc),
+  ]
+
+  llvm_contrib_sources += {
+    'hstore_plpython3': {
+      'sources': hstore_plpython_sources,
+      'extra_args': llvm_contrib_hstore_plpython_cflags,
+    }
+  }
+endif
+
+
 install_data(
   'hstore_plpython3u--1.0.sql',
   'hstore_plpython3u.control',

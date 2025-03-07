@@ -25,6 +25,21 @@ jsonb_plperl = shared_module('jsonb_plperl',
 )
 contrib_targets += jsonb_plperl
 
+if llvm.found()
+  llvm_contrib_jsonb_plperl_cflags = [
+    '-I@0@/src/pl/plperl'.format(meson.build_root()),
+    '-I@0@/src/pl/plperl'.format(meson.source_root()),
+  ]
+
+  llvm_contrib_sources += {
+    'jsonb_plperl': {
+      'sources': jsonb_plperl_sources,
+      'extra_args': llvm_contrib_jsonb_plperl_cflags + perl_ccflags,
+    }
+  }
+endif
+
+
 install_data(
   'jsonb_plperl.control',
   'jsonb_plperl--1.0.sql',

@@ -40,6 +40,10 @@ btree_gist = shared_module('btree_gist',
 )
 contrib_targets += btree_gist
 
+if llvm.found()
+  llvm_contrib_sources += {'btree_gist': {'sources': btree_gist_sources}}
+endif
+
 install_data(
   'btree_gist.control',
   'btree_gist--1.0--1.1.sql',

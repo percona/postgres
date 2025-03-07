@@ -24,6 +24,10 @@ xml2 = shared_module('pgxml',
 )
 contrib_targets += xml2
 
+if llvm.found()
+  llvm_contrib_sources += {'pgxml': {'sources': xml2_sources}}
+endif
+
 install_data(
   'xml2--1.0--1.1.sql',
   'xml2--1.1.sql',

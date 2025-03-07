@@ -26,6 +26,10 @@ passwordcheck = shared_module('passwordcheck',
 )
 contrib_targets += passwordcheck
 
+if llvm.found()
+  llvm_contrib_sources += {'passwordcheck': {'sources': passwordcheck_sources}}
+endif
+
 tests += {
   'name': 'passwordcheck',
   'sd': meson.current_source_dir(),

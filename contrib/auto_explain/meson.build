@@ -16,6 +16,10 @@ auto_explain = shared_module('auto_explain',
 )
 contrib_targets += auto_explain
 
+if llvm.found()
+  llvm_contrib_sources += {'auto_explain': {'sources': auto_explain_sources}}
+endif
+
 tests += {
   'name': 'auto_explain',
   'sd': meson.current_source_dir(),

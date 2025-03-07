@@ -16,6 +16,10 @@ basic_archive = shared_module('basic_archive',
 )
 contrib_targets += basic_archive
 
+if llvm.found()
+  llvm_contrib_sources += {'basic_archive': {'sources': basic_archive_sources}}
+endif
+
 tests += {
   'name': 'basic_archive',
   'sd': meson.current_source_dir(),

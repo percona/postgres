@@ -27,6 +27,10 @@ ltree = shared_module('ltree',
 )
 contrib_targets += ltree
 
+if llvm.found()
+  llvm_contrib_sources += {'ltree': {'sources': ltree_sources}}
+endif
+
 install_data(
   'ltree.control',
   'ltree--1.0--1.1.sql',

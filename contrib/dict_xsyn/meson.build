@@ -16,6 +16,10 @@ dict_xsyn = shared_module('dict_xsyn',
 )
 contrib_targets += dict_xsyn
 
+if llvm.found()
+  llvm_contrib_sources += {'dict_xsyn': {'sources': dict_xsyn_sources}}
+endif
+
 install_data(
   'dict_xsyn.control',
   'dict_xsyn--1.0.sql',

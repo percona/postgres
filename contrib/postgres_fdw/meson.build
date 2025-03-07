@@ -22,6 +22,19 @@ postgres_fdw = shared_module('postgres_fdw',
 )
 contrib_targets += postgres_fdw
 
+if llvm.found()
+  llvm_contrib_fdw_cflags = [
+    '-I@0@/src/interfaces/libpq'.format(meson.source_root()),
+  ]
+
+  llvm_contrib_sources += {
+    'postgres_fdw': {
+      'sources': postgres_fdw_sources,
+      'extra_args': llvm_contrib_fdw_cflags,
+    }
+  }
+endif
+
 install_data(
   'postgres_fdw.control',
   'postgres_fdw--1.0.sql',

@@ -25,6 +25,22 @@ bool_plperl = shared_module('bool_plperl',
 )
 contrib_targets += bool_plperl
 
+if llvm.found()
+  llvm_contrib_bool_plperl_cflags = [
+    '-I@0@/contrib/bool_plperl'.format(meson.build_root()),
+    '-I@0@/contrib/bool_plperl'.format(meson.source_root()),
+    '-I@0@/src/pl/plperl'.format(meson.build_root()),
+    '-I@0@/src/pl/plperl'.format(meson.source_root()),
+  ]
+
+  llvm_contrib_sources += {
+    'bool_plperl': {
+      'sources': bool_plperl_sources,
+      'extra_args': llvm_contrib_bool_plperl_cflags + perl_ccflags,
+    }
+  }
+endif
+
 install_data(
   'bool_plperl.control',
   'bool_plperl--1.0.sql',

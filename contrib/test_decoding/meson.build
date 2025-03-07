@@ -16,6 +16,10 @@ test_decoding = shared_module('test_decoding',
 )
 contrib_targets += test_decoding
 
+if llvm.found()
+  llvm_contrib_sources += {'test_decoding': {'sources': test_decoding_sources}}
+endif
+
 tests += {
   'name': 'test_decoding',
   'sd': meson.current_source_dir(),

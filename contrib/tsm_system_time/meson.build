@@ -16,6 +16,10 @@ tsm_system_time = shared_module('tsm_system_time',
 )
 contrib_targets += tsm_system_time
 
+if llvm.found()
+  llvm_contrib_sources += {'tsm_system_time': {'sources': tsm_system_time_sources}}
+endif
+
 install_data(
   'tsm_system_time--1.0.sql',
   'tsm_system_time.control',
