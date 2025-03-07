@@ -7,16 +7,20 @@ DATA = pg_tde--1.0-rc.sql
 
 REGRESS_OPTS = --temp-config $(top_srcdir)/contrib/pg_tde/pg_tde.conf
 REGRESS = toast_decrypt \
-pg_tde_is_encrypted \
-subtransaction \
+access_control \
+alter_index \
+cache_alloc \
 change_access_method \
 insert_update_delete \
+key_provider \
 keyprovider_dependency \
-vault_v2_test \
-alter_index \
-tablespace \
+kmip_test \
+pg_tde_is_encrypted \
 relocate \
-access_control
+subtransaction \
+tablespace \
+vault_v2_test \
+default_principal_key
 TAP_TESTS = 1
 
 OBJS = src/encryption/enc_tde.o \
