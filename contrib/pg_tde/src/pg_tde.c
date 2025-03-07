@@ -111,7 +111,7 @@ _PG_init(void)
 {
 	if (!process_shared_preload_libraries_in_progress)
 	{
-		elog(ERROR, "pg_tde can only be loaded at server startup. Restart required.");
+		elog(FATAL, "pg_tde can only be loaded at server startup. Restart required.");
 		return;
 	}
 
