@@ -132,7 +132,23 @@ sub setup_cluster
 		'postgresql.conf', qq(
 wal_keep_size = 320MB
 allow_in_place_tablespaces = on
+
+shared_preload_libraries = 'pg_tde'
 ));
+
+	$node_primary->start;
+
+	$node_primary->safe_psql('postgres', "CREATE EXTENSION IF NOT EXISTS pg_tde;");
+	$node_primary->safe_psql('postgres', "SELECT pg_tde_add_global_key_provider_file('file-keyring-wal','/tmp/pg_tde_test_keyring-wal.per');");;
+	$node_primary->safe_psql('postgres', "SELECT pg_tde_set_server_principal_key('global-db-principal-key', 'file-keyring-wal');");
+
+	$node_primary->append_conf(
+		'postgresql.conf', q{
+	pg_tde.wal_encrypt = on
+	});
+
+	$node_primary->stop;
+
 	return;
 }
 
