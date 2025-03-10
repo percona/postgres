@@ -1,0 +1,32 @@
+-- Check last transaction timestamps to ensure no delay
+SELECT MAX(tid) AS last_transaction FROM pgbench_history;
+ last_transaction 
+------------------
+              500
+(1 row)
+
+-- Check data integrity by comparing last 5 accounts
+SELECT aid, bid FROM pgbench_accounts ORDER BY aid DESC LIMIT 5;
+   aid   | bid 
+---------+-----
+ 5000000 |  50
+ 4999999 |  50
+ 4999998 |  50
+ 4999997 |  50
+ 4999996 |  50
+(5 rows)
+
+-- Check last account ID for consistency
+SELECT MAX(aid) AS last_account_id FROM pgbench_accounts;
+ last_account_id 
+-----------------
+         5000000
+(1 row)
+
+-- Detect if the query is running on a Replica (Standby)
+SELECT pg_is_in_recovery() AS is_replica;
+ is_replica 
+------------
+ t
+(1 row)
+
