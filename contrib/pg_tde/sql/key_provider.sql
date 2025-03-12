@@ -44,7 +44,7 @@ SELECT id, provider_name FROM pg_tde_list_all_key_providers();
 
 SELECT id, provider_name FROM pg_tde_list_all_global_key_providers();
 
-SELECT pg_tde_set_global_principal_key('test-db-principal-key', 'file-keyring', false);
+SELECT pg_tde_set_principal_key_global_provider('test-db-principal-key', 'file-keyring', false);
 
 -- fails
 SELECT pg_tde_delete_global_key_provider('file-keyring');
