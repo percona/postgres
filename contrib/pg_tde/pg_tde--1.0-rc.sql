@@ -487,7 +487,7 @@ RETURNS VOID
 LANGUAGE C
 AS 'MODULE_PATHNAME';
 
-CREATE FUNCTION pg_tde_verify_global_principal_key()
+CREATE FUNCTION pg_tde_verify_server_principal_key()
 RETURNS VOID
 LANGUAGE C
 AS 'MODULE_PATHNAME';
@@ -629,7 +629,7 @@ BEGIN
     EXECUTE format('GRANT EXECUTE ON FUNCTION pg_tde_principal_key_info() TO %I', target_role);
     EXECUTE format('GRANT EXECUTE ON FUNCTION pg_tde_server_principal_key_info() TO %I', target_role);
     EXECUTE format('GRANT EXECUTE ON FUNCTION pg_tde_verify_principal_key() TO %I', target_role);
-    EXECUTE format('GRANT EXECUTE ON FUNCTION pg_tde_verify_global_principal_key() TO %I', target_role);
+    EXECUTE format('GRANT EXECUTE ON FUNCTION pg_tde_verify_server_principal_key() TO %I', target_role);
 END;
 $$;
 
@@ -710,7 +710,7 @@ BEGIN
     EXECUTE format('REVOKE EXECUTE ON FUNCTION pg_tde_principal_key_info() FROM %I', target_role);
     EXECUTE format('REVOKE EXECUTE ON FUNCTION pg_tde_server_principal_key_info() FROM %I', target_role);
     EXECUTE format('REVOKE EXECUTE ON FUNCTION pg_tde_verify_principal_key() FROM %I', target_role);
-    EXECUTE format('REVOKE EXECUTE ON FUNCTION pg_tde_verify_global_principal_key() FROM %I', target_role);
+    EXECUTE format('REVOKE EXECUTE ON FUNCTION pg_tde_verify_server_principal_key() FROM %I', target_role);
 END;
 $$;
 

@@ -53,7 +53,7 @@ PG_FUNCTION_INFO_V1(pg_tde_delete_key_provider);
 PG_FUNCTION_INFO_V1(pg_tde_delete_global_key_provider);
 
 PG_FUNCTION_INFO_V1(pg_tde_verify_principal_key);
-PG_FUNCTION_INFO_V1(pg_tde_verify_global_principal_key);
+PG_FUNCTION_INFO_V1(pg_tde_verify_server_principal_key);
 
 typedef struct TdePrincipalKeySharedState
 {
@@ -621,7 +621,7 @@ pg_tde_verify_principal_key(PG_FUNCTION_ARGS)
 }
 
 Datum
-pg_tde_verify_global_principal_key(PG_FUNCTION_ARGS)
+pg_tde_verify_server_principal_key(PG_FUNCTION_ARGS)
 {
 	return pg_tde_verify_principal_key_internal(GLOBAL_DATA_TDE_OID);
 }

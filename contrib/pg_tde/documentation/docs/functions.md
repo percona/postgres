@@ -314,9 +314,9 @@ If any of the above checks fail, the function reports an error.
 SELECT pg_tde_verify_principal_key()
 ```
 
-### pg_tde_verify_global_principal_key
+### pg_tde_verify_server_principal_key
 
-This function checks that the global scope has a properly functional encryption setup, which means:
+This function checks that the server scope has a properly functional encryption setup, which means:
 
 * A key provider is configured
 * The key provider is accessible using the specified configuration
@@ -327,5 +327,5 @@ This function checks that the global scope has a properly functional encryption 
 If any of the above checks fail, the function reports an error.
 
 ```
-SELECT pg_tde_verify_principal_key()
+SELECT pg_tde_verify_server_principal_key()
 ```
