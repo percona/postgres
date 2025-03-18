@@ -32,7 +32,7 @@ Here's what to do:
         <i warning>:material-information: Warning:</i> This example is for testing purposes only:
 
         ```
-        SELECT pg_tde_add_key_global_provider_kmip('kmip','127.0.0.1', 5696, '/tmp/server_certificate.pem', '/tmp/client_key_jane_doe.pem');
+        SELECT pg_tde_add_key_using_global_key_provider_kmip('kmip','127.0.0.1', 5696, '/tmp/server_certificate.pem', '/tmp/client_key_jane_doe.pem');
         ```
 
     === "With HashiCorp Vault"

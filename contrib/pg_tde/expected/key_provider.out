@@ -133,8 +133,8 @@ SELECT id, provider_name FROM pg_tde_list_all_global_key_providers();
 (2 rows)
 
 SELECT pg_tde_set_principal_key_using_global_key_provider('test-db-principal-key', 'file-keyring', false);
- pg_tde_set_principal_key_global_provider 
-------------------------------------------
+ pg_tde_set_principal_key_using_global_key_provider 
+----------------------------------------------------
  
 (1 row)
 

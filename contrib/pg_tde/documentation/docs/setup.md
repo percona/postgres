@@ -112,7 +112,7 @@ Load the `pg_tde` at startup time. The extension requires additional shared memo
 2. Add a default principal key
 
     ```sql
-    SELECT pg_tde_set_default_principal_key_global_provider('name-of-the-principal-key','provider-name','ensure_new_key');
+    SELECT pg_tde_set_default_principal_key_using_global_key_provider('name-of-the-principal-key','provider-name','ensure_new_key');
     ```
 
     where:
