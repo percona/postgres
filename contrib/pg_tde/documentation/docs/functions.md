@@ -90,7 +90,7 @@ The Vault provider connects to a HashiCorp Vault or an OpenBao server, and store
 Use the following functions to add the Vault provider:
 
 ```
-SELECT pg_tde_add_key_provider_vault_v2('provider-name','secret_token','url','mount','ca_path');
+SELECT pg_tde_add_database_key_provider_vault_v2('provider-name','secret_token','url','mount','ca_path');
 SELECT pg_tde_add_global_key_provider_vault_v2('provider-name','secret_token','url','mount','ca_path');
 ```
 
@@ -121,7 +121,7 @@ The KMIP provider uses a remote KMIP server.
 Use these functions to add a KMIP provider: 
 
 ```
-SELECT pg_tde_add_key_provider_kmip('provider-name','kmip-addr', `port`, '/path_to/server_certificate.pem', '/path_to/client_key.pem');
+SELECT pg_tde_add_database_key_provider_kmip('provider-name','kmip-addr', `port`, '/path_to/server_certificate.pem', '/path_to/client_key.pem');
 SELECT pg_tde_add_global_key_provider_kmip('provider-name','kmip-addr', `port`, '/path_to/server_certificate.pem', '/path_to/client_key.pem');
 ```
 
@@ -156,7 +156,7 @@ This function is intended for development or quick testing, and stores the keys 
 Add a local keyfile provider:
 
 ```
-SELECT pg_tde_add_key_provider_file('provider-name','/path/to/the/key/provider/data.file');
+SELECT pg_tde_add_database_key_provider_file('provider-name','/path/to/the/key/provider/data.file');
 SELECT pg_tde_add_global_key_provider_file('provider-name','/path/to/the/key/provider/data.file');
 ```
 
@@ -178,7 +178,7 @@ All parameters can be either strings, or JSON objects [referencing remote parame
 
 These functions delete an existing provider in the current database or in the global scope:
 
-* `pg_tde_delete_key_provider('provider-name)`
+* `pg_tde_delete_database_key_provider('provider-name)`
 * `pg_tde_delete_global_key_provider('provider-name)`
 
 You can only delete key providers that are not currently in use. An error is returned if the current principal key is using the provider you are trying to delete.
@@ -189,7 +189,7 @@ If the use of global key providers is enabled via the `pg_tde.inherit_global` GU
 
 These functions list the details of all key providers for the current database or for the global scope, including all configuration values:
 
-* `pg_tde_list_all_key_providers()`
+* `pg_tde_list_all_database_key_providers()`
 * `pg_tde_list_all_global_key_providers()`
 
 **All configuration values include possibly sensitive values, such as passwords. Never specify these directly, use the remote configuration option instead.**
