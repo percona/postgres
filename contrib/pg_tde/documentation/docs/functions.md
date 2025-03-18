@@ -72,7 +72,7 @@ You can change an existing key provider using the provided functions, which are 
 
 There are two functions to change existing providers: one to change a provider in the current database, and another one to change a provider in the global scope.
 
-* `pg_tde_change_key_provider_<type>('provider-name', <provider specific parameters>)`
+* `pg_tde_change_database_key_provider_<type>('provider-name', <provider specific parameters>)`
 * `pg_tde_change_global_key_provider_<type>('provider-name', <provider specific parameters>)`
 
 When you change a provider, the referred name must exist in the database local or a global scope.
@@ -97,7 +97,7 @@ SELECT pg_tde_add_global_key_provider_vault_v2('provider-name','secret_token','u
 These functions change the Vault provider:
 
 ```
-SELECT pg_tde_change_key_provider_vault_v2('provider-name','secret_token','url','mount','ca_path');
+SELECT pg_tde_change_database_key_provider_vault_v2('provider-name','secret_token','url','mount','ca_path');
 SELECT pg_tde_change_global_key_provider_vault_v2('provider-name','secret_token','url','mount','ca_path');
 ```
 
@@ -128,7 +128,7 @@ SELECT pg_tde_add_global_key_provider_kmip('provider-name','kmip-addr', `port`, 
 These functions change the KMIP provider:
 
 ```
-SELECT pg_tde_change_key_provider_kmip('provider-name','kmip-addr', `port`, '/path_to/server_certificate.pem', '/path_to/client_key.pem');
+SELECT pg_tde_change_database_key_provider_kmip('provider-name','kmip-addr', `port`, '/path_to/server_certificate.pem', '/path_to/client_key.pem');
 SELECT pg_tde_change_global_key_provider_kmip('provider-name','kmip-addr', `port`, '/path_to/server_certificate.pem', '/path_to/client_key.pem');
 ```
 
@@ -163,7 +163,7 @@ SELECT pg_tde_add_global_key_provider_file('provider-name','/path/to/the/key/pro
 Change a local keyfile provider:
 
 ```
-SELECT pg_tde_change_key_provider_file('provider-name','/path/to/the/key/provider/data.file');
+SELECT pg_tde_change_database_key_provider_file('provider-name','/path/to/the/key/provider/data.file');
 SELECT pg_tde_change_global_key_provider_file('provider-name','/path/to/the/key/provider/data.file');
 ```
 

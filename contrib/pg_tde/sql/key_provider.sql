@@ -16,14 +16,14 @@ SELECT pg_tde_verify_principal_key();
 SELECT pg_tde_set_principal_key_using_database_key_provider('test-db-principal-key','file-provider');
 SELECT pg_tde_verify_principal_key();
 
-SELECT pg_tde_change_key_provider_file('not-existent-provider','/tmp/pg_tde_test_keyring.per');
+SELECT pg_tde_change_database_key_provider_file('not-existent-provider','/tmp/pg_tde_test_keyring.per');
 SELECT * FROM pg_tde_list_all_database_key_providers();
 
-SELECT pg_tde_change_key_provider_file('file-provider','/tmp/pg_tde_test_keyring_other.per');
+SELECT pg_tde_change_database_key_provider_file('file-provider','/tmp/pg_tde_test_keyring_other.per');
 SELECT * FROM pg_tde_list_all_database_key_providers();
 SELECT pg_tde_verify_principal_key();
 
-SELECT pg_tde_change_key_provider_file('file-provider',  json_object('foo' VALUE '/tmp/pg_tde_test_keyring.per'));
+SELECT pg_tde_change_database_key_provider_file('file-provider',  json_object('foo' VALUE '/tmp/pg_tde_test_keyring.per'));
 SELECT * FROM pg_tde_list_all_database_key_providers();
 
 SELECT pg_tde_add_global_key_provider_file('file-keyring','/tmp/pg_tde_test_keyring.per');
