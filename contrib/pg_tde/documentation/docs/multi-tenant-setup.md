@@ -96,7 +96,7 @@ You must do these steps for every database where you have created the extension.
         <i warning>:material-information: Warning:</i> This example is for testing purposes only:
 
 	    ```
-	    SELECT pg_tde_add_key_provider_file_vault_v2('my-vault','http://vault.vault.svc.cluster.local:8200,'secret/data','hvs.zPuyktykA...example...ewUEnIRVaKoBzs2', NULL);
+	    SELECT pg_tde_add_database_key_provider_file_vault_v2('my-vault','http://vault.vault.svc.cluster.local:8200,'secret/data','hvs.zPuyktykA...example...ewUEnIRVaKoBzs2', NULL);
 	    ```
 
     === "With a keyring file"
