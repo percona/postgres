@@ -50,7 +50,7 @@ SELECT pg_tde_verify_principal_key();
 
 SELECT pg_tde_change_database_key_provider_file('not-existent-provider','/tmp/pg_tde_test_keyring.per');
 ERROR:  key provider "not-existent-provider" does not exists
-HINT:  Use pg_tde_add_database_key_provider interface to create the key provider
+HINT:  Create the key provider 
 SELECT * FROM pg_tde_list_all_database_key_providers();
  id | provider_name  | provider_type |                           options                           
 ----+----------------+---------------+-------------------------------------------------------------

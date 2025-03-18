@@ -921,7 +921,7 @@ GetKeyProviderByName(const char *provider_name, Oid dbOid)
 		ereport(ERROR,
 				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
 				 errmsg("key provider \"%s\" does not exists", provider_name),
-				 errhint("Use pg_tde_add_key_provider interface to create the key provider")));
+				 errhint("Create the key provider")));
 	}
 	return keyring;
 }
