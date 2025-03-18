@@ -14,8 +14,8 @@ The following functions are also provided for easier management of functionality
 
 Use these functions to grant or revoke permissions to manage permissions for the current database. They enable or disable all functions related to the providers and keys on the current database:
 
-* `pg_tde_grant_local_key_management_to_role(role)`
-* `pg_tde_revoke_local_key_management_from_role(role)`
+* `pg_tde_grant_database_key_management_to_role(role)`
+* `pg_tde_revoke_database_key_management_from_role(role)`
 
 ### Global scope key management
 
