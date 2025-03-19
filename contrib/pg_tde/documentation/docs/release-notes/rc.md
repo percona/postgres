@@ -5,39 +5,37 @@
 [Get started](../install.md){.md-button}
 
 
-!!! important
-
-    `pg_tde` Release Candidate is not backward compatible with `pg_tde` Beta2 due to significant changes in code. This means you cannot directly upgrade from one version to another. You must [uninstall](../uninstall.md) `pg_tde` Beta2 first and then [install](../install.md) and configure the new Release Candidate version.
-
 ## Release Highlights
 
 This release provides the following features and improvements:
 
 * **Improved performance with redesigned WAL encryption**. 
 
-   The approach to WAL encryption has been redesigned. Now, `pg_tde` encrypts entire WAL files starting from the first WAL write after the server was started with the encryption turned on. The information about what is encrypted is stored in the internal key metadata. This change improves WAL encryption flow with native replication and increases performance for large scale databases. Note that WAL encryption follows its own lifecycle and is in the tech preview stage.
+    The approach to WAL encryption has been redesigned. Now, `pg_tde` encrypts entire WAL files starting from the first WAL write after the server was started with the encryption turned on. The information about what is encrypted is stored in the internal key metadata. This change improves WAL encryption flow with native replication and increases performance for large scale databases. 
 
 * **Default encryption key for single-tenancy**. 
 
-   The new functionality allows you to set a default principal key for the entire database cluster. This key is used to encrypt all databases and tables that do not have a custom principal key set. This feature simplifies encryption configuration and management in single-tenant environments where each user has their own database instance.
+    The new functionality allows you to set a default principal key for the entire database cluster. This key is used to encrypt all databases and tables that do not have a custom principal key set. This feature simplifies encryption configuration and management in single-tenant environments where each user has their own database instance.
 
 * **Ability to change key provider configuration**
 
-   You no longer need to configure a new key provider and set a new principal key if the provider's configuration changed. Now can change the key provider configuration both for the current database and the entire PostgreSQL cluster using [functions](../functions.md#key-provider-management). This enhancement lifts existing limitations and is a native and common way to operate in PostgreSQL.
+    You no longer need to configure a new key provider and set a new principal key if the provider's configuration changed. Now can change the key provider configuration both for the current database and the entire PostgreSQL cluster using [functions](../functions.md#key-provider-management). This enhancement lifts existing limitations and is a native and common way to operate in PostgreSQL.
 
 * **Key management permissions**
 
-   The new functions allow you to manage permissions for global and database key management separately. This feature provides more granular control over key management operations and allows you to delegate key management tasks to different roles.
+    The new functions allow you to manage permissions for global and database key management separately. This feature provides more granular control over key management operations and allows you to delegate key management tasks to different roles.
 
 * **Additional information about principal keys and providers**
 
-   The new functions allow you to display additional information about principal keys and providers. This feature helps you to understand the current key configuration and troubleshoot issues related to key management.
+    The new functions allow you to display additional information about principal keys and providers. This feature helps you to understand the current key configuration and troubleshoot issues related to key management.
 
 * **`tde_heap_basic` access method deprecation**
 
-   The `tde_heap_basic` access method has limitations in encryption capabilities and affects performance. Also, it poses a potential security risk when used in production environments due to indexes remaining unencrypted. Considering all the above, we decided to deprecate this access method and remove it in future releases. Use the `tde_heap` access method instead that is available with Percona Server for PostgreSQL 17 - a drop-in replacement for PostgreSQL Community.
+    The `tde_heap_basic` access method has limitations in encryption capabilities and affects performance. Also, it poses a potential security risk when used in production environments due to indexes remaining unencrypted. Considering all the above, we decided to deprecate this access method and remove it in future releases. Use the `tde_heap` access method instead that is available with Percona Server for PostgreSQL 17 - a drop-in replacement for PostgreSQL Community.
 
+## Upgrade considerations
 
+`pg_tde` Release Candidate is not backward compatible with `pg_tde` Beta2 due to significant changes in code. This means you cannot directly upgrade from one version to another. You must [uninstall](../uninstall.md) `pg_tde` Beta2 first and then [install](../install.md) and configure the new Release Candidate version.
 
 ## Changelog
 
@@ -102,4 +100,9 @@ This release provides the following features and improvements:
 
 * [PG-1479](https://perconadev.atlassian.net/browse/PG-1479), [PG-1480](https://perconadev.atlassian.net/browse/PG-1480) - Fixed the issue with the lost access to data after the global key provider change and the server restart by fixing the incorrect parameter order in default key rotation
 
-* [PG-1489](https://perconadev.atlassian.net/browse/PG-1489) - Fixed the issue with replicating the keys and key provider configuration by creating the `pg_td` directory on the replica server.
+* [PG-1489](https://perconadev.atlassian.net/browse/PG-1489) - Fixed the issue with replicating the keys and key provider configuration by creating the `pg_tde` directory on the replica server.
+/browse/PG-1476) - Fixed the issue with the server failing to start when WAL encryption is enabled by creating a new principal key for WAL in case only one default key exists in the database 
+
+* [PG-1479](https://perconadev.atlassian.net/browse/PG-1479), [PG-1480](https://perconadev.atlassian.net/browse/PG-1480) - Fixed the issue with the lost access to data after the global key provider change and the server restart by fixing the incorrect parameter order in default key rotation
+
+* [PG-1489](https://perconadev.atlassian.net/browse/PG-1489) - Fixed the issue with replicating the keys and key provider configuration by creating the `pg_tde` directory on the replica server.
