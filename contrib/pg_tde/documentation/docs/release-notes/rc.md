@@ -51,11 +51,17 @@ This release provides the following features and improvements:
 
 * [PG-1258](https://perconadev.atlassian.net/browse/PG-1258) - Added functions to display additional information  about principal keys / providers 
 
-* [PG-1294](https://perconadev.atlassian.net/browse/PG-1294) - Redesign WAL encryption
+* [PG-1294](https://perconadev.atlassian.net/browse/PG-1294) - Redesigned WAL encryption
 
 * [PG-1303](https://perconadev.atlassian.net/browse/PG-1303) - Deprecated tde_heap_basic access method
 
 ## Improvements
+
+* [PG-858](https://perconadev.atlassian.net/browse/PG-858) - Refactored internal/principal key LWLocks to make local databases inherit a global key provider
+
+* [PG-1243](https://perconadev.atlassian.net/browse/PG-1243) - Investigated performance issues at a specific threshold and large databases and updated documentation about handling hint bits
+
+* [PG-1310](https://perconadev.atlassian.net/browse/PG-1310) - Added access method enforcement via the GUC variable
 
 * [PG-1361](https://perconadev.atlassian.net/browse/PG-1361) - Investigated and fixed pg_tde relocatability
 
@@ -74,4 +80,26 @@ This release provides the following features and improvements:
 
 * [PG-1378](https://perconadev.atlassian.net/browse/PG-1378) - Fixed the issue with toast tables created by ALTER TABLE command not being encrypted 
 
+* [PG-1379](https://perconadev.atlassian.net/browse/PG-1379) - Fixed sequence and alter table handling in the event trigger
+
 * [PG-1222](https://perconadev.atlassian.net/browse/PG-1222) - Fixed the bug with  confused relations with the same `RelFileNumber` in different databases
+
+* [PG-1400](https://perconadev.atlassian.net/browse/PG-1400) - Corrected the pg_tde_change_key_provider naming in help 
+
+* [PG-1401](https://perconadev.atlassian.net/browse/PG-1401) - Fixed the issue with inheriting an encryption status during the ALTER TABLE SET access method command execution by basing a new encryption status only on the new encryption setting
+
+* [PG-1414](https://perconadev.atlassian.net/browse/PG-1414) - Fixed the error message wording when configuring WAL encryption by referencing to a correct function
+
+* [PG-1450](https://perconadev.atlassian.net/browse/PG-1450) - Fixed the `pg_tde_delete_key_provider()` function behavior when called multiple times by ignoring already deleted records.
+
+* [PG-1451](https://perconadev.atlassian.net/browse/PG-1451) -Fixed the issue with the repeating error message about inability to retrieve a principal key even when a user creates non-encrypted tables by checking the current transaction ID in both the event trigger start function and during a file creation. If the transaction changed during the setup of the current event trigger data, the event trigger is reset.
+ 
+* [PG-1473](https://perconadev.atlassian.net/browse/PG-1473) - Allowed only users with key viewer privileges to execute `pg_tde_verify_principal_key()` and `pg_tde_verify_global_principal_key()` functions
+
+* [PG-1474](https://perconadev.atlassian.net/browse/PG-1474) - Fixed the issue with the principal key reference corruption when reassigning it to a key provider with the same name by setting the key name in vault/kmip getters
+
+* [PG-1476](https://perconadev.atlassian.net/browse/PG-1476) - Fixed the issue with the server failing to start when WAL encryption is enabled by creating a new principal key for WAL in case only one default key exists in the database 
+
+* [PG-1479](https://perconadev.atlassian.net/browse/PG-1479), [PG-1480](https://perconadev.atlassian.net/browse/PG-1480) - Fixed the issue with the lost access to data after the global key provider change and the server restart by fixing the incorrect parameter order in default key rotation
+
+* [PG-1489](https://perconadev.atlassian.net/browse/PG-1489) - Fixed the issue with replicating the keys and key provider configuration by creating the `pg_td` directory on the replica server.
