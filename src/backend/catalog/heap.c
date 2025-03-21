@@ -304,7 +304,8 @@ heap_create(const char *relname,
 			bool allow_system_table_mods,
 			TransactionId *relfrozenxid,
 			MultiXactId *relminmxid,
-			bool create_storage)
+			bool create_storage,
+			RelFileLocator *old_rlocator)
 {
 	Relation	rel;
 
@@ -389,14 +390,31 @@ heap_create(const char *relname,
 	 */
 	if (create_storage)
 	{
+		RelFileLocator prev_rlocator = rel->rd_locator;
+		RelFileLocator new_rlocator = rel->rd_locator;
+
+		if (old_rlocator != NULL)
+		{
+			prev_rlocator = *old_rlocator;
+
+			/*
+			 * table_relation_set_new_filelocator() takes old_rlocator from
+			 * rel->rd_locator
+			 */
+			rel->rd_locator = prev_rlocator;
+		}
+
 		if (RELKIND_HAS_TABLE_AM(rel->rd_rel->relkind))
-			table_relation_set_new_filelocator(rel, &rel->rd_locator,
+			table_relation_set_new_filelocator(rel, &new_rlocator,
 											   relpersistence,
 											   relfrozenxid, relminmxid);
 		else if (RELKIND_HAS_STORAGE(rel->rd_rel->relkind))
-			RelationCreateStorage(rel->rd_locator, rel->rd_locator, relpersistence, true);
+			RelationCreateStorage(prev_rlocator, new_rlocator, relpersistence, true);
 		else
 			Assert(false);
+
+		/* restore the orginal rel's locator */
+		rel->rd_locator = new_rlocator;
 	}
 
 	/*
@@ -1440,6 +1458,8 @@ heap_create_with_catalog(const char *relname,
 	Oid			old_type_oid;
 	Oid			new_type_oid;
 	XLogRecPtr	attversion = InvalidXLogRecPtr;
+	RelFileLocator *old_rlocator = NULL;
+	Relation	old_rel;
 
 	/* By default set to InvalidOid unless overridden by binary-upgrade */
 	RelFileNumber relfilenumber = InvalidRelFileNumber;
@@ -1594,6 +1614,12 @@ heap_create_with_catalog(const char *relname,
 	else
 		relacl = NULL;
 
+	if (relrewrite != InvalidOid)
+	{
+		old_rel = table_open(relrewrite, AccessShareLock);
+		old_rlocator = &old_rel->rd_locator;
+	}
+
 	/*
 	 * Create the relcache entry (mostly dummy at this point) and the physical
 	 * disk file.  (If we fail further down, it's the smgr's responsibility to
@@ -1617,7 +1643,11 @@ heap_create_with_catalog(const char *relname,
 							   allow_system_table_mods,
 							   &relfrozenxid,
 							   &relminmxid,
-							   true);
+							   true,
+							   old_rlocator);
+
+	if (relrewrite != InvalidOid)
+		table_close(old_rel, AccessShareLock);
 
 	Assert(relid == RelationGetRelid(new_rel_desc));
 
