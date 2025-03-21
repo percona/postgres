@@ -743,7 +743,8 @@ index_create(Relation heapRelation,
 			 bits16 constr_flags,
 			 bool allow_system_table_mods,
 			 bool is_internal,
-			 Oid *constraintId)
+			 Oid *constraintId,
+			 RelFileLocator *old_rlocator)
 {
 	Oid			heapRelationId = RelationGetRelid(heapRelation);
 	Relation	pg_class;
@@ -987,7 +988,8 @@ index_create(Relation heapRelation,
 								allow_system_table_mods,
 								&relfrozenxid,
 								&relminmxid,
-								create_storage);
+								create_storage,
+								old_rlocator);
 
 	Assert(relfrozenxid == InvalidTransactionId);
 	Assert(relminmxid == InvalidMultiXactId);
@@ -1462,7 +1464,8 @@ index_concurrently_create_copy(Relation heapRelation, Oid oldIndexId,
 							  0,
 							  true, /* allow table to be a system catalog? */
 							  false,	/* is_internal? */
-							  NULL);
+							  NULL,
+							  &indexRelation->rd_locator);
 
 	/* Close the relations used and clean up */
 	index_close(indexRelation, NoLock);
