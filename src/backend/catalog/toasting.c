@@ -337,7 +337,7 @@ create_toast_table(Relation rel, Oid toastOid, Oid toastIndexOid,
 				 rel->rd_rel->reltablespace,
 				 collationIds, opclassIds, NULL, coloptions, NULL, (Datum) 0,
 				 INDEX_CREATE_IS_PRIMARY | INDEX_CREATE_SUPPRESS_PROGRESS,
-				 0, true, true, NULL);
+				 0, true, true, NULL, NULL);
 
 	table_close(toast_rel, NoLock);
 
