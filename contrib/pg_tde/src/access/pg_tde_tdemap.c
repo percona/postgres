@@ -1179,6 +1179,8 @@ pg_tde_get_principal_key_info(Oid dbOid)
 InternalKey *
 GetSMGRRelationKey(RelFileLocatorBackend rel)
 {
+	Assert(rel.locator.relNumber != InvalidRelFileNumber);
+
 	if (RelFileLocatorBackendIsTemp(rel))
 		return pg_tde_get_key_from_cache(&rel.locator, TDE_KEY_TYPE_SMGR);
 	else
