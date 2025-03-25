@@ -61,7 +61,7 @@ This release provides the following features and improvements:
 
 * [PG-1310](https://perconadev.atlassian.net/browse/PG-1310) - Added access method enforcement via the GUC variable
 
-* [PG-1361](https://perconadev.atlassian.net/browse/PG-1361) - Investigated and fixed pg_tde relocatability
+* [PG-1361](https://perconadev.atlassian.net/browse/PG-1361) - Fixed pg_tde relocatability
 
 * [PG-1380](https://perconadev.atlassian.net/browse/PG-1380) - Added support for `pg_tde_is_encrypted()` function on indexes and sequences
 
@@ -72,11 +72,11 @@ This release provides the following features and improvements:
 
 * [PG-847](https://perconadev.atlassian.net/browse/PG-847) - Fixed the issue with `pg_basebackup` and `pg_checksum` throwing an error on files created by `pg_tde` when the checksum is enabled on the database cluster
 
-* [PG-1004](https://perconadev.atlassian.net/browse/PG-1004) Fixed the issue with `pg_checksums` utility failing during checksum verification on `pg_tde` tables. Now `pg_checksum` skips encrypted relations by looking if the relation has a custom storage manager (SMGR) key.
+* [PG-1004](https://perconadev.atlassian.net/browse/PG-1004) - Fixed the issue with `pg_checksums` utility failing during checksum verification on `pg_tde` tables. Now `pg_checksum` skips encrypted relations by looking if the relation has a custom storage manager (SMGR) key
 
-* [PG-1373](https://perconadev.atlassian.net/browse/PG-1373) Fixed the issue with potential unterminated strings by using the `memset()` or `palloc0()` instead of the `strncpy()` function.   
+* [PG-1373](https://perconadev.atlassian.net/browse/PG-1373) - Fixed the issue with potential unterminated strings by using the `memcpy()` or `strlcpy()` instead of the `strncpy()` function  
 
-* [PG-1378](https://perconadev.atlassian.net/browse/PG-1378) - Fixed the issue with toast tables created by ALTER TABLE command not being encrypted 
+* [PG-1378](https://perconadev.atlassian.net/browse/PG-1378) - Fixed the issue with toast tables created by the `ALTER TABLE` command not being encrypted 
 
 * [PG-1379](https://perconadev.atlassian.net/browse/PG-1379) - Fixed sequence and alter table handling in the event trigger
 
