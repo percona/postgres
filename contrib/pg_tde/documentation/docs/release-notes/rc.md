@@ -106,3 +106,5 @@ This release provides the following features and improvements:
 * [PG-1479](https://perconadev.atlassian.net/browse/PG-1479), [PG-1480](https://perconadev.atlassian.net/browse/PG-1480) - Fixed the issue with the lost access to data after the global key provider change and the server restart by fixing the incorrect parameter order in default key rotation
 
 * [PG-1489](https://perconadev.atlassian.net/browse/PG-1489) - Fixed the issue with replicating the keys and key provider configuration by creating the `pg_tde` directory on the replica server.
+
+* [PG-1503](https://perconadev.atlassian.net/browse/PG-1489) - Prevented deleting global key providers if the keys associated with them are in use
