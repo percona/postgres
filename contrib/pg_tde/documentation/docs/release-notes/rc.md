@@ -37,6 +37,20 @@ This release provides the following features and improvements:
 
 `pg_tde` Release Candidate is not backward compatible with `pg_tde` Beta2 due to significant changes in code. This means you cannot directly upgrade from one version to another. You must [uninstall](../uninstall.md) `pg_tde` Beta2 first and then [install](../install.md) and configure the new Release Candidate version.
 
+## Known issues
+
+ The default `mlock` limit on Rocky Linux 8 for ARM64-based architectures is 64 Kb. The internal `pg_tde` key size is 40 bytes, which results in about 1600 keys that fall into the limit. This number is split among the backend processes running in your database. When the `mlock` limit is reached, `pg_tde` cannot lock memory for more keys and can fail with the error. 
+
+To prevent this, you can change the `mlock` limit:
+
+* temporarily for the current session using the `ulimit -l <value>` command. 
+* set a new hard limit in the `/etc/security/limits.conf` file. To do so, you require the superuser privileges.    
+
+Adjust the limits with caution since it affects other processes running in your system.
+
+
+
+
 ## Changelog
 
 ### New Features
