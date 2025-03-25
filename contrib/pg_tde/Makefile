@@ -24,7 +24,9 @@ vault_v2_test_basic \
 alter_index_basic \
 merge_join_basic \
 tablespace_basic \
-relocate
+relocate \
+version \
+recreate_storage
 TAP_TESTS = 1
 
 OBJS = src/encryption/enc_tde.o \

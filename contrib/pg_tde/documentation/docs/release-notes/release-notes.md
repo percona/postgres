@@ -1,5 +1,7 @@
 # `pg_tde` release notes index
 
+`pg_tde` extension brings in [Transparent Data Encryption (TDE)](../tde.md) to PostgreSQL and enables you to keep sensitive data safe and secure.
+
 * [pg_tde Release Candidate {{date.RC}}](rc.md)
 * [pg_tde Beta2 (2024-12-16)](beta2.md)
 * [pg_tde Beta (2024-06-30)](beta.md)

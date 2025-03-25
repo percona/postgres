@@ -108,6 +108,7 @@ sql_tests = [
       'update_basic',
       'key_provider',
       'relocate',
+      'recreate_storage',
 ]
 
 tap_tests = [
@@ -134,6 +135,7 @@ if get_variable('percona_ext', false)
       'test_issue_153_fix',
       'multi_insert',
       'keyprovider_dependency',
+      'delete_key_provider',
       'trigger_on_view',
       'change_access_method',
       'insert_update_delete',
@@ -142,6 +144,7 @@ if get_variable('percona_ext', false)
       'kmip_test',
       'alter_index',
       'merge_join',
+      'no_provider_error',
   ]
 
   tap_tests += [
