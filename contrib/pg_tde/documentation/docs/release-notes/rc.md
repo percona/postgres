@@ -39,7 +39,7 @@ This release provides the following features and improvements:
 
 ## Known issues
 
-* The default `mlock` limit on Rocky Linux 8 for ARM64-based architectures is 64 Kb. The internal `pg_tde` key size is 40 bytes, which results in about 1600 keys that fall into the limit. This number is split among the backend processes running in your database. When the `mlock` limit is reached, `pg_tde` cannot lock memory for more keys and can fail with the error.    
+* The default `mlock` limit on Rocky Linux 8 for ARM64-based architectures is 64 Kb. The internal `pg_tde` key size is 40 bytes, which results in about 1600 keys that fall into the limit. When the `mlock` limit is reached, `pg_tde` cannot lock memory for more keys and can fail with the error.    
 
    To prevent this, you can change the `mlock` limit:   
 
