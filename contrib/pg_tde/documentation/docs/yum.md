@@ -6,13 +6,13 @@ Check the [list of supported platforms](install.md#__tabbed_1_1).
 
 ## Memory limits for `pg_tde` keys
 
-A memory lock (`mlock`) is the maximum amount of bytes of memory that may be locked into RAM for a process. This value differs between operating systems. You can check the current setting with this command:
+A memory lock (`mlock`) is a system call to lock a specified memory range in RAM for a process. The maximum amount of memory that can be locked differs between systems. You can check the current setting with this command:
 
 ```
 ulimit -a 
 ```
 
-For example, Rocky Linux 8 for ARM64-based architecture has the default `mlock` limit 64 Kb. An internal `pg_tde` key size is 40 bytes. Thus, the `mlock` limit is sufficient for about 1600 internal keys. When this limit is reached, `pg_tde` cannot lock memory for more keys and can fail with the error. 
+For example, Rocky Linux 8 has the default `mlock` limit 64 Kb. An internal `pg_tde` key size is 40 bytes. Thus, the `mlock` limit is sufficient for about 1600 internal keys. When this limit is reached, `pg_tde` cannot lock memory for more keys and can fail with the error. 
 
 To prevent this, you can change the `mlock` limit:
 
