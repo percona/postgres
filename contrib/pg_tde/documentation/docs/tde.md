@@ -18,7 +18,7 @@ The encryption process is the following:
 
 ![image](_images/tde-flow.png)
 
-When a user creates an encrypted table using `pg_tde`, a new random key is generated internally for that table using the AES128 (AES-ECB) cipher algorithm. This key is used to encrypt all data the user inserts in that table. Eventually the encrypted data gets stored in the underlying storage.
+When a user creates an encrypted table using `pg_tde`, a new random key is generated internally for that table and is encrypted using the AES-CBC cipher algorithm. This key is used to encrypt all data the user inserts in that table. Eventually the encrypted data gets stored in the underlying storage.
 
 The internal key itself is encrypted using the principal key. The principal key is stored externally in the key management store.
 
