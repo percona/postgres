@@ -20,7 +20,7 @@ A process can have child processes that share the `mlock` limits of their parent
 
 If the `mlock` limit is greater than the page size, a child process locks another page for its operation. However, when the `mlock` limit equals the page size, the child process cannot run because the max memory limit is already reached by the parent process that used it for reading WAL files. This results in `pg_tde` failing with the error.
 
-To prevent this, you can change the `mlock` limit to be twice bigger than the memory page size:
+To prevent this, you can change the `mlock` limit to be at least twice bigger than the memory page size:
 
 * temporarily for the current session using the `ulimit -l <value>` command. 
 * set a new hard limit in the `/etc/security/limits.conf` file. To do so, you require the superuser privileges. 
