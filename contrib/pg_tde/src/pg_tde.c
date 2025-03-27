@@ -18,7 +18,6 @@
 #include "storage/ipc.h"
 #include "storage/lwlock.h"
 #include "storage/shmem.h"
-#include "access/pg_tde_ddl.h"
 #include "access/pg_tde_xlog.h"
 #include "access/pg_tde_xlog_encrypt.h"
 #include "encryption/enc_aes.h"
@@ -35,24 +34,16 @@
 #include "utils/builtins.h"
 #include "pg_tde_defs.h"
 #include "smgr/pg_tde_smgr.h"
-#ifdef PERCONA_EXT
 #include "catalog/tde_global_space.h"
 #include "utils/percona.h"
-#endif
 #include "pg_tde_guc.h"
+#include "access/tableam.h"
 
 #include <sys/stat.h>
 
 #define MAX_ON_INSTALLS 5
 
 PG_MODULE_MAGIC;
-
-static const RmgrData tdeheap_rmgr = {
-	.rm_name = RM_TDERMGR_NAME,
-	.rm_redo = tdeheap_rmgr_redo,
-	.rm_desc = tdeheap_rmgr_desc,
-	.rm_identify = tdeheap_rmgr_identify
-};
 
 struct OnExtInstall
 {
@@ -62,25 +53,27 @@ struct OnExtInstall
 
 static struct OnExtInstall on_ext_install_list[MAX_ON_INSTALLS];
 static int	on_ext_install_index = 0;
+static void pg_tde_init_data_dir(void);
 static void run_extension_install_callbacks(XLogExtensionInstall *xlrec, bool redo);
 void		_PG_init(void);
 Datum		pg_tde_extension_initialize(PG_FUNCTION_ARGS);
 Datum		pg_tde_version(PG_FUNCTION_ARGS);
+Datum		pg_tdeam_handler(PG_FUNCTION_ARGS);
 
 static shmem_startup_hook_type prev_shmem_startup_hook = NULL;
 static shmem_request_hook_type prev_shmem_request_hook = NULL;
 
 PG_FUNCTION_INFO_V1(pg_tde_extension_initialize);
 PG_FUNCTION_INFO_V1(pg_tde_version);
+PG_FUNCTION_INFO_V1(pg_tdeam_handler);
+
 static void
 tde_shmem_request(void)
 {
 	Size		sz = TdeRequiredSharedMemorySize();
 	int			required_locks = TdeRequiredLocksCount();
 
-#ifdef PERCONA_EXT
 	sz = add_size(sz, TDEXLogEncryptStateSize());
-#endif
 
 	if (prev_shmem_request_hook)
 		prev_shmem_request_hook();
@@ -98,12 +91,8 @@ tde_shmem_startup(void)
 	TdeShmemInit();
 	AesInit();
 
-#ifdef PERCONA_EXT
 	TDEXLogShmemInit();
 	TDEXLogSmgrInit();
-
-	TDEXlogCheckSane();
-#endif
 }
 
 void
@@ -111,13 +100,17 @@ _PG_init(void)
 {
 	if (!process_shared_preload_libraries_in_progress)
 	{
-		elog(ERROR, "pg_tde can only be loaded at server startup. Restart required.");
-		return;
+		/*
+		 * psql/pg_restore continue on error by default, and change access
+		 * methods using set default_table_access_method. This error needs to
+		 * be FATAL and close the connection, otherwise these tools will
+		 * continue execution and create unencrypted tables when the intention
+		 * was to make them encrypted.
+		 */
+		elog(FATAL, "pg_tde can only be loaded at server startup. Restart required.");
 	}
 
-#ifdef PERCONA_EXT
 	check_percona_api_version();
-#endif
 
 	TdeGucInit();
 
@@ -129,13 +122,11 @@ _PG_init(void)
 	prev_shmem_startup_hook = shmem_startup_hook;
 	shmem_startup_hook = tde_shmem_startup;
 
-	RegisterXactCallback(pg_tde_xact_callback, NULL);
-	RegisterSubXactCallback(pg_tde_subxact_callback, NULL);
-	SetupTdeDDLHooks();
+	RegisterTdeXactCallbacks();
 	InstallFileKeyring();
 	InstallVaultV2Keyring();
 	InstallKmipKeyring();
-	RegisterCustomRmgr(RM_TDERMGR_ID, &tdeheap_rmgr);
+	RegisterTdeRmgr();
 
 	RegisterStorageMgr();
 }
@@ -164,6 +155,7 @@ pg_tde_extension_initialize(PG_FUNCTION_ARGS)
 void
 extension_install_redo(XLogExtensionInstall *xlrec)
 {
+	pg_tde_init_data_dir();
 	run_extension_install_callbacks(xlrec, true);
 }
 
@@ -189,7 +181,7 @@ on_ext_install(pg_tde_on_ext_install_callback function, void *arg)
 }
 
 /* Creates a tde directory for internal files if not exists */
-void
+static void
 pg_tde_init_data_dir(void)
 {
 	struct stat st;
@@ -231,4 +223,10 @@ Datum
 pg_tde_version(PG_FUNCTION_ARGS)
 {
 	PG_RETURN_TEXT_P(cstring_to_text(pg_tde_package_string()));
+}
+
+Datum
+pg_tdeam_handler(PG_FUNCTION_ARGS)
+{
+	PG_RETURN_POINTER(GetHeapamTableAmRoutine());
 }

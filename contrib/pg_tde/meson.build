@@ -1,24 +1,10 @@
 
 curldep = dependency('libcurl')
 
-pg_version = meson.project_version().substring(0,2)
-src_version = 'src' + pg_version
-
 pg_tde_sources = files(
         'src/pg_tde.c',
         'src/transam/pg_tde_xact_handler.c',
         'src/access/pg_tde_tdemap.c',
-        'src/access/pg_tde_slot.c',
-        src_version / 'access/pg_tdeam.c',
-        src_version / 'access/pg_tdeam_handler.c',
-        src_version / 'access/pg_tdeam_visibility.c',
-        src_version / 'access/pg_tdetoast.c',
-        src_version / 'access/pg_tde_io.c',
-        src_version / 'access/pg_tde_prune.c',
-        src_version / 'access/pg_tde_rewrite.c',
-        src_version / 'access/pg_tde_vacuumlazy.c',
-        src_version / 'access/pg_tde_visibilitymap.c',
-        'src/access/pg_tde_ddl.c',
         'src/access/pg_tde_xlog.c',
         'src/access/pg_tde_xlog_encrypt.c',
 
@@ -45,7 +31,7 @@ pg_tde_sources = files(
         'src/pg_tde.c',
 )
 
-incdir = include_directories(src_version / 'include', 'src/include', '.', 'src/libkmip/libkmip/include/')
+incdir = include_directories('src/include', '.', 'src/libkmip/libkmip/include/')
 
 kmip = static_library(
   'kmip',
@@ -85,29 +71,25 @@ install_data(
   kwargs: contrib_data_args,
 )
 
-
+# toast_descrypt needs to be the first test when running with pg_tde
+# preinstalled and default_principal_key needs to run after key_provider.
 sql_tests = [
-      'toast_decrypt_basic',
-      'toast_extended_storage_basic',
-      'move_large_tuples_basic',
-      'non_sorted_off_compact_basic',
-      'update_compare_indexes_basic',
-      'pg_tde_is_encrypted_basic',
-      'test_issue_153_fix_basic',
-      'multi_insert_basic',
-      'keyprovider_dependency_basic',
-      'trigger_on_view_basic',
-      'change_access_method_basic',
-      'insert_update_delete_basic',
-      'tablespace_basic',
-      'vault_v2_test_basic',
-      'kmip_test_basic',
-      'alter_index_basic',
-      'merge_join_basic',
+      'toast_decrypt',
+      'access_control',
+      'alter_index',
       'cache_alloc',
-      'update_basic',
+      'change_access_method',
+      'insert_update_delete',
       'key_provider',
+      'keyprovider_dependency',
+      'kmip_test',
+      'pg_tde_is_encrypted',
       'relocate',
+      'recreate_storage',
+      'subtransaction',
+      'tablespace',
+      'vault_v2_test',
+      'default_principal_key',
 ]
 
 tap_tests = [
@@ -117,40 +99,10 @@ tap_tests = [
       't/004_file_config.pl',
       't/005_multiple_extensions.pl',
       't/006_remote_vault_config.pl',
-      't/007_access_control.pl',
-      't/009_key_rotate_tablespace.pl',
-      't/010_wal_encrypt.pl',
-    ]
-
-if get_variable('percona_ext', false)
-  sql_tests += [
-      'toast_decrypt',
-      'toast_extended_storage',
-      'move_large_tuples',
-      'non_sorted_off_compact',
-      'update_compare_indexes',
-      'update',
-      'pg_tde_is_encrypted',
-      'test_issue_153_fix',
-      'multi_insert',
-      'keyprovider_dependency',
-      'trigger_on_view',
-      'change_access_method',
-      'insert_update_delete',
-      'tablespace',
-      'vault_v2_test',
-      'kmip_test',
-      'alter_index',
-      'merge_join',
-  ]
-
-  tap_tests += [
-      't/008_tde_heap.pl',
-  ]
-endif
-
-sql_tests += [
-    'default_principal_key',
+      't/007_tde_heap.pl',
+      't/008_key_rotate_tablespace.pl',
+      't/009_wal_encrypt.pl',
+      't/010_change_key_provider.pl',
 ]
 
 tests += {
@@ -194,3 +146,17 @@ pg_tde_frontend = static_library('pg_tde_frontend',
   include_directories: incdir,
   link_whole: [kmip]
 )
+
+pg_tde_change_key_provider_sources = files(
+  'src/pg_tde_change_key_provider.c',
+)
+
+pg_tde_change_key_provider = executable('pg_tde_change_key_provider',
+  pg_tde_change_key_provider_sources,
+  dependencies: [frontend_code, lz4, zstd],
+  c_args: ['-DFRONTEND'], # needed for xlogreader et al
+  kwargs: default_bin_args,
+  include_directories: [postgres_inc, pg_tde_inc],
+  link_with: [pg_tde_frontend]
+)
+contrib_targets += pg_tde_change_key_provider

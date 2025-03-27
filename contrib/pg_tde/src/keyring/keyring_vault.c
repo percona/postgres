@@ -62,25 +62,24 @@ static JsonParseErrorType json_resp_scalar(void *state, char *token, JsonTokenTy
 static JsonParseErrorType json_resp_object_field_start(void *state, char *fname, bool isnull);
 static JsonParseErrorType parse_json_response(JsonVaultRespState *parse, JsonLexContext *lex);
 
-struct curl_slist *curlList = NULL;
+static struct curl_slist *curlList = NULL;
 
 static bool curl_setup_token(VaultV2Keyring *keyring);
 static char *get_keyring_vault_url(VaultV2Keyring *keyring, const char *key_name, char *out, size_t out_size);
 static bool curl_perform(VaultV2Keyring *keyring, const char *url, CurlString *outStr, long *httpCode, const char *postData);
 
-static KeyringReturnCodes set_key_by_name(GenericKeyring *keyring, KeyInfo *key, bool throw_error);
-static KeyInfo *get_key_by_name(GenericKeyring *keyring, const char *key_name, bool throw_error, KeyringReturnCodes *return_code);
+static void set_key_by_name(GenericKeyring *keyring, KeyInfo *key);
+static KeyInfo *get_key_by_name(GenericKeyring *keyring, const char *key_name, KeyringReturnCodes *return_code);
 
 const TDEKeyringRoutine keyringVaultV2Routine = {
 	.keyring_get_key = get_key_by_name,
 	.keyring_store_key = set_key_by_name
 };
 
-
-bool
+void
 InstallVaultV2Keyring(void)
 {
-	return RegisterKeyProvider(&keyringVaultV2Routine, VAULT_V2_KEY_PROVIDER);
+	RegisterKeyProvider(&keyringVaultV2Routine, VAULT_V2_KEY_PROVIDER);
 }
 
 static bool
@@ -166,8 +165,8 @@ get_keyring_vault_url(VaultV2Keyring *keyring, const char *key_name, char *out, 
 	return out;
 }
 
-static KeyringReturnCodes
-set_key_by_name(GenericKeyring *keyring, KeyInfo *key, bool throw_error)
+static void
+set_key_by_name(GenericKeyring *keyring, KeyInfo *key)
 {
 	VaultV2Keyring *vault_keyring = (VaultV2Keyring *) keyring;
 	char		url[VAULT_URL_MAX_LEN];
@@ -176,7 +175,6 @@ set_key_by_name(GenericKeyring *keyring, KeyInfo *key, bool throw_error)
 	char		jsonText[512];
 	char		keyData[64];
 	int			keyLen = 0;
-	int			ereport_level = throw_error ? ERROR : WARNING;
 
 	Assert(key != NULL);
 
@@ -198,27 +196,22 @@ set_key_by_name(GenericKeyring *keyring, KeyInfo *key, bool throw_error)
 
 	if (!curl_perform(vault_keyring, url, &str, &httpCode, jsonText))
 	{
-		if (str.ptr != NULL)
-			pfree(str.ptr);
-
-		ereport(ereport_level,
+		ereport(ERROR,
 				(errmsg("HTTP(S) request to keyring provider \"%s\" failed",
 						vault_keyring->keyring.provider_name)));
-
-		return KEYRING_CODE_INVALID_RESPONSE;
 	}
 
 	if (str.ptr != NULL)
 		pfree(str.ptr);
 
-	if (httpCode / 100 == 2)
-		return KEYRING_CODE_SUCCESS;
-
-	return KEYRING_CODE_INVALID_RESPONSE;
+	if (httpCode / 100 != 2)
+		ereport(ERROR,
+				(errmsg("Invalid HTTP response from keyring provider \"%s\": %ld",
+						vault_keyring->keyring.provider_name, httpCode)));
 }
 
 static KeyInfo *
-get_key_by_name(GenericKeyring *keyring, const char *key_name, bool throw_error, KeyringReturnCodes *return_code)
+get_key_by_name(GenericKeyring *keyring, const char *key_name, KeyringReturnCodes *return_code)
 {
 	VaultV2Keyring *vault_keyring = (VaultV2Keyring *) keyring;
 	KeyInfo    *key = NULL;
@@ -228,7 +221,6 @@ get_key_by_name(GenericKeyring *keyring, const char *key_name, bool throw_error,
 	JsonParseErrorType json_error;
 	JsonLexContext *jlex = NULL;
 	JsonVaultRespState parse;
-	int			ereport_level = throw_error ? ERROR : WARNING;
 
 	const char *responseKey;
 
@@ -239,7 +231,7 @@ get_key_by_name(GenericKeyring *keyring, const char *key_name, bool throw_error,
 	if (!curl_perform(vault_keyring, url, &str, &httpCode, NULL))
 	{
 		*return_code = KEYRING_CODE_INVALID_KEY_SIZE;
-		ereport(ereport_level,
+		ereport(WARNING,
 				(errmsg("HTTP(S) request to keyring provider \"%s\" failed",
 						vault_keyring->keyring.provider_name)));
 		goto cleanup;
@@ -254,7 +246,7 @@ get_key_by_name(GenericKeyring *keyring, const char *key_name, bool throw_error,
 	if (httpCode / 100 != 2)
 	{
 		*return_code = KEYRING_CODE_INVALID_RESPONSE;
-		ereport(ereport_level,
+		ereport(WARNING,
 				(errmsg("HTTP(S) request to keyring provider \"%s\" returned invalid response %li",
 						vault_keyring->keyring.provider_name, httpCode)));
 		goto cleanup;
@@ -270,7 +262,7 @@ get_key_by_name(GenericKeyring *keyring, const char *key_name, bool throw_error,
 	if (json_error != JSON_SUCCESS)
 	{
 		*return_code = KEYRING_CODE_INVALID_RESPONSE;
-		ereport(ereport_level,
+		ereport(WARNING,
 				(errmsg("HTTP(S) request to keyring provider \"%s\" returned incorrect JSON: %s",
 						vault_keyring->keyring.provider_name, json_errdetail(json_error, jlex))));
 		goto cleanup;
@@ -282,13 +274,15 @@ get_key_by_name(GenericKeyring *keyring, const char *key_name, bool throw_error,
 	elog(DEBUG1, "Retrieved base64 key: %s", responseKey);
 #endif
 
-	key = palloc(sizeof(KeyInfo));
+	key = palloc_object(KeyInfo);
+	memset(key->name, 0, sizeof(key->name));
+	memcpy(key->name, key_name, strnlen(key_name, sizeof(key->name) - 1));
 	key->data.len = pg_b64_decode(responseKey, strlen(responseKey), (char *) key->data.data, MAX_KEY_DATA_SIZE);
 
 	if (key->data.len > MAX_KEY_DATA_SIZE)
 	{
 		*return_code = KEYRING_CODE_INVALID_KEY_SIZE;
-		ereport(ereport_level,
+		ereport(WARNING,
 				(errmsg("keyring provider \"%s\" returned invalid key size: %d",
 						vault_keyring->keyring.provider_name, key->data.len)));
 		pfree(key);

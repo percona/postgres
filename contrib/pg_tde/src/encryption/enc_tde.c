@@ -1,9 +1,7 @@
 #include "pg_tde_defines.h"
 
 #include "postgres.h"
-#include "utils/memutils.h"
 
-#include "access/pg_tde_slot.h"
 #include "access/pg_tde_tdemap.h"
 #include "encryption/enc_tde.h"
 #include "encryption/enc_aes.h"
@@ -26,26 +24,6 @@ iv_prefix_debug(const char *iv_prefix, char *out_hex)
 }
 #endif
 
-#ifndef FRONTEND
-static void
-SetIVPrefix(ItemPointerData *ip, char *iv_prefix)
-{
-	/*
-	 * We have up to 16 bytes for the entire IV The higher bytes (starting
-	 * with 15) are used for the incrementing counter The lower bytes (in this
-	 * case, 0..5) are used for the tuple identification Tuple identification
-	 * is based on CTID, which currently is 48 bytes in postgres: 4 bytes for
-	 * the block id and 2 bytes for the position id
-	 */
-	iv_prefix[0] = ip->ip_blkid.bi_hi / 256;
-	iv_prefix[1] = ip->ip_blkid.bi_hi % 256;
-	iv_prefix[2] = ip->ip_blkid.bi_lo / 256;
-	iv_prefix[3] = ip->ip_blkid.bi_lo % 256;
-	iv_prefix[4] = ip->ip_posid / 256;
-	iv_prefix[5] = ip->ip_posid % 256;
-}
-#endif
-
 /*
  * ================================================================
  * ACTUAL ENCRYPTION/DECRYPTION FUNCTIONS
@@ -64,7 +42,6 @@ pg_tde_crypt_simple(const char *iv_prefix, uint32 start_offset, const char *data
 	const uint64 aes_start_block = start_offset / AES_BLOCK_SIZE;
 	const uint64 aes_end_block = (start_offset + data_len + (AES_BLOCK_SIZE - 1)) / AES_BLOCK_SIZE;
 	const uint64 aes_block_no = start_offset % AES_BLOCK_SIZE;
-
 	unsigned char enc_key[DATA_BYTES_PER_AES_BATCH + AES_BLOCK_SIZE];
 
 	Assert(aes_end_block - aes_start_block <= NUM_AES_BLOCKS_IN_BATCH + 1);
@@ -103,14 +80,13 @@ pg_tde_crypt_complex(const char *iv_prefix, uint32 start_offset, const char *dat
 	const uint64 aes_block_no = start_offset % AES_BLOCK_SIZE;
 	uint32		batch_no = 0;
 	uint32		data_index = 0;
-	uint64		batch_end_block;
-	uint32		current_batch_bytes;
-	unsigned char enc_key[DATA_BYTES_PER_AES_BATCH];
 
 	/* do max NUM_AES_BLOCKS_IN_BATCH blocks at a time */
 	for (uint64 batch_start_block = aes_start_block; batch_start_block < aes_end_block; batch_start_block += NUM_AES_BLOCKS_IN_BATCH)
 	{
-		batch_end_block = Min(batch_start_block + NUM_AES_BLOCKS_IN_BATCH, aes_end_block);
+		unsigned char enc_key[DATA_BYTES_PER_AES_BATCH];
+		uint32		current_batch_bytes;
+		uint64		batch_end_block = Min(batch_start_block + NUM_AES_BLOCKS_IN_BATCH, aes_end_block);
 
 		Aes128EncryptedZeroBlocks(&key->ctx, key->key, iv_prefix, batch_start_block, batch_end_block, enc_key);
 #ifdef ENCRYPTION_DEBUG
@@ -179,66 +155,6 @@ pg_tde_crypt(const char *iv_prefix, uint32 start_offset, const char *data, uint3
 
 #ifndef FRONTEND
 /*
- * pg_tde_crypt_tuple:
- * Does the encryption/decryption of tuple data in place
- * tuple: HeapTuple to be encrypted/decrypted
- * out_tuple: to encrypt/decrypt into. If you want to do inplace encryption/decryption, pass tuple as out_tuple
- * context: Optional context message to be used in debug log
- * */
-void
-pg_tde_crypt_tuple(HeapTuple tuple, HeapTuple out_tuple, InternalKey *key, const char *context)
-{
-	char		iv_prefix[16] = {0};
-	uint32		data_len = tuple->t_len - tuple->t_data->t_hoff;
-	char	   *tup_data = (char *) tuple->t_data + tuple->t_data->t_hoff;
-	char	   *out_data = (char *) out_tuple->t_data + out_tuple->t_data->t_hoff;
-
-	SetIVPrefix(&tuple->t_self, iv_prefix);
-
-#ifdef ENCRYPTION_DEBUG
-	ereport(LOG,
-			(errmsg("%s: table Oid: %u data size: %u",
-					context ? context : "", tuple->t_tableOid,
-					data_len)));
-#endif
-	pg_tde_crypt(iv_prefix, 0, tup_data, data_len, out_data, key, context);
-}
-
-
-/*  ================================================================ */
-/*  HELPER FUNCTIONS FOR ENCRYPTION */
-/*  ================================================================ */
-
-OffsetNumber
-PGTdePageAddItemExtended(RelFileLocator rel,
-						 BlockNumber bn,
-						 Page page,
-						 Item item,
-						 Size size,
-						 OffsetNumber offsetNumber,
-						 int flags)
-{
-	OffsetNumber off = PageAddItemExtended(page, item, size, offsetNumber, flags);
-	PageHeader	phdr = (PageHeader) page;
-	unsigned long header_size = ((HeapTupleHeader) item)->t_hoff;
-	char		iv_prefix[16] = {0,};
-	char	   *toAddr = ((char *) phdr) + phdr->pd_upper + header_size;
-	char	   *data = item + header_size;
-	uint32		data_len = size - header_size;
-
-	/* ctid stored in item is incorrect (not set) at this point */
-	ItemPointerData ip;
-	InternalKey *key = GetHeapBaiscRelationKey(rel);
-
-	ItemPointerSet(&ip, bn, off);
-
-	SetIVPrefix(&ip, iv_prefix);
-
-	PG_TDE_ENCRYPT_PAGE_ITEM(iv_prefix, 0, data, data_len, toAddr, key);
-	return off;
-}
-
-/*
  * Provide a simple interface to encrypt a given key.
  *
  * The function pallocs and updates the p_enc_rel_key_data along with key bytes. The memory
@@ -248,15 +164,15 @@ PGTdePageAddItemExtended(RelFileLocator rel,
 void
 AesEncryptKey(const TDEPrincipalKey *principal_key, Oid dbOid, InternalKey *rel_key_data, InternalKey **p_enc_rel_key_data, size_t *enc_key_bytes)
 {
-	unsigned char iv[16] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+	unsigned char iv[16] = {0,};
 
 	/* Ensure we are getting a valid pointer here */
 	Assert(principal_key);
 
 	memcpy(iv, &dbOid, sizeof(Oid));
 
-	*p_enc_rel_key_data = (InternalKey *) palloc(sizeof(InternalKey));
-	memcpy(*p_enc_rel_key_data, rel_key_data, sizeof(InternalKey));
+	*p_enc_rel_key_data = palloc_object(InternalKey);
+	**p_enc_rel_key_data = *rel_key_data;
 
 	AesEncrypt(principal_key->keyData, iv, (unsigned char *) rel_key_data, INTERNAL_KEY_LEN, (unsigned char *) *p_enc_rel_key_data, (int *) enc_key_bytes);
 }
@@ -273,29 +189,17 @@ AesEncryptKey(const TDEPrincipalKey *principal_key, Oid dbOid, InternalKey *rel_
 void
 AesDecryptKey(const TDEPrincipalKey *principal_key, Oid dbOid, InternalKey **p_rel_key_data, InternalKey *enc_rel_key_data, size_t *key_bytes)
 {
-	unsigned char iv[16] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-
-#ifndef FRONTEND
-	MemoryContext oldcontext;
-#endif
+	unsigned char iv[16] = {0,};
 
 	/* Ensure we are getting a valid pointer here */
 	Assert(principal_key);
 
 	memcpy(iv, &dbOid, sizeof(Oid));
 
-#ifndef FRONTEND
-	oldcontext = MemoryContextSwitchTo(TopMemoryContext);
-#endif
-
-	*p_rel_key_data = (InternalKey *) palloc(sizeof(InternalKey));
-
-#ifndef FRONTEND
-	MemoryContextSwitchTo(oldcontext);
-#endif
+	*p_rel_key_data = palloc_object(InternalKey);
 
 	/* Fill in the structure */
-	memcpy(*p_rel_key_data, enc_rel_key_data, sizeof(InternalKey));
+	**p_rel_key_data = *enc_rel_key_data;
 	(*p_rel_key_data)->ctx = NULL;
 
 	AesDecrypt(principal_key->keyData, iv, (unsigned char *) enc_rel_key_data, INTERNAL_KEY_LEN, (unsigned char *) *p_rel_key_data, (int *) key_bytes);

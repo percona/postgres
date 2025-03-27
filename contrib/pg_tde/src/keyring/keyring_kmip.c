@@ -27,19 +27,24 @@
 #include "keyring/keyring_kmip.h"
 #include "catalog/keyring_min.h"
 
-extern bool RegisterKeyProvider(const TDEKeyringRoutine *routine, ProviderType type);
+extern void RegisterKeyProvider(const TDEKeyringRoutine *routine, ProviderType type);
+extern void *palloc(size_t);
+extern void pfree(void *);
 
-static KeyringReturnCodes set_key_by_name(GenericKeyring *keyring, KeyInfo *key, bool throw_error);
-static KeyInfo *get_key_by_name(GenericKeyring *keyring, const char *key_name, bool throw_error, KeyringReturnCodes *return_code);
+#define palloc_object(type) ((type *) palloc(sizeof(type)))
+
+static void set_key_by_name(GenericKeyring *keyring, KeyInfo *key);
+static KeyInfo *get_key_by_name(GenericKeyring *keyring, const char *key_name, KeyringReturnCodes *return_code);
 
 const TDEKeyringRoutine keyringKmipRoutine = {
 	.keyring_get_key = get_key_by_name,
-.keyring_store_key = set_key_by_name};
+	.keyring_store_key = set_key_by_name
+};
 
-bool
+void
 InstallKmipKeyring(void)
 {
-	return RegisterKeyProvider(&keyringKmipRoutine, KMIP_KEY_PROVIDER);
+	RegisterKeyProvider(&keyringKmipRoutine, KMIP_KEY_PROVIDER);
 }
 
 typedef struct KmipCtx
@@ -99,11 +104,12 @@ kmipSslConnect(KmipCtx *ctx, KmipKeyring *kmip_keyring, bool throw_error)
 	return true;
 }
 
-static KeyringReturnCodes
-set_key_by_name(GenericKeyring *keyring, KeyInfo *key, bool throw_error)
+static void
+set_key_by_name(GenericKeyring *keyring, KeyInfo *key)
 {
 	KmipCtx		ctx;
 	KmipKeyring *kmip_keyring = (KmipKeyring *) keyring;
+	bool		sslresult;
 	int			result;
 	int			id_max_len = 64;
 	char	   *idp = NULL;
@@ -116,10 +122,8 @@ set_key_by_name(GenericKeyring *keyring, KeyInfo *key, bool throw_error)
 	TextString	ts2 = {0, 0};
 	TemplateAttribute ta = {0};
 
-	if (!kmipSslConnect(&ctx, kmip_keyring, throw_error))
-	{
-		return KEYRING_CODE_INVALID_RESPONSE;
-	}
+	sslresult = kmipSslConnect(&ctx, kmip_keyring, true);
+	assert(sslresult);
 
 	for (int i = 0; i < 4; i++)
 	{
@@ -151,20 +155,11 @@ set_key_by_name(GenericKeyring *keyring, KeyInfo *key, bool throw_error)
 	SSL_CTX_free(ctx.ssl);
 
 	if (result != 0)
-	{
-		kmip_ereport(throw_error, "KMIP server reported error on register symmetric key: %i", result);
-		return KEYRING_CODE_INVALID_RESPONSE;
-	}
-
-	return KEYRING_CODE_SUCCESS;
+		kmip_ereport(true, "KMIP server reported error on register symmetric key: %i", result);
 }
 
-void	   *palloc(size_t);
-
-void		pfree(void *);
-
 static KeyInfo *
-get_key_by_name(GenericKeyring *keyring, const char *key_name, bool throw_error, KeyringReturnCodes *return_code)
+get_key_by_name(GenericKeyring *keyring, const char *key_name, KeyringReturnCodes *return_code)
 {
 	KeyInfo    *key = NULL;
 	KmipKeyring *kmip_keyring = (KmipKeyring *) keyring;
@@ -173,7 +168,7 @@ get_key_by_name(GenericKeyring *keyring, const char *key_name, bool throw_error,
 
 	*return_code = KEYRING_CODE_SUCCESS;
 
-	if (!kmipSslConnect(&ctx, kmip_keyring, throw_error))
+	if (!kmipSslConnect(&ctx, kmip_keyring, false))
 	{
 		return NULL;
 	}
@@ -225,7 +220,7 @@ get_key_by_name(GenericKeyring *keyring, const char *key_name, bool throw_error,
 		if (locate_result.ids_size > 1)
 		{
 			fprintf(stderr, "KMIP ERR: %li\n", locate_result.ids_size);
-			kmip_ereport(throw_error, "KMIP server contains multiple results for key, ignoring", 0);
+			kmip_ereport(false, "KMIP server contains multiple results for key, ignoring", 0);
 			*return_code = KEYRING_CODE_RESOURCE_NOT_AVAILABLE;
 			BIO_free_all(ctx.bio);
 			SSL_CTX_free(ctx.ssl);
@@ -237,7 +232,7 @@ get_key_by_name(GenericKeyring *keyring, const char *key_name, bool throw_error,
 
 	/* 2. get key */
 
-	key = palloc(sizeof(KeyInfo));
+	key = palloc_object(KeyInfo);
 
 	{
 		char	   *keyp = NULL;
@@ -245,7 +240,7 @@ get_key_by_name(GenericKeyring *keyring, const char *key_name, bool throw_error,
 
 		if (result != 0)
 		{
-			kmip_ereport(throw_error, "KMIP server LOCATEd key, but GET failed with %i", result);
+			kmip_ereport(false, "KMIP server LOCATEd key, but GET failed with %i", result);
 			*return_code = KEYRING_CODE_RESOURCE_NOT_AVAILABLE;
 			pfree(key);
 			BIO_free_all(ctx.bio);
@@ -255,7 +250,7 @@ get_key_by_name(GenericKeyring *keyring, const char *key_name, bool throw_error,
 
 		if (key->data.len > sizeof(key->data.data))
 		{
-			kmip_ereport(throw_error, "keyring provider returned invalid key size: %d", key->data.len);
+			kmip_ereport(false, "keyring provider returned invalid key size: %d", key->data.len);
 			*return_code = KEYRING_CODE_INVALID_KEY_SIZE;
 			pfree(key);
 			BIO_free_all(ctx.bio);
@@ -264,6 +259,8 @@ get_key_by_name(GenericKeyring *keyring, const char *key_name, bool throw_error,
 			return NULL;
 		}
 
+		memset(key->name, 0, sizeof(key->name));
+		memcpy(key->name, key_name, strnlen(key_name, sizeof(key->name) - 1));
 		memcpy(key->data.data, keyp, key->data.len);
 		free(keyp);
 	}

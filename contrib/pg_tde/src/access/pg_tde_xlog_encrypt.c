@@ -12,12 +12,12 @@
 
 #include "postgres.h"
 
-#ifdef PERCONA_EXT
 #include "pg_tde.h"
 #include "pg_tde_defines.h"
 #include "pg_tde_guc.h"
 #include "access/xlog.h"
 #include "access/xlog_internal.h"
+#include "access/xlog_smgr.h"
 #include "access/xloginsert.h"
 #include "storage/bufmgr.h"
 #include "storage/shmem.h"
@@ -35,14 +35,28 @@
 #include "port/atomics.h"
 #endif
 
+static void SetXLogPageIVPrefix(TimeLineID tli, XLogRecPtr lsn, char *iv_prefix);
+static ssize_t tdeheap_xlog_seg_read(int fd, void *buf, size_t count, off_t offset,
+									 TimeLineID tli, XLogSegNo segno, int segSize);
+static ssize_t tdeheap_xlog_seg_write(int fd, const void *buf, size_t count,
+									  off_t offset, TimeLineID tli,
+									  XLogSegNo segno);
+
 static const XLogSmgr tde_xlog_smgr = {
 	.seg_read = tdeheap_xlog_seg_read,
 	.seg_write = tdeheap_xlog_seg_write,
 };
 
-static void SetXLogPageIVPrefix(TimeLineID tli, XLogRecPtr lsn, char *iv_prefix);
-
 #ifndef FRONTEND
+static Size TDEXLogEncryptBuffSize(void);
+
+/*
+ * Must be the same as in replication/walsender.c
+ *
+ * This is used to calculate the encryption buffer size.
+ */
+#define MAX_SEND_SIZE (XLOG_BLCKSZ * 16)
+
 static ssize_t TDEXLogWriteEncryptedPages(int fd, const void *buf, size_t count,
 										  off_t offset, TimeLineID tli,
 										  XLogSegNo segno);
@@ -50,7 +64,7 @@ static ssize_t TDEXLogWriteEncryptedPages(int fd, const void *buf, size_t count,
 typedef struct EncryptionStateData
 {
 	char	   *segBuf;
-	char		db_keydata_path[MAXPGPATH];
+	char		db_map_path[MAXPGPATH];
 	pg_atomic_uint64 enc_key_lsn;	/* to sync with readers */
 } EncryptionStateData;
 
@@ -65,22 +79,6 @@ static InternalKey EncryptionKey =
 };
 
 static int	XLOGChooseNumBuffers(void);
-
-/*  This can't be a GUC check hook, because that would run too soon during startup */
-void
-TDEXlogCheckSane(void)
-{
-	if (EncryptXLog)
-	{
-		InternalKey *key = GetRelationKey(GLOBAL_SPACE_RLOCATOR(XLOG_TDE_OID), TDE_KEY_TYPE_GLOBAL, true);
-
-		if (key == NULL)
-		{
-			ereport(ERROR,
-					(errmsg("WAL encryption can only be enabled with a properly configured principal key. Disable pg_tde.wal_encrypt and create one using pg_tde_set_server_principal_key() or pg_tde_set_global_principal_key() before enabling it.")));
-		}
-	}
-}
 
 static int
 XLOGChooseNumBuffers(void)
@@ -98,13 +96,13 @@ XLOGChooseNumBuffers(void)
 /*
  * Defines the size of the XLog encryption buffer
  */
-Size
+static Size
 TDEXLogEncryptBuffSize(void)
 {
 	int			xbuffers;
 
 	xbuffers = (XLOGbuffers == -1) ? XLOGChooseNumBuffers() : XLOGbuffers;
-	return (Size) XLOG_BLCKSZ * xbuffers;
+	return Max(MAX_SEND_SIZE, mul_size(XLOG_BLCKSZ, xbuffers));
 }
 
 Size
@@ -112,10 +110,11 @@ TDEXLogEncryptStateSize(void)
 {
 	Size		sz;
 
-	sz = TYPEALIGN(PG_IO_ALIGN_SIZE, TDEXLogEncryptBuffSize());
-	sz = add_size(sz, sizeof(EncryptionStateData));
+	sz = sizeof(EncryptionStateData);
+	sz = add_size(sz, TDEXLogEncryptBuffSize());
+	sz = add_size(sz, PG_IO_ALIGN_SIZE);
 
-	return MAXALIGN(sz);
+	return sz;
 }
 
 /*
@@ -143,8 +142,13 @@ TDEXLogShmemInit(void)
 						TDEXLogEncryptStateSize(),
 						&foundBuf);
 
-	allocptr = ((char *) EncryptionState) + TYPEALIGN(PG_IO_ALIGN_SIZE, sizeof(EncryptionStateData));
+	memset(EncryptionState, 0, sizeof(EncryptionStateData));
+
+	allocptr = ((char *) EncryptionState) + sizeof(EncryptionStateData);
+	allocptr = (char *) TYPEALIGN(PG_IO_ALIGN_SIZE, allocptr);
 	EncryptionState->segBuf = allocptr;
+
+	Assert((char *) EncryptionState + TDEXLogEncryptStateSize() >= (char *) EncryptionState->segBuf + TDEXLogEncryptBuffSize());
 
 	pg_atomic_init_u64(&EncryptionState->enc_key_lsn, 0);
 
@@ -161,6 +165,8 @@ TDEXLogWriteEncryptedPages(int fd, const void *buf, size_t count, off_t offset,
 	char		iv_prefix[16] = {0,};
 	InternalKey *key = &EncryptionKey;
 	char	   *enc_buff = EncryptionState->segBuf;
+
+	Assert(count <= TDEXLogEncryptBuffSize());
 
 #ifdef TDE_XLOG_DEBUG
 	elog(DEBUG1, "write encrypted WAL, size: %lu, offset: %ld [%lX], seg: %X/%X, key_start_lsn: %X/%X",
@@ -200,13 +206,13 @@ TDEXLogSmgrInit(void)
 		pg_atomic_write_u64(&EncryptionState->enc_key_lsn, EncryptionKey.start_lsn);
 	}
 
-	pg_tde_set_db_file_paths(GLOBAL_SPACE_RLOCATOR(XLOG_TDE_OID).dbOid, NULL, EncryptionState->db_keydata_path);
+	pg_tde_set_db_file_path(GLOBAL_SPACE_RLOCATOR(XLOG_TDE_OID).dbOid, EncryptionState->db_map_path);
 
 #endif
 	SetXLogSmgr(&tde_xlog_smgr);
 }
 
-ssize_t
+static ssize_t
 tdeheap_xlog_seg_write(int fd, const void *buf, size_t count, off_t offset,
 					   TimeLineID tli, XLogSegNo segno)
 {
@@ -224,7 +230,7 @@ tdeheap_xlog_seg_write(int fd, const void *buf, size_t count, off_t offset,
 
 		XLogSegNoOffsetToRecPtr(segno, offset, wal_segment_size, lsn);
 
-		pg_tde_wal_last_key_set_lsn(lsn, EncryptionState->db_keydata_path);
+		pg_tde_wal_last_key_set_lsn(lsn, EncryptionState->db_map_path);
 		EncryptionKey.start_lsn = lsn;
 		pg_atomic_write_u64(&EncryptionState->enc_key_lsn, lsn);
 	}
@@ -239,7 +245,7 @@ tdeheap_xlog_seg_write(int fd, const void *buf, size_t count, off_t offset,
 /*
  * Read the XLog pages from the segment file and dectypt if need.
  */
-ssize_t
+static ssize_t
 tdeheap_xlog_seg_read(int fd, void *buf, size_t count, off_t offset,
 					  TimeLineID tli, XLogSegNo segno, int segSize)
 {
@@ -369,5 +375,3 @@ SetXLogPageIVPrefix(TimeLineID tli, XLogRecPtr lsn, char *iv_prefix)
 	iv_prefix[10] = ((lsn >> 8) & 0xFF);
 	iv_prefix[11] = (lsn & 0xFF);
 }
-
-#endif							/* PERCONA_EXT */

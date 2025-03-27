@@ -26,36 +26,47 @@
 #include "access/pg_tde_xlog.h"
 #include "encryption/enc_tde.h"
 
+static void tdeheap_rmgr_redo(XLogReaderState *record);
+static void tdeheap_rmgr_desc(StringInfo buf, XLogReaderState *record);
+static const char *tdeheap_rmgr_identify(uint8 info);
+
+#define RM_TDERMGR_NAME	"test_tdeheap_custom_rmgr"
+
+static const RmgrData tdeheap_rmgr = {
+	.rm_name = RM_TDERMGR_NAME,
+	.rm_redo = tdeheap_rmgr_redo,
+	.rm_desc = tdeheap_rmgr_desc,
+	.rm_identify = tdeheap_rmgr_identify,
+};
+
+void
+RegisterTdeRmgr(void)
+{
+	RegisterCustomRmgr(RM_TDERMGR_ID, &tdeheap_rmgr);
+}
+
 /*
  * TDE fork XLog
  */
-void
+static void
 tdeheap_rmgr_redo(XLogReaderState *record)
 {
 	uint8		info = XLogRecGetInfo(record) & ~XLR_INFO_MASK;
 
 	if (info == XLOG_TDE_ADD_RELATION_KEY)
 	{
-		TDEPrincipalKeyInfo *pk = NULL;
 		XLogRelKey *xlrec = (XLogRelKey *) XLogRecGetData(record);
 
-		if (xlrec->pkInfo.databaseId != 0)
-			pk = &xlrec->pkInfo;
-
 		LWLockAcquire(tde_lwlock_enc_keys(), LW_EXCLUSIVE);
-		pg_tde_write_key_map_entry(&xlrec->rlocator, &xlrec->relKey, pk);
+		pg_tde_write_key_map_entry(&xlrec->rlocator, &xlrec->relKey, &xlrec->pkInfo);
 		LWLockRelease(tde_lwlock_enc_keys());
 	}
-	else if (info == XLOG_TDE_ADD_PRINCIPAL_KEY || info == XLOG_TDE_UPDATE_PRINCIPAL_KEY)
+	else if (info == XLOG_TDE_ADD_PRINCIPAL_KEY)
 	{
 		TDEPrincipalKeyInfo *mkey = (TDEPrincipalKeyInfo *) XLogRecGetData(record);
 
 		LWLockAcquire(tde_lwlock_enc_keys(), LW_EXCLUSIVE);
-		if (info == XLOG_TDE_ADD_PRINCIPAL_KEY)
-			create_principal_key_info(mkey);
-		else
-			update_principal_key_info(mkey);
-
+		pg_tde_save_principal_key(mkey);
 		LWLockRelease(tde_lwlock_enc_keys());
 	}
 	else if (info == XLOG_TDE_EXTENSION_INSTALL_KEY)
@@ -96,7 +107,7 @@ tdeheap_rmgr_redo(XLogReaderState *record)
 	}
 }
 
-void
+static void
 tdeheap_rmgr_desc(StringInfo buf, XLogReaderState *record)
 {
 	uint8		info = XLogRecGetInfo(record) & ~XLR_INFO_MASK;
@@ -112,12 +123,6 @@ tdeheap_rmgr_desc(StringInfo buf, XLogReaderState *record)
 		TDEPrincipalKeyInfo *xlrec = (TDEPrincipalKeyInfo *) XLogRecGetData(record);
 
 		appendStringInfo(buf, "add tde principal key for db %u", xlrec->databaseId);
-	}
-	if (info == XLOG_TDE_UPDATE_PRINCIPAL_KEY)
-	{
-		TDEPrincipalKeyInfo *xlrec = (TDEPrincipalKeyInfo *) XLogRecGetData(record);
-
-		appendStringInfo(buf, "Alter key provider to:%d for tde principal key for db %u", xlrec->keyringId, xlrec->databaseId);
 	}
 	if (info == XLOG_TDE_EXTENSION_INSTALL_KEY)
 	{
@@ -139,7 +144,7 @@ tdeheap_rmgr_desc(StringInfo buf, XLogReaderState *record)
 	}
 }
 
-const char *
+static const char *
 tdeheap_rmgr_identify(uint8 info)
 {
 	if ((info & ~XLR_INFO_MASK) == XLOG_TDE_ADD_RELATION_KEY)
@@ -147,9 +152,6 @@ tdeheap_rmgr_identify(uint8 info)
 
 	if ((info & ~XLR_INFO_MASK) == XLOG_TDE_ADD_PRINCIPAL_KEY)
 		return "XLOG_TDE_ADD_PRINCIPAL_KEY";
-
-	if ((info & ~XLR_INFO_MASK) == XLOG_TDE_UPDATE_PRINCIPAL_KEY)
-		return "XLOG_TDE_UPDATE_PRINCIPAL_KEY";
 
 	if ((info & ~XLR_INFO_MASK) == XLOG_TDE_EXTENSION_INSTALL_KEY)
 		return "XLOG_TDE_EXTENSION_INSTALL_KEY";

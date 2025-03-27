@@ -13,8 +13,6 @@
 
 #include "postgres.h"
 #include "catalog/tde_keyring.h"
-#include "keyring/keyring_api.h"
-#include "nodes/pg_list.h"
 #ifndef FRONTEND
 #include "storage/lwlock.h"
 #endif
@@ -40,15 +38,13 @@ typedef struct TDEPrincipalKey
 typedef struct XLogPrincipalKeyRotate
 {
 	Oid			databaseId;
-	off_t		map_size;
-	off_t		keydata_size;
+	off_t		file_size;
 	char		buff[FLEXIBLE_ARRAY_MEMBER];
 } XLogPrincipalKeyRotate;
 
 #define SizeoOfXLogPrincipalKeyRotate	offsetof(XLogPrincipalKeyRotate, buff)
 
 extern void InitializePrincipalKeyInfo(void);
-extern void cleanup_principal_key_info(Oid databaseId);
 
 #ifndef FRONTEND
 extern LWLock *tde_lwlock_enc_keys(void);
@@ -59,15 +55,7 @@ extern TDEPrincipalKey *GetPrincipalKey(Oid dbOid, void *lockMode);
 extern TDEPrincipalKey *GetPrincipalKeyNoDefault(Oid dbOid, void *lockMode);
 #endif
 
-extern bool create_principal_key_info(TDEPrincipalKeyInfo *principalKeyInfo);
-extern bool update_principal_key_info(TDEPrincipalKeyInfo *principal_key_info);
-
-extern Oid	GetPrincipalKeyProviderId(void);
-extern bool AlterPrincipalKeyKeyring(const char *provider_name);
 extern bool xl_tde_perform_rotate_key(XLogPrincipalKeyRotate *xlrec);
-
-extern void PrincipalKeyGucInit(void);
-
-extern TDEPrincipalKey *get_principal_key_from_keyring(Oid dbOid, bool pushToCache);
+extern TDEPrincipalKey *get_principal_key_from_keyring(Oid dbOid);
 
 #endif							/* PG_TDE_PRINCIPAL_KEY_H */

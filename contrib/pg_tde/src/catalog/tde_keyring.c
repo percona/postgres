@@ -50,6 +50,10 @@ typedef enum ProviderScanType
 
 #define PG_TDE_KEYRING_FILENAME "pg_tde_%d_keyring"
 
+#define FILE_KEYRING_TYPE "file"
+#define VAULTV2_KEYRING_TYPE "vault-v2"
+#define KMIP_KEYRING_TYPE "kmip"
+
 static FileKeyring *load_file_keyring_provider_options(char *keyring_options);
 static GenericKeyring *load_keyring_provider_options(ProviderType provider_type, char *keyring_options);
 static VaultV2Keyring *load_vaultV2_keyring_provider_options(char *keyring_options);
@@ -100,6 +104,8 @@ static Datum pg_tde_add_key_provider_internal(PG_FUNCTION_ARGS, Oid dbOid);
 
 static void key_provider_startup_cleanup(int tde_tbl_count, XLogExtensionInstall *ext_info, bool redo, void *arg);
 static const char *get_keyring_provider_typename(ProviderType p_type);
+static List *GetAllKeyringProviders(Oid dbOid);
+static void cleanup_key_provider_info(Oid databaseId);
 
 static Size initialize_shared_state(void *start_address);
 static Size required_shared_mem_size(void);
@@ -177,7 +183,7 @@ get_keyring_provider_typename(ProviderType p_type)
 	return NULL;
 }
 
-List *
+static List *
 GetAllKeyringProviders(Oid dbOid)
 {
 	return scan_key_provider_file(PROVIDER_SCAN_ALL, NULL, dbOid);
@@ -189,7 +195,7 @@ redo_key_provider_info(KeyringProviderXLRecord *xlrec)
 	return write_key_provider_info(&xlrec->provider, xlrec->database_id, xlrec->offset_in_file, false, false);
 }
 
-void
+static void
 cleanup_key_provider_info(Oid databaseId)
 {
 	/* Remove the key provider info file */
@@ -424,7 +430,6 @@ write_key_provider_info(KeyringProvideRecord *provider, Oid database_id,
 	fd = BasicOpenFile(kp_info_path, O_CREAT | O_RDWR | PG_BINARY);
 	if (fd < 0)
 	{
-		LWLockRelease(tde_provider_info_lock());
 		ereport(ERROR,
 				(errcode_for_file_access(),
 				 errmsg("could not open tde file \"%s\": %m", kp_info_path)));
@@ -444,12 +449,11 @@ write_key_provider_info(KeyringProvideRecord *provider, Oid database_id,
 				seek_pos = before_pos;
 				break;
 			}
-			if (strcmp(existing_provider.provider_name, provider->provider_name) == 0)
+			if (strlen(existing_provider.provider_name) > 0 && strcmp(existing_provider.provider_name, provider->provider_name) == 0)
 			{
 				if (error_if_exists)
 				{
 					close(fd);
-					LWLockRelease(tde_provider_info_lock());
 					ereport(ERROR,
 							(errcode(ERRCODE_DUPLICATE_OBJECT),
 							 errmsg("key provider \"%s\" already exists", provider->provider_name)));
@@ -494,7 +498,7 @@ write_key_provider_info(KeyringProvideRecord *provider, Oid database_id,
 
 			xlrec.database_id = database_id;
 			xlrec.offset_in_file = curr_pos;
-			memcpy(&xlrec.provider, provider, sizeof(KeyringProvideRecord));
+			xlrec.provider = *provider;
 
 			XLogBeginInsert();
 			XLogRegisterData((char *) &xlrec, sizeof(KeyringProviderXLRecord));
@@ -521,7 +525,6 @@ write_key_provider_info(KeyringProvideRecord *provider, Oid database_id,
 	if (bytes_written != sizeof(KeyringProvideRecord))
 	{
 		close(fd);
-		LWLockRelease(tde_provider_info_lock());
 		ereport(ERROR,
 				(errcode_for_file_access(),
 				 errmsg("key provider info file \"%s\" can't be written: %m",
@@ -530,7 +533,6 @@ write_key_provider_info(KeyringProvideRecord *provider, Oid database_id,
 	if (pg_fsync(fd) != 0)
 	{
 		close(fd);
-		LWLockRelease(tde_provider_info_lock());
 		ereport(ERROR,
 				(errcode_for_file_access(),
 				 errmsg("could not fsync file \"%s\": %m",
@@ -678,7 +680,7 @@ scan_key_provider_file(ProviderScanType scanType, void *scanKey, Oid dbOid)
 				providers_list = lappend(providers_list, keyring);
 #else
 				if (providers_list == NULL)
-					providers_list = palloc(sizeof(providers_list));
+					providers_list = palloc_object(SimplePtrList);
 				simple_ptr_list_append(providers_list, keyring);
 #endif
 			}

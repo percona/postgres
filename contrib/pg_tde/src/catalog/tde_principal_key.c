@@ -28,6 +28,7 @@
 #include "utils/fmgroids.h"
 #include "utils/guc.h"
 #include "catalog/pg_database.h"
+#include "keyring/keyring_api.h"
 
 #include "access/pg_tde_tdemap.h"
 #include "catalog/tde_global_space.h"
@@ -36,7 +37,9 @@
 #include "access/table.h"
 #include "common/pg_tde_shmem.h"
 #include "funcapi.h"
+#include "lib/dshash.h"
 #include "storage/lwlock.h"
+#include "storage/shmem.h"
 #else
 #include "pg_tde_fe.h"
 #endif
@@ -85,6 +88,7 @@ static Size cache_area_size(void);
 static Size required_shared_mem_size(void);
 static void shared_memory_shutdown(int code, Datum arg);
 static void principal_key_startup_cleanup(int tde_tbl_count, XLogExtensionInstall *ext_info, bool redo, void *arg);
+static void cleanup_principal_key_info(Oid databaseId);
 static void clear_principal_key_cache(Oid databaseId);
 static inline dshash_table *get_principal_key_Hash(void);
 static TDEPrincipalKey *get_principal_key_from_cache(Oid dbOid);
@@ -249,21 +253,6 @@ shared_memory_shutdown(int code, Datum arg)
 }
 
 bool
-create_principal_key_info(TDEPrincipalKeyInfo *principal_key_info)
-{
-	Assert(principal_key_info != NULL);
-
-	return pg_tde_save_principal_key(principal_key_info, true, true);
-}
-
-bool
-update_principal_key_info(TDEPrincipalKeyInfo *principal_key_info)
-{
-	Assert(principal_key_info != NULL);
-	return pg_tde_save_principal_key(principal_key_info, false, true);
-}
-
-bool
 set_principal_key_with_keyring(const char *key_name, const char *provider_name,
 							   Oid providerOid, Oid dbOid, bool ensure_new_key)
 {
@@ -291,8 +280,6 @@ set_principal_key_with_keyring(const char *key_name, const char *provider_name,
 
 	if (provider_name == NULL && !already_has_key)
 	{
-		LWLockRelease(lock_files);
-
 		ereport(ERROR,
 				(errmsg("provider_name is a required parameter when creating the first principal key for a database")));
 	}
@@ -310,27 +297,20 @@ set_principal_key_with_keyring(const char *key_name, const char *provider_name,
 	{
 		KeyringReturnCodes kr_ret;
 
-		keyInfo = KeyringGetKey(new_keyring, key_name, false, &kr_ret);
+		keyInfo = KeyringGetKey(new_keyring, key_name, &kr_ret);
 
 		if (kr_ret != KEYRING_CODE_SUCCESS && kr_ret != KEYRING_CODE_RESOURCE_NOT_AVAILABLE)
 		{
 			ereport(ERROR,
 					(errmsg("failed to retrieve principal key from keyring provider :\"%s\"", new_keyring->provider_name),
 					 errdetail("Error code: %d", kr_ret)));
-			return false;
 		}
 	}
 
 	if (keyInfo != NULL && ensure_new_key)
 	{
-		LWLockRelease(lock_files);
-
-		pfree(new_keyring);
-
 		ereport(ERROR,
 				(errmsg("failed to create principal key: already exists")));
-
-		return false;
 	}
 
 	if (strlen(key_name) >= sizeof(keyInfo->name))
@@ -339,21 +319,15 @@ set_principal_key_with_keyring(const char *key_name, const char *provider_name,
 				 errmsg("too long principal key name, maximum lenght is %ld bytes", sizeof(keyInfo->name) - 1)));
 
 	if (keyInfo == NULL)
-		keyInfo = KeyringGenerateNewKeyAndStore(new_keyring, key_name, INTERNAL_KEY_LEN, true);
+		keyInfo = KeyringGenerateNewKeyAndStore(new_keyring, key_name, INTERNAL_KEY_LEN);
 
 	if (keyInfo == NULL)
 	{
-		LWLockRelease(lock_files);
-
-		pfree(new_keyring);
-
 		ereport(ERROR,
 				(errmsg("failed to retrieve/create principal key.")));
-
-		return false;
 	}
 
-	new_principal_key = palloc(sizeof(TDEPrincipalKey));
+	new_principal_key = palloc_object(TDEPrincipalKey);
 	new_principal_key->keyInfo.databaseId = dbOid;
 	new_principal_key->keyInfo.keyringId = new_keyring->keyring_id;
 	memcpy(new_principal_key->keyInfo.name, keyInfo->name, TDE_KEY_NAME_LEN);
@@ -365,7 +339,7 @@ set_principal_key_with_keyring(const char *key_name, const char *provider_name,
 	if (!already_has_key)
 	{
 		/* First key created for the database */
-		create_principal_key_info(&new_principal_key->keyInfo);
+		pg_tde_save_principal_key(&new_principal_key->keyInfo);
 
 		/* XLog the new key */
 		XLogBeginInsert();
@@ -403,48 +377,10 @@ xl_tde_perform_rotate_key(XLogPrincipalKeyRotate *xlrec)
 {
 	bool		ret;
 
-	ret = pg_tde_write_map_keydata_files(xlrec->map_size, xlrec->buff, xlrec->keydata_size, &xlrec->buff[xlrec->map_size]);
+	ret = pg_tde_write_map_keydata_file(xlrec->file_size, xlrec->buff);
 	clear_principal_key_cache(xlrec->databaseId);
 
 	return ret;
-}
-
-/*
- * Returns the provider ID of the keyring that holds the principal key
- * Return InvalidOid if the principal key is not set for the database
- */
-Oid
-GetPrincipalKeyProviderId(void)
-{
-	TDEPrincipalKey *principalKey = NULL;
-	TDEPrincipalKeyInfo *principalKeyInfo = NULL;
-	Oid			keyringId = InvalidOid;
-	Oid			dbOid = MyDatabaseId;
-	LWLock	   *lock_files = tde_lwlock_enc_keys();
-
-	LWLockAcquire(lock_files, LW_SHARED);
-
-	principalKey = get_principal_key_from_cache(dbOid);
-	if (principalKey)
-	{
-		keyringId = principalKey->keyInfo.keyringId;
-	}
-	{
-		/*
-		 * Principal key not present in cache. Try Loading it from the info
-		 * file
-		 */
-		principalKeyInfo = pg_tde_get_principal_key_info(dbOid);
-		if (principalKeyInfo)
-		{
-			keyringId = principalKeyInfo->keyringId;
-			pfree(principalKeyInfo);
-		}
-	}
-
-	LWLockRelease(lock_files);
-
-	return keyringId;
 }
 
 /*
@@ -496,7 +432,7 @@ push_principal_key_to_cache(TDEPrincipalKey *principalKey)
 									   &databaseId, &found);
 
 	if (!found)
-		memcpy(cacheEntry, principalKey, sizeof(TDEPrincipalKey));
+		*cacheEntry = *principalKey;
 	dshash_release_lock(get_principal_key_Hash(), cacheEntry);
 
 	/* we don't want principal keys to end up paged to the swap */
@@ -527,7 +463,7 @@ principal_key_startup_cleanup(int tde_tbl_count, XLogExtensionInstall *ext_info,
 	cleanup_principal_key_info(ext_info->database_id);
 }
 
-void
+static void
 cleanup_principal_key_info(Oid databaseId)
 {
 	clear_principal_key_cache(databaseId);
@@ -633,7 +569,7 @@ pg_tde_set_principal_key_internal(char *principal_key_name, enum global_status g
 		existingDefaultKey = GetPrincipalKeyNoDefault(dbOid, LW_SHARED);
 		if (existingDefaultKey != NULL)
 		{
-			memcpy(&existingKeyCopy, existingDefaultKey, sizeof(TDEPrincipalKey));
+			existingKeyCopy = *existingDefaultKey;
 		}
 		LWLockRelease(tde_lwlock_enc_keys());
 	}
@@ -722,7 +658,6 @@ pg_tde_get_key_info(PG_FUNCTION_ARGS, Oid dbOid)
 		ereport(ERROR,
 				(errmsg("Principal key does not exists for the database"),
 				 errhint("Use set_principal_key interface to set the principal key")));
-		PG_RETURN_NULL();
 	}
 
 	keyring = GetKeyProviderByID(principal_key->keyInfo.keyringId, principal_key->keyInfo.databaseId);
@@ -766,65 +701,50 @@ pg_tde_get_key_info(PG_FUNCTION_ARGS, Oid dbOid)
 #endif							/* FRONTEND */
 
 /*
- * Gets principal key form the keyring and pops it into cache if key exists
+ * Gets principal key form the keyring.
+ *
  * Caller should hold an exclusive tde_lwlock_enc_keys lock
  */
 TDEPrincipalKey *
-get_principal_key_from_keyring(Oid dbOid, bool pushToCache)
+get_principal_key_from_keyring(Oid dbOid)
 {
+	TDEPrincipalKeyInfo *principalKeyInfo;
 	GenericKeyring *keyring;
-	TDEPrincipalKey *principalKey = NULL;
-	TDEPrincipalKeyInfo *principalKeyInfo = NULL;
-	const KeyInfo *keyInfo = NULL;
+	KeyInfo    *keyInfo;
 	KeyringReturnCodes keyring_ret;
+	TDEPrincipalKey *principalKey;
 
 	/* Assert(LWLockHeldByMeInMode(tde_lwlock_enc_keys(), LW_EXCLUSIVE)); */
 
 	principalKeyInfo = pg_tde_get_principal_key_info(dbOid);
 	if (principalKeyInfo == NULL)
-	{
 		return NULL;
-	}
 
 	keyring = GetKeyProviderByID(principalKeyInfo->keyringId, dbOid);
 	if (keyring == NULL)
-	{
-		return NULL;
-	}
+		ereport(ERROR,
+				(errcode(ERRCODE_DATA_CORRUPTED),
+				 errmsg("keyring lookup failed for principal key %s, unknown keyring with ID %d",
+						principalKeyInfo->name, principalKeyInfo->keyringId)));
 
-	keyInfo = KeyringGetKey(keyring, principalKeyInfo->name, false, &keyring_ret);
-
+	keyInfo = KeyringGetKey(keyring, principalKeyInfo->name, &keyring_ret);
 	if (keyInfo == NULL)
-	{
-		return NULL;
-	}
+		ereport(ERROR,
+				(errcode(ERRCODE_NO_DATA_FOUND),
+				 errmsg("failed to retrieve principal key %s from keyring with ID %d",
+						principalKeyInfo->name, principalKeyInfo->keyringId)));
 
-	principalKey = palloc(sizeof(TDEPrincipalKey));
+	principalKey = palloc_object(TDEPrincipalKey);
 
-	memcpy(&principalKey->keyInfo, principalKeyInfo, sizeof(principalKey->keyInfo));
+	principalKey->keyInfo = *principalKeyInfo;
 	memcpy(principalKey->keyData, keyInfo->data.data, keyInfo->data.len);
 	principalKey->keyLength = keyInfo->data.len;
 
 	Assert(dbOid == principalKey->keyInfo.databaseId);
 
-#ifndef FRONTEND
-	/* We don't store global space key in cache */
-	if (pushToCache && !(TDEisInGlobalSpace(dbOid)))
-	{
-		push_principal_key_to_cache(principalKey);
-
-		/*
-		 * If we do store key in cache we want to return a cache reference
-		 * rather then a palloc'ed copy.
-		 */
-		pfree(principalKey);
-		principalKey = get_principal_key_from_cache(dbOid);
-	}
+	pfree(keyInfo);
 	pfree(keyring);
-#endif
-
-	if (principalKeyInfo)
-		pfree(principalKeyInfo);
+	pfree(principalKeyInfo);
 
 	return principalKey;
 }
@@ -852,18 +772,17 @@ get_principal_key_from_keyring(Oid dbOid, bool pushToCache)
 TDEPrincipalKey *
 GetPrincipalKeyNoDefault(Oid dbOid, LWLockMode lockMode)
 {
-	TDEPrincipalKey *principalKey = NULL;
+	TDEPrincipalKey *principalKey;
+
 #ifndef FRONTEND
 	Assert(LWLockHeldByMeInMode(tde_lwlock_enc_keys(), lockMode));
 	/* We don't store global space key in cache */
 	if (!TDEisInGlobalSpace(dbOid))
 	{
 		principalKey = get_principal_key_from_cache(dbOid);
-	}
 
-	if (likely(principalKey))
-	{
-		return principalKey;
+		if (likely(principalKey))
+			return principalKey;
 	}
 
 	if (lockMode != LW_EXCLUSIVE)
@@ -873,7 +792,24 @@ GetPrincipalKeyNoDefault(Oid dbOid, LWLockMode lockMode)
 	}
 #endif
 
-	return get_principal_key_from_keyring(dbOid, true);
+	principalKey = get_principal_key_from_keyring(dbOid);
+
+#ifndef FRONTEND
+	/* We don't store global space key in cache */
+	if (principalKey && !TDEisInGlobalSpace(dbOid))
+	{
+		push_principal_key_to_cache(principalKey);
+
+		/*
+		 * If we do store key in cache we want to return a cache reference
+		 * rather then a palloc'ed copy.
+		 */
+		pfree(principalKey);
+		principalKey = get_principal_key_from_cache(dbOid);
+	}
+#endif
+
+	return principalKey;
 }
 
 TDEPrincipalKey *
@@ -899,16 +835,11 @@ GetPrincipalKey(Oid dbOid, LWLockMode lockMode)
 		return NULL;
 	}
 
-	newPrincipalKey = palloc(sizeof(TDEPrincipalKey));
-	memcpy(newPrincipalKey, principalKey, sizeof(TDEPrincipalKey));
+	newPrincipalKey = palloc_object(TDEPrincipalKey);
+	*newPrincipalKey = *principalKey;
 	newPrincipalKey->keyInfo.databaseId = dbOid;
 
-	create_principal_key_info(&newPrincipalKey->keyInfo);
-
-	/* XLog the new use of the default key */
-	XLogBeginInsert();
-	XLogRegisterData((char *) &newPrincipalKey->keyInfo, sizeof(TDEPrincipalKeyInfo));
-	XLogInsert(RM_TDERMGR_ID, XLOG_TDE_ADD_PRINCIPAL_KEY);
+	pg_tde_save_principal_key(&newPrincipalKey->keyInfo);
 
 	push_principal_key_to_cache(newPrincipalKey);
 
@@ -1020,13 +951,13 @@ pg_tde_rotate_default_key_for_database(TDEPrincipalKey *oldKey, TDEPrincipalKey 
 {
 	bool		is_rotated;
 
-	TDEPrincipalKey *newKey = palloc(sizeof(TDEPrincipalKey));
+	TDEPrincipalKey *newKey = palloc_object(TDEPrincipalKey);
 
-	memcpy(newKey, newKeyTemplate, sizeof(TDEPrincipalKey));
+	*newKey = *newKeyTemplate;
 	newKey->keyInfo.databaseId = oldKey->keyInfo.databaseId;
 
 	/* key rotation */
-	is_rotated = pg_tde_perform_rotate_key(newKey, oldKey);
+	is_rotated = pg_tde_perform_rotate_key(oldKey, newKey);
 
 	if (is_rotated && (!TDEisInGlobalSpace(newKey->keyInfo.databaseId)))
 	{
@@ -1132,7 +1063,7 @@ pg_tde_verify_principal_key_internal(Oid databaseOid)
 
 	LWLockAcquire(tde_lwlock_enc_keys(), LW_EXCLUSIVE);
 
-	fromKeyring = get_principal_key_from_keyring(databaseOid, false);
+	fromKeyring = get_principal_key_from_keyring(databaseOid);
 	fromCache = get_principal_key_from_cache(databaseOid);
 
 	LWLockRelease(tde_lwlock_enc_keys());
@@ -1140,13 +1071,13 @@ pg_tde_verify_principal_key_internal(Oid databaseOid)
 	if (fromKeyring == NULL)
 	{
 		ereport(ERROR,
-				(errmsg("Failed to retrieve key from keyring")));
+				(errmsg("principal key not configured for current database")));
 	}
 
 	if (fromCache != NULL && (fromKeyring->keyLength != fromCache->keyLength || memcmp(fromKeyring->keyData, fromCache->keyData, fromCache->keyLength) != 0))
 	{
 		ereport(ERROR,
-				(errmsg("Key returned by keyring and cached in pg_tde is different")));
+				(errmsg("key returned from keyring and cached in pg_tde differ")));
 	}
 
 	PG_RETURN_VOID();

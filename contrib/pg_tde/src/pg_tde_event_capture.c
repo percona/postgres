@@ -31,12 +31,8 @@
 #include "executor/spi.h"
 
 /* Global variable that gets set at ddl start and cleard out at ddl end*/
-TdeCreateEvent tdeCurrentCreateEvent = {.relation = NULL};
-
-bool		alterSetAccessMethod = false;
-
-int			event_trigger_level = 0;
-
+static TdeCreateEvent tdeCurrentCreateEvent = {.tid = {.value = 0},.relation = NULL};
+static bool alterSetAccessMethod = false;
 
 static void reset_current_tde_create_event(void);
 static Oid	get_tde_table_am_oid(void);
@@ -76,7 +72,8 @@ checkEncryptionClause(const char *accessMethod)
 		if (principal_key == NULL)
 		{
 			ereport(ERROR,
-					(errmsg("failed to retrieve principal key. Create one using pg_tde_set_principal_key before using encrypted tables.")));
+					(errmsg("principal key not configured"),
+					 errhint("create one using pg_tde_set_principal_key before using encrypted tables")));
 
 		}
 	}
@@ -85,6 +82,23 @@ checkEncryptionClause(const char *accessMethod)
 	{
 		ereport(ERROR,
 				(errmsg("pg_tde.enforce_encryption is ON, only the tde_heap access method is allowed.")));
+	}
+}
+
+void
+validateCurrentEventTriggerState(bool mightStartTransaction)
+{
+	FullTransactionId tid = mightStartTransaction ? GetCurrentFullTransactionId() : GetCurrentFullTransactionIdIfAny();
+
+	if (RecoveryInProgress())
+	{
+		reset_current_tde_create_event();
+		return;
+	}
+	if (tdeCurrentCreateEvent.tid.value != InvalidFullTransactionId.value && tid.value != tdeCurrentCreateEvent.tid.value)
+	{
+		/* There was a failed query, end event trigger didn't execute */
+		reset_current_tde_create_event();
 	}
 }
 
@@ -104,11 +118,8 @@ Datum
 pg_tde_ddl_command_start_capture(PG_FUNCTION_ARGS)
 {
 	/* TODO: verify update_compare_indexes failure related to this */
-#ifdef PERCONA_EXT
 	EventTriggerData *trigdata;
 	Node	   *parsetree;
-
-	event_trigger_level++;
 
 	/* Ensure this function is being called as an event trigger */
 	if (!CALLED_AS_EVENT_TRIGGER(fcinfo))	/* internal error */
@@ -118,15 +129,13 @@ pg_tde_ddl_command_start_capture(PG_FUNCTION_ARGS)
 	trigdata = (EventTriggerData *) fcinfo->context;
 	parsetree = trigdata->parsetree;
 
-	if (event_trigger_level == 1)
-	{
-		reset_current_tde_create_event();
-	}
-
 	if (IsA(parsetree, IndexStmt))
 	{
 		IndexStmt  *stmt = (IndexStmt *) parsetree;
 		Oid			relationId = RangeVarGetRelid(stmt->relation, NoLock, true);
+
+		validateCurrentEventTriggerState(true);
+		tdeCurrentCreateEvent.tid = GetCurrentFullTransactionId();
 
 		tdeCurrentCreateEvent.baseTableOid = relationId;
 		tdeCurrentCreateEvent.relation = stmt->relation;
@@ -158,6 +167,10 @@ pg_tde_ddl_command_start_capture(PG_FUNCTION_ARGS)
 		CreateStmt *stmt = (CreateStmt *) parsetree;
 		const char *accessMethod = stmt->accessMethod;
 
+		validateCurrentEventTriggerState(true);
+		tdeCurrentCreateEvent.tid = GetCurrentFullTransactionId();
+
+
 		tdeCurrentCreateEvent.relation = stmt->relation;
 
 		checkEncryptionClause(accessMethod);
@@ -166,6 +179,9 @@ pg_tde_ddl_command_start_capture(PG_FUNCTION_ARGS)
 	{
 		CreateTableAsStmt *stmt = (CreateTableAsStmt *) parsetree;
 		const char *accessMethod = stmt->into->accessMethod;
+
+		validateCurrentEventTriggerState(true);
+		tdeCurrentCreateEvent.tid = GetCurrentFullTransactionId();
 
 		tdeCurrentCreateEvent.relation = stmt->into->rel;
 
@@ -177,6 +193,9 @@ pg_tde_ddl_command_start_capture(PG_FUNCTION_ARGS)
 		ListCell   *lcmd;
 		Oid			relationId = RangeVarGetRelid(stmt->relation, NoLock, true);
 
+		validateCurrentEventTriggerState(true);
+		tdeCurrentCreateEvent.tid = GetCurrentFullTransactionId();
+
 		foreach(lcmd, stmt->cmds)
 		{
 			AlterTableCmd *cmd = (AlterTableCmd *) lfirst(lcmd);
@@ -187,6 +206,7 @@ pg_tde_ddl_command_start_capture(PG_FUNCTION_ARGS)
 
 				tdeCurrentCreateEvent.relation = stmt->relation;
 				tdeCurrentCreateEvent.baseTableOid = relationId;
+				tdeCurrentCreateEvent.alterAccessMethodMode = true;
 
 				checkEncryptionClause(accessMethod);
 				alterSetAccessMethod = true;
@@ -225,9 +245,20 @@ pg_tde_ddl_command_start_capture(PG_FUNCTION_ARGS)
 				}
 			}
 		}
-
 	}
-#endif
+	else
+	{
+		if (!tdeCurrentCreateEvent.alterAccessMethodMode)
+		{
+			/*
+			 * Any other type of statement doesn't need TDE mode, except
+			 * during alter access method. To make sure that we have no
+			 * leftover setting from a previous error or something, we just
+			 * reset the status here.
+			 */
+			reset_current_tde_create_event();
+		}
+	}
 	PG_RETURN_NULL();
 }
 
@@ -238,14 +269,18 @@ pg_tde_ddl_command_start_capture(PG_FUNCTION_ARGS)
 Datum
 pg_tde_ddl_command_end_capture(PG_FUNCTION_ARGS)
 {
-#ifdef PERCONA_EXT
+	EventTriggerData *trigdata;
+	Node	   *parsetree;
+
+	trigdata = (EventTriggerData *) fcinfo->context;
+	parsetree = trigdata->parsetree;
 
 	/* Ensure this function is being called as an event trigger */
 	if (!CALLED_AS_EVENT_TRIGGER(fcinfo))	/* internal error */
 		ereport(ERROR,
 				(errmsg("Function can only be fired by event trigger manager")));
 
-	if (alterSetAccessMethod && !tdeCurrentCreateEvent.alterSequenceMode)
+	if (IsA(parsetree, AlterTableStmt) && tdeCurrentCreateEvent.alterAccessMethodMode)
 	{
 		/*
 		 * sequences are not updated automatically call a helper function that
@@ -267,9 +302,9 @@ pg_tde_ddl_command_end_capture(PG_FUNCTION_ARGS)
 		args[0] = ObjectIdGetDatum(tdeCurrentCreateEvent.baseTableOid);
 		nulls[0] = ' ';
 
-		tdeCurrentCreateEvent.alterSequenceMode = true;
 		ret = SPI_execute_plan(plan, args, nulls, false, 0);
-		tdeCurrentCreateEvent.alterSequenceMode = false;
+
+		tdeCurrentCreateEvent.alterAccessMethodMode = false;
 
 		SPI_finish();
 
@@ -279,11 +314,16 @@ pg_tde_ddl_command_end_capture(PG_FUNCTION_ARGS)
 		}
 	}
 
-	event_trigger_level--;
-
-	/* All we need to do is to clear the event state */
-	reset_current_tde_create_event();
-#endif
+	/*
+	 * All we need to do is to clear the event state. Except when we are in
+	 * alter access method mode, because during that, we have multiple nested
+	 * event trigger running. Reset should only be called in the end, when it
+	 * is set to false.
+	 */
+	if (!tdeCurrentCreateEvent.alterAccessMethodMode)
+	{
+		reset_current_tde_create_event();
+	}
 
 	PG_RETURN_NULL();
 }
@@ -294,7 +334,9 @@ reset_current_tde_create_event(void)
 	tdeCurrentCreateEvent.encryptMode = false;
 	tdeCurrentCreateEvent.baseTableOid = InvalidOid;
 	tdeCurrentCreateEvent.relation = NULL;
+	tdeCurrentCreateEvent.tid = InvalidFullTransactionId;
 	alterSetAccessMethod = false;
+	tdeCurrentCreateEvent.alterAccessMethodMode = false;
 }
 
 static Oid

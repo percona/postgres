@@ -8,8 +8,6 @@
 #include "access/pg_tde_tdemap.h"
 #include "pg_tde_event_capture.h"
 
-#ifdef PERCONA_EXT
-
 typedef struct TDESMgrRelationData
 {
 	/* parent data */
@@ -28,21 +26,11 @@ typedef struct TDESMgrRelationData
 
 typedef TDESMgrRelationData *TDESMgrRelation;
 
-/*
- * we only encrypt main and init forks
- */
-static inline bool
-tde_is_encryption_required(TDESMgrRelation tdereln, ForkNumber forknum)
-{
-	return (tdereln->encrypted_relation && (forknum == MAIN_FORKNUM || forknum == INIT_FORKNUM));
-}
-
 static InternalKey *
 tde_smgr_get_key(SMgrRelation reln, RelFileLocator *old_locator, bool can_create)
 {
 	TdeCreateEvent *event;
 	InternalKey *key;
-	TDEPrincipalKey *pk;
 
 	if (IsCatalogRelationOid(reln->smgr_rlocator.locator.relNumber))
 	{
@@ -50,23 +38,14 @@ tde_smgr_get_key(SMgrRelation reln, RelFileLocator *old_locator, bool can_create
 		return NULL;
 	}
 
-	LWLockAcquire(tde_lwlock_enc_keys(), LW_SHARED);
-	pk = GetPrincipalKey(reln->smgr_rlocator.locator.dbOid, LW_SHARED);
-	LWLockRelease(tde_lwlock_enc_keys());
-	if (pk == NULL)
-	{
-		return NULL;
-	}
-
-	event = GetCurrentTdeCreateEvent();
-
 	/* see if we have a key for the relation, and return if yes */
 	key = GetSMGRRelationKey(reln->smgr_rlocator);
-
 	if (key != NULL)
 	{
 		return key;
 	}
+
+	event = GetCurrentTdeCreateEvent();
 
 	/*
 	 * Can be many things, such as: CREATE TABLE ALTER TABLE SET ACCESS METHOD
@@ -83,9 +62,9 @@ tde_smgr_get_key(SMgrRelation reln, RelFileLocator *old_locator, bool can_create
 	if (old_locator != NULL && can_create)
 	{
 		RelFileLocatorBackend rlocator = {.locator = *old_locator,.backend = reln->smgr_rlocator.backend};
-		InternalKey *key2 = GetSMGRRelationKey(rlocator);
+		InternalKey *oldkey = GetSMGRRelationKey(rlocator);
 
-		if (key2 != NULL)
+		if (oldkey != NULL)
 		{
 			/* create a new key for the new file */
 			return pg_tde_create_smgr_key(&reln->smgr_rlocator);
@@ -102,7 +81,7 @@ tde_mdwritev(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
 	TDESMgrRelation tdereln = (TDESMgrRelation) reln;
 	InternalKey *int_key = &tdereln->relKey;
 
-	if (!tde_is_encryption_required(tdereln, forknum))
+	if (!tdereln->encrypted_relation)
 	{
 		mdwritev(reln, forknum, blocknum, buffers, nblocks, skipFsync);
 	}
@@ -110,7 +89,7 @@ tde_mdwritev(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
 	{
 		unsigned char *local_blocks = palloc(BLCKSZ * (nblocks + 1));
 		unsigned char *local_blocks_aligned = (unsigned char *) TYPEALIGN(PG_IO_ALIGN_SIZE, local_blocks);
-		void	  **local_buffers = palloc(sizeof(void *) * nblocks);
+		void	  **local_buffers = palloc_array(void *, nblocks);
 
 		AesInit();
 
@@ -143,7 +122,7 @@ tde_mdextend(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
 	TDESMgrRelation tdereln = (TDESMgrRelation) reln;
 	InternalKey *int_key = &tdereln->relKey;
 
-	if (!tde_is_encryption_required(tdereln, forknum))
+	if (!tdereln->encrypted_relation)
 	{
 		mdextend(reln, forknum, blocknum, buffer, skipFsync);
 	}
@@ -177,7 +156,7 @@ tde_mdreadv(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
 
 	mdreadv(reln, forknum, blocknum, buffers, nblocks);
 
-	if (!tde_is_encryption_required(tdereln, forknum))
+	if (!tdereln->encrypted_relation)
 		return;
 
 	AesInit();
@@ -227,6 +206,14 @@ tde_mdcreate(RelFileLocator relold, SMgrRelation reln, ForkNumber forknum, bool 
 	TdeCreateEvent *event = GetCurrentTdeCreateEvent();
 
 	/*
+	 * Make sure that even if a statement failed, and an event trigger end
+	 * trigger didn't fire, we don't accidentaly create encrypted files when
+	 * we don't have to. event above is a pointer, so it will reflect the
+	 * correct state even if this changes it.
+	 */
+	validateCurrentEventTriggerState(false);
+
+	/*
 	 * This is the only function that gets called during actual CREATE
 	 * TABLE/INDEX (EVENT TRIGGER)
 	 */
@@ -234,20 +221,30 @@ tde_mdcreate(RelFileLocator relold, SMgrRelation reln, ForkNumber forknum, bool 
 
 	mdcreate(relold, reln, forknum, isRedo);
 
-	/*
-	 * Later calls then decide to encrypt or not based on the existence of the
-	 * key
-	 */
-	key = tde_smgr_get_key(reln, event->alterSequenceMode ? NULL : &relold, true);
+	if (forknum == MAIN_FORKNUM || forknum == INIT_FORKNUM)
+	{
+		/*
+		 * Only create keys when creating the main/init fork. Other forks can
+		 * be created later, even during tde creation events. We definitely do
+		 * not want to create keys then, even later, when we encrypt all
+		 * forks!
+		 */
 
-	if (key)
-	{
-		tdereln->encrypted_relation = true;
-		tdereln->relKey = *key;
-	}
-	else
-	{
-		tdereln->encrypted_relation = false;
+		/*
+		 * Later calls then decide to encrypt or not based on the existence of
+		 * the key
+		 */
+		key = tde_smgr_get_key(reln, event->alterAccessMethodMode ? NULL : &relold, true);
+
+		if (key)
+		{
+			tdereln->encrypted_relation = true;
+			tdereln->relKey = *key;
+		}
+		else
+		{
+			tdereln->encrypted_relation = false;
+		}
 	}
 }
 
@@ -272,7 +269,6 @@ tde_mdopen(SMgrRelation reln)
 	mdopen(reln);
 }
 
-static SMgrId tde_smgr_id;
 static const struct f_smgr tde_smgr = {
 	.name = "tde",
 	.smgr_init = mdinit,
@@ -297,15 +293,6 @@ static const struct f_smgr tde_smgr = {
 void
 RegisterStorageMgr(void)
 {
-	tde_smgr_id = smgr_register(&tde_smgr, sizeof(TDESMgrRelationData));
-
 	/* TODO: figure out how this part should work in a real extension */
-	storage_manager_id = tde_smgr_id;
+	storage_manager_id = smgr_register(&tde_smgr, sizeof(TDESMgrRelationData));
 }
-
-#else
-void
-RegisterStorageMgr(void)
-{
-}
-#endif							/* PERCONA_EXT */

@@ -24,74 +24,44 @@
 #include "access/heapam.h"
 
 static Oid
-get_tde_basic_table_am_oid(void)
+get_tde_table_am_oid(void)
 {
-	return get_table_am_oid("tde_heap_basic", false);
+	return get_table_am_oid("tde_heap", false);
 }
 
 PG_FUNCTION_INFO_V1(pg_tde_is_encrypted);
 Datum
 pg_tde_is_encrypted(PG_FUNCTION_ARGS)
 {
-	Oid			tableOid = InvalidOid;
-	Oid			dbOid = MyDatabaseId;
-	TDEPrincipalKey *principalKey = NULL;
+	Oid			tableOid = PG_GETARG_OID(0);
+	LOCKMODE	lockmode = AccessShareLock;
+	Relation	rel = relation_open(tableOid, lockmode);
+	RelFileLocatorBackend rlocator = {.locator = rel->rd_locator,.backend = rel->rd_backend};
+	InternalKey *key;
 
-	if (!PG_ARGISNULL(0))
-	{
-		tableOid = PG_GETARG_OID(0);
-	}
+	if (RelFileLocatorBackendIsTemp(rlocator) && !rel->rd_islocaltemp)
+		ereport(ERROR,
+				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+				 errmsg("we cannot check if temporary relations from other backends are encrypted")));
 
-	if (tableOid == InvalidOid)
-	{
-		PG_RETURN_BOOL(false);
-	}
+	key = GetSMGRRelationKey(rlocator);
 
-	LWLockAcquire(tde_lwlock_enc_keys(), LW_SHARED);
-	principalKey = GetPrincipalKey(dbOid, LW_SHARED);
-	LWLockRelease(tde_lwlock_enc_keys());
+	relation_close(rel, lockmode);
 
-	if (principalKey == NULL)
-	{
-		PG_RETURN_BOOL(false);
-	}
-
-	{
-		LOCKMODE	lockmode = AccessShareLock;
-		Relation	rel = relation_open(tableOid, lockmode);
-		InternalKey *key;
-		RelFileLocatorBackend rlocator = {.locator = rel->rd_locator,.backend = rel->rd_backend};
-
-		if (rel->rd_rel->relam == get_tde_basic_table_am_oid())
-		{
-			relation_close(rel, lockmode);
-			PG_RETURN_BOOL(true);
-		}
-
-		if (RelFileLocatorBackendIsTemp(rlocator) && !rel->rd_islocaltemp)
-			ereport(ERROR,
-					(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-					 errmsg("we cannot check if temporary relations from other backends are encrypted")));
-
-		key = GetSMGRRelationKey(rlocator);
-
-		relation_close(rel, lockmode);
-
-		PG_RETURN_BOOL(key != NULL);
-	}
+	PG_RETURN_BOOL(key != NULL);
 }
 
 /*
- * Returns the list of OIDs for all TDE tables in a database
+ * Returns the number of TDE tables in a database
  */
-List *
-get_all_tde_tables(void)
+int
+get_tde_tables_count(void)
 {
 	Relation	pg_class;
 	SysScanDesc scan;
 	HeapTuple	tuple;
-	List	   *tde_tables = NIL;
-	Oid			am_oid = get_tde_basic_table_am_oid();
+	int			count = 0;
+	Oid			am_oid = get_tde_table_am_oid();
 
 	/* Open the pg_class table */
 	pg_class = table_open(RelationRelationId, AccessShareLock);
@@ -107,11 +77,7 @@ get_all_tde_tables(void)
 
 		/* Check if the table uses the specified access method */
 		if (classForm->relam == am_oid)
-		{
-			/* Print the name of the table */
-			tde_tables = lappend_oid(tde_tables, classForm->oid);
-			elog(DEBUG2, "Table %s uses the TDE access method.", NameStr(classForm->relname));
-		}
+			count++;
 	}
 
 	/* End the scan */
@@ -119,16 +85,6 @@ get_all_tde_tables(void)
 
 	/* Close the pg_class table */
 	table_close(pg_class, AccessShareLock);
-	return tde_tables;
-}
-
-int
-get_tde_tables_count(void)
-{
-	List	   *tde_tables = get_all_tde_tables();
-	int			count = list_length(tde_tables);
-
-	list_free(tde_tables);
 	return count;
 }
 

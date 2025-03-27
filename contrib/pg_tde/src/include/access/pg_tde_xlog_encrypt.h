@@ -10,26 +10,9 @@
 #define PG_TDE_XLOGENCRYPT_H
 
 #include "postgres.h"
-#ifdef PERCONA_EXT
-#include "access/xlog_smgr.h"
-
-extern Size TDEXLogEncryptBuffSize(void);
 
 extern Size TDEXLogEncryptStateSize(void);
 extern void TDEXLogShmemInit(void);
-
-extern ssize_t tdeheap_xlog_seg_read(int fd, void *buf, size_t count, off_t offset,
-									 TimeLineID tli, XLogSegNo segno, int segSize);
-extern ssize_t tdeheap_xlog_seg_write(int fd, const void *buf, size_t count,
-									  off_t offset, TimeLineID tli,
-									  XLogSegNo segno);
-
 extern void TDEXLogSmgrInit(void);
-extern void XLogInitGUC(void);
-#ifndef FRONTEND
-extern void TDEXlogCheckSane(void);
-#endif
-
-#endif							/* PERCONA_EXT */
 
 #endif							/* PG_TDE_XLOGENCRYPT_H */

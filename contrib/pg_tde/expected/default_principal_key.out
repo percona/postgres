@@ -17,9 +17,8 @@ ERROR:  Can't delete a provider which is currently in use
 SELECT id, provider_name FROM pg_tde_list_all_global_key_providers();
  id | provider_name 
 ----+---------------
- -2 | file-keyring2
  -3 | file-provider
-(2 rows)
+(1 row)
 
 -- Should fail: no principal key for the database yet
 SELECT  key_provider_id, key_provider_name, principal_key_name
@@ -42,6 +41,8 @@ SELECT  key_provider_id, key_provider_name, principal_key_name
               -3 | file-provider     | default-principal-key
 (1 row)
 
+SELECT current_database() AS regress_database
+\gset
 CREATE DATABASE regress_pg_tde_other;
 \c regress_pg_tde_other
 CREATE EXTENSION pg_tde;
@@ -65,7 +66,7 @@ SELECT  key_provider_id, key_provider_name, principal_key_name
               -3 | file-provider     | default-principal-key
 (1 row)
 
-\c regression_pg_tde
+\c :regress_database
 SELECT pg_tde_set_default_principal_key('new-default-principal-key', 'file-provider', false);
  pg_tde_set_default_principal_key 
 ----------------------------------
@@ -89,7 +90,7 @@ SELECT  key_provider_id, key_provider_name, principal_key_name
 
 DROP TABLE test_enc;
 DROP EXTENSION pg_tde CASCADE;
-\c regression_pg_tde
+\c :regress_database
 DROP TABLE test_enc;
 DROP EXTENSION pg_tde CASCADE;
 DROP DATABASE regress_pg_tde_other;

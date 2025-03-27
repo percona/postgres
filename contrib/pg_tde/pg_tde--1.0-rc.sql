@@ -455,14 +455,9 @@ END
 $BODY$
 LANGUAGE plpgsql;
 
--- Table access method
-CREATE FUNCTION pg_tdeam_basic_handler(internal)
-RETURNS table_am_handler
-LANGUAGE C
-AS 'MODULE_PATHNAME';
-
 CREATE FUNCTION pg_tde_is_encrypted(relation regclass)
 RETURNS boolean
+STRICT
 LANGUAGE C
 AS 'MODULE_PATHNAME';
 
@@ -524,43 +519,34 @@ AS 'MODULE_PATHNAME';
 
 CREATE FUNCTION pg_tde_version() RETURNS TEXT LANGUAGE C AS 'MODULE_PATHNAME';
 
--- Access method
-CREATE ACCESS METHOD tde_heap_basic TYPE TABLE HANDLER pg_tdeam_basic_handler;
-COMMENT ON ACCESS METHOD tde_heap_basic IS 'pg_tde table access method';
+-- Table access method
+CREATE FUNCTION pg_tdeam_handler(internal)
+RETURNS table_am_handler
+LANGUAGE C
+AS 'MODULE_PATHNAME';
 
-DO $$
-    BEGIN
-        -- Table access method
-        CREATE FUNCTION pg_tdeam_handler(internal)
-        RETURNS table_am_handler
-        LANGUAGE C
-        AS 'MODULE_PATHNAME';
+CREATE ACCESS METHOD tde_heap TYPE TABLE HANDLER pg_tdeam_handler;
+COMMENT ON ACCESS METHOD tde_heap IS 'tde_heap table access method';
 
-        CREATE ACCESS METHOD tde_heap TYPE TABLE HANDLER pg_tdeam_handler;
-        COMMENT ON ACCESS METHOD tde_heap IS 'tde_heap table access method';
+CREATE FUNCTION pg_tde_ddl_command_start_capture()
+RETURNS event_trigger
+LANGUAGE C
+AS 'MODULE_PATHNAME';
 
-        CREATE FUNCTION pg_tde_ddl_command_start_capture()
-        RETURNS event_trigger
-        LANGUAGE C
-        AS 'MODULE_PATHNAME';
+CREATE FUNCTION pg_tde_ddl_command_end_capture()
+RETURNS event_trigger
+LANGUAGE C
+AS 'MODULE_PATHNAME';
 
-        CREATE FUNCTION pg_tde_ddl_command_end_capture()
-        RETURNS event_trigger
-        LANGUAGE C
-        AS 'MODULE_PATHNAME';
+CREATE EVENT TRIGGER pg_tde_trigger_create_index
+ON ddl_command_start
+EXECUTE FUNCTION pg_tde_ddl_command_start_capture();
+ALTER EVENT TRIGGER pg_tde_trigger_create_index ENABLE ALWAYS;
 
-        CREATE EVENT TRIGGER pg_tde_trigger_create_index
-        ON ddl_command_start
-        EXECUTE FUNCTION pg_tde_ddl_command_start_capture();
-        ALTER EVENT TRIGGER pg_tde_trigger_create_index ENABLE ALWAYS;
-
-        CREATE EVENT TRIGGER pg_tde_trigger_create_index_2
-        ON ddl_command_end
-        EXECUTE FUNCTION pg_tde_ddl_command_end_capture();
-        ALTER EVENT TRIGGER pg_tde_trigger_create_index_2 ENABLE ALWAYS;
-    EXCEPTION WHEN OTHERS THEN
-    END;
-$$;
+CREATE EVENT TRIGGER pg_tde_trigger_create_index_2
+ON ddl_command_end
+EXECUTE FUNCTION pg_tde_ddl_command_end_capture();
+ALTER EVENT TRIGGER pg_tde_trigger_create_index_2 ENABLE ALWAYS;
 
 -- Per database extension initialization
 SELECT pg_tde_extension_initialize();
@@ -595,7 +581,7 @@ BEGIN
     EXECUTE format('GRANT EXECUTE ON FUNCTION pg_tde_set_global_principal_key(text, text, BOOLEAN) TO %I', target_role);
     EXECUTE format('GRANT EXECUTE ON FUNCTION pg_tde_set_server_principal_key(text, text, BOOLEAN) TO %I', target_role);
 
-    EXECUTE format('GRANT EXECUTE ON FUNCTION pg_tde_set_default_principal_key(text, text, BOOLEAN) FROM %I', target_role);
+    EXECUTE format('GRANT EXECUTE ON FUNCTION pg_tde_set_default_principal_key(text, text, BOOLEAN) TO %I', target_role);
 END;
 $$;
 
@@ -642,6 +628,8 @@ BEGIN
 
     EXECUTE format('GRANT EXECUTE ON FUNCTION pg_tde_principal_key_info() TO %I', target_role);
     EXECUTE format('GRANT EXECUTE ON FUNCTION pg_tde_global_principal_key_info() TO %I', target_role);
+    EXECUTE format('GRANT EXECUTE ON FUNCTION pg_tde_verify_principal_key() TO %I', target_role);
+    EXECUTE format('GRANT EXECUTE ON FUNCTION pg_tde_verify_global_principal_key() TO %I', target_role);
 END;
 $$;
 
@@ -722,6 +710,8 @@ BEGIN
 
     EXECUTE format('REVOKE EXECUTE ON FUNCTION pg_tde_principal_key_info() FROM %I', target_role);
     EXECUTE format('REVOKE EXECUTE ON FUNCTION pg_tde_global_principal_key_info() FROM %I', target_role);
+    EXECUTE format('REVOKE EXECUTE ON FUNCTION pg_tde_verify_principal_key() FROM %I', target_role);
+    EXECUTE format('REVOKE EXECUTE ON FUNCTION pg_tde_verify_global_principal_key() FROM %I', target_role);
 END;
 $$;
 
