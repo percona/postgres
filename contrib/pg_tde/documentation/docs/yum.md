@@ -16,7 +16,7 @@ ulimit -a
 
 Memory locking is done only in memory pages. This means that when a process uses `mlocks`, it locks the entire memory page. 
  
-A process can have child processes that share the `mlock` limits of their parent. In PostgreSQL, the parent process is the one that runs the server. Child processes are connections to the server. 
+A process can have child processes that share the `mlock` limits of their parent. In PostgreSQL, the parent process is the one that runs the server. And its child backend processes handle client connections to the server. 
 
 If the `mlock` limit is greater than the page size, a child process locks another page for its operation. However, when the `mlock` limit equals the page size, the child process cannot run because the max memory limit is already reached by the parent process that used it for reading WAL files. This results in `pg_tde` failing with the error.
 
