@@ -21,7 +21,7 @@ typedef struct TDESMgrRelationData
 	struct _MdfdVec *md_seg_fds[MAX_FORKNUM + 1];
 
 	bool		encrypted_relation;
-	InternalKey relKey;
+	InternalKey *relKey;
 } TDESMgrRelationData;
 
 typedef TDESMgrRelationData *TDESMgrRelation;
@@ -81,7 +81,7 @@ tde_mdwritev(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
 			 const void **buffers, BlockNumber nblocks, bool skipFsync)
 {
 	TDESMgrRelation tdereln = (TDESMgrRelation) reln;
-	InternalKey *int_key = &tdereln->relKey;
+	InternalKey *int_key = tdereln->relKey;
 
 	if (!tdereln->encrypted_relation)
 	{
@@ -120,7 +120,7 @@ tde_mdextend(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
 			 const void *buffer, bool skipFsync)
 {
 	TDESMgrRelation tdereln = (TDESMgrRelation) reln;
-	InternalKey *int_key = &tdereln->relKey;
+	InternalKey *int_key = tdereln->relKey;
 
 	if (!tdereln->encrypted_relation)
 	{
@@ -149,7 +149,7 @@ tde_mdreadv(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
 			void **buffers, BlockNumber nblocks)
 {
 	TDESMgrRelation tdereln = (TDESMgrRelation) reln;
-	InternalKey *int_key = &tdereln->relKey;
+	InternalKey *int_key = tdereln->relKey;
 
 	mdreadv(reln, forknum, blocknum, buffers, nblocks);
 
@@ -236,7 +236,7 @@ tde_mdcreate(RelFileLocator relold, SMgrRelation reln, ForkNumber forknum, bool 
 		if (key)
 		{
 			tdereln->encrypted_relation = true;
-			tdereln->relKey = *key;
+			tdereln->relKey = key;
 		}
 		else
 		{
@@ -257,7 +257,7 @@ tde_mdopen(SMgrRelation reln)
 	if (key)
 	{
 		tdereln->encrypted_relation = true;
-		tdereln->relKey = *key;
+		tdereln->relKey = key;
 	}
 	else
 	{

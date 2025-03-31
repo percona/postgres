@@ -13,6 +13,6 @@
 
 extern Size TDEXLogEncryptStateSize(void);
 extern void TDEXLogShmemInit(void);
-extern void TDEXLogSmgrInit(void);
+extern void TDEXLogInit(void);
 
 #endif							/* PG_TDE_XLOGENCRYPT_H */

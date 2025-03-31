@@ -38,4 +38,5 @@ table public.test_wal: INSERT: id[integer]:6 k[integer]:6
 COMMIT 742
 SELECT pg_drop_replication_slot('tde_slot');
 
-DROP EXTENSION pg_tde;
+-- server restart with wal encryption and recovery with a lot of tde_heap relations
+DROP EXTENSION pg_tde CASCADE;

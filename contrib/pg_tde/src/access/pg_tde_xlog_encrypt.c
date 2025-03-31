@@ -70,12 +70,7 @@ typedef struct EncryptionStateData
 
 static EncryptionStateData *EncryptionState = NULL;
 
-/* TODO: can be swapped out to the disk */
-static InternalKey EncryptionKey =
-{
-	.rel_type = MAP_ENTRY_EMPTY,
-	.start_lsn = InvalidXLogRecPtr,
-};
+static InternalKey *EncryptionKey = NULL;
 static void *EncryptionCryptCtx = NULL;
 
 static int	XLOGChooseNumBuffers(void);
@@ -165,31 +160,26 @@ TDEXLogWriteEncryptedPages(int fd, const void *buf, size_t count, off_t offset,
 						   TimeLineID tli, XLogSegNo segno)
 {
 	char		iv_prefix[16];
-	InternalKey *key = &EncryptionKey;
 	char	   *enc_buff = EncryptionState->segBuf;
 
 	Assert(count <= TDEXLogEncryptBuffSize());
 
 #ifdef TDE_XLOG_DEBUG
 	elog(DEBUG1, "write encrypted WAL, size: %lu, offset: %ld [%lX], seg: %X/%X, key_start_lsn: %X/%X",
-		 count, offset, offset, LSN_FORMAT_ARGS(segno), LSN_FORMAT_ARGS(key->start_lsn));
+		 count, offset, offset, LSN_FORMAT_ARGS(segno), LSN_FORMAT_ARGS(EncryptionKey->start_lsn));
 #endif
 
-	CalcXLogPageIVPrefix(tli, segno, key->base_iv, iv_prefix);
+	CalcXLogPageIVPrefix(tli, segno, EncryptionKey->base_iv, iv_prefix);
 	PG_TDE_ENCRYPT_DATA(iv_prefix, offset,
 						(char *) buf, count,
-						enc_buff, key, &EncryptionCryptCtx);
+						enc_buff, EncryptionKey, &EncryptionCryptCtx);
 
 	return pg_pwrite(fd, enc_buff, count, offset);
 }
 
-#endif							/* !FRONTEND */
-
-void
-TDEXLogSmgrInit(void)
+static void
+tde_init_wal_encryption_key(void)
 {
-#ifndef FRONTEND
-	/* TODO: move to the separate func, it's not an SMGR init */
 	InternalKey *key = pg_tde_read_last_wal_key();
 
 	/* TDOO: clean-up this mess */
@@ -197,16 +187,40 @@ TDEXLogSmgrInit(void)
 								  ((key->rel_type & TDE_KEY_TYPE_WAL_ENCRYPTED && !EncryptXLog) ||
 								   (key->rel_type & TDE_KEY_TYPE_WAL_UNENCRYPTED && EncryptXLog))))
 	{
-		pg_tde_create_wal_key(&EncryptionKey, &GLOBAL_SPACE_RLOCATOR(XLOG_TDE_OID),
-							  (EncryptXLog ? TDE_KEY_TYPE_WAL_ENCRYPTED : TDE_KEY_TYPE_WAL_UNENCRYPTED));
+		key = pg_tde_create_wal_key(&GLOBAL_SPACE_RLOCATOR(XLOG_TDE_OID),
+									(EncryptXLog ? TDE_KEY_TYPE_WAL_ENCRYPTED : TDE_KEY_TYPE_WAL_UNENCRYPTED));
 	}
 	else if (key)
 	{
-		EncryptionKey = *key;
-		pfree(key);
-		pg_atomic_write_u64(&EncryptionState->enc_key_lsn, EncryptionKey.start_lsn);
+		pg_atomic_write_u64(&EncryptionState->enc_key_lsn, key->start_lsn);
 	}
 
+
+	/*
+	 * The relation cache might be moved to the new address space when growing
+	 * later on. It happens when there are a lot of tde_heap relations during
+	 * the recovery. So copy the key to the own locked mem. We could rewrite
+	 * the EncryptionKey pointer after the grow, but it'd be more complicated
+	 * and error-prone. We can sacrifice a couple of Kb.
+	 *
+	 * TODO: genralize and use `tde_alloc_safe_mem` instead?
+	 */
+	if (key)
+	{
+		long		pageSize = sysconf(_SC_PAGESIZE);
+
+		EncryptionKey = (InternalKey *) MemoryContextAllocAligned(TopMemoryContext, pageSize, pageSize, MCXT_ALLOC_ZERO);
+		memcpy(EncryptionKey, key, sizeof(InternalKey));
+	}
+}
+
+#endif							/* !FRONTEND */
+
+void
+TDEXLogInit(void)
+{
+#ifndef FRONTEND
+	tde_init_wal_encryption_key();
 	pg_tde_set_db_file_path(GLOBAL_SPACE_RLOCATOR(XLOG_TDE_OID).dbOid, EncryptionState->db_map_path);
 
 #endif
@@ -224,15 +238,14 @@ tdeheap_xlog_seg_write(int fd, const void *buf, size_t count, off_t offset,
 	 *
 	 * This func called with WALWriteLock held, so no need in any extra sync.
 	 */
-	if (EncryptionKey.rel_type & TDE_KEY_TYPE_GLOBAL &&
-		pg_atomic_read_u64(&EncryptionState->enc_key_lsn) == 0)
+	if (EncryptionKey && pg_atomic_read_u64(&EncryptionState->enc_key_lsn) == 0)
 	{
 		XLogRecPtr	lsn;
 
 		XLogSegNoOffsetToRecPtr(segno, offset, wal_segment_size, lsn);
 
 		pg_tde_wal_last_key_set_lsn(lsn, EncryptionState->db_map_path);
-		EncryptionKey.start_lsn = lsn;
+		EncryptionKey->start_lsn = lsn;
 		pg_atomic_write_u64(&EncryptionState->enc_key_lsn, lsn);
 	}
 

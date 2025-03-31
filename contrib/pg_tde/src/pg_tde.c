@@ -92,7 +92,7 @@ tde_shmem_startup(void)
 	AesInit();
 
 	TDEXLogShmemInit();
-	TDEXLogSmgrInit();
+	TDEXLogInit();
 }
 
 void

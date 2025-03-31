@@ -91,9 +91,28 @@ PGTDE::append_to_file($stdout);
 
 $stdout = $node->safe_psql('postgres', "SELECT pg_drop_replication_slot('tde_slot');", extra_params => ['-a']);
 PGTDE::append_to_file($stdout);
+PGTDE::append_to_file("-- server restart with wal encryption and recovery with a lot of tde_heap relations");
+$node->safe_psql('postgres',
+	q{
+SELECT pg_tde_add_key_provider_file('file-keyring-010-2','/tmp/pg_tde_test_keyring010_2.per');
+SELECT pg_tde_set_principal_key('test-db-principal-key','file-keyring-010-2');
+
+do $$
+    DECLARE idx integer;
+begin
+    for idx in 0..700 loop
+        EXECUTE format('CREATE TABLE t%s (c1 int) USING tde_heap', idx);
+    end loop;
+end; $$;
+});
+
+$rt_value = $node->restart();
+ok($rt_value == 1, "Restart Server");
+
+# TODO: add WAL content testing after the wal rework
 
 # DROP EXTENSION
-$stdout = $node->safe_psql('postgres', 'DROP EXTENSION pg_tde;', extra_params => ['-a']);
+$stdout = $node->safe_psql('postgres', 'DROP EXTENSION pg_tde CASCADE;', extra_params => ['-a']);
 PGTDE::append_to_file($stdout);
 # Stop the server
 $node->stop();
