@@ -37,7 +37,7 @@ PGTDE::append_to_file($stdout);
 
 $stdout = $node->safe_psql('postgres', "SELECT pg_tde_add_database_key_provider_file('file-vault', '/tmp/change_key_provider_1.per');", extra_params => ['-a']);
 PGTDE::append_to_file($stdout);
-$stdout = $node->safe_psql('postgres', "SELECT pg_tde_list_all_key_providers();", extra_params => ['-a']);
+$stdout = $node->safe_psql('postgres', "SELECT pg_tde_list_all_database_key_providers();", extra_params => ['-a']);
 PGTDE::append_to_file($stdout);
 $stdout = $node->safe_psql('postgres', "SELECT pg_tde_set_principal_key_using_database_key_provider('test-key', 'file-vault');", extra_params => ['-a']);
 PGTDE::append_to_file($stdout);
@@ -59,7 +59,7 @@ PGTDE::append_to_file("-- mv /tmp/change_key_provider_1.per /tmp/change_key_prov
 move('/tmp/change_key_provider_1.per', '/tmp/change_key_provider_2.per');
 $stdout = $node->safe_psql('postgres', "SELECT pg_tde_change_key_provider_file('file-vault', '/tmp/change_key_provider_2.per');", extra_params => ['-a']);
 PGTDE::append_to_file($stdout);
-$stdout = $node->safe_psql('postgres', "SELECT pg_tde_list_all_key_providers();", extra_params => ['-a']);
+$stdout = $node->safe_psql('postgres', "SELECT pg_tde_list_all_database_key_providers();", extra_params => ['-a']);
 PGTDE::append_to_file($stdout);
 
 $stdout = $node->safe_psql('postgres', "SELECT pg_tde_verify_principal_key();", extra_params => ['-a']);
@@ -85,7 +85,7 @@ PGTDE::append_to_file($stdout);
 # Change provider and do not move file
 $stdout = $node->safe_psql('postgres', "SELECT pg_tde_change_key_provider_file('file-vault', '/tmp/change_key_provider_3.per');", extra_params => ['-a']);
 PGTDE::append_to_file($stdout);
-$stdout = $node->safe_psql('postgres', "SELECT pg_tde_list_all_key_providers();", extra_params => ['-a']);
+$stdout = $node->safe_psql('postgres', "SELECT pg_tde_list_all_database_key_providers();", extra_params => ['-a']);
 PGTDE::append_to_file($stdout);
 
 (undef, $stdout, $stderr) = $node->psql('postgres', "SELECT pg_tde_verify_principal_key();", extra_params => ['-a']);
