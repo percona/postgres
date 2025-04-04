@@ -32,7 +32,9 @@ SELECT pg_tde_add_global_key_provider_file('file-keyring2','/tmp/pg_tde_test_key
 
 SELECT id, provider_name FROM pg_tde_list_all_global_key_providers();
 
--- TODO: verify that we can also can change the type of it
+\getenv root_token ROOT_TOKEN
+SELECT pg_tde_change_database_key_provider_vault_v2('file-provider', :'root_token', 'http://127.0.0.1:8200', 'secret', NULL);
+SELECT id, provider_name, provider_type FROM pg_tde_list_all_database_key_providers();
 
 -- fails
 SELECT pg_tde_delete_database_key_provider('file-provider');
