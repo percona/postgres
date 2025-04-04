@@ -2,7 +2,7 @@ CREATE EXTENSION IF NOT EXISTS pg_tde;
 
 \getenv root_token ROOT_TOKEN
 
-SELECT pg_tde_add_key_provider_vault_v2('vault-incorrect',:'root_token','http://127.0.0.1:8200','DUMMY-TOKEN',NULL);
+SELECT pg_tde_add_database_key_provider_vault_v2('vault-incorrect',:'root_token','http://127.0.0.1:8200','DUMMY-TOKEN',NULL);
 -- FAILS
 SELECT pg_tde_set_principal_key_using_database_key_provider('vault-v2-principal-key','vault-incorrect');
 
@@ -12,7 +12,7 @@ CREATE TABLE test_enc(
 	  PRIMARY KEY (id)
 	) USING tde_heap;
 
-SELECT pg_tde_add_key_provider_vault_v2('vault-v2',:'root_token','http://127.0.0.1:8200','secret',NULL);
+SELECT pg_tde_add_database_key_provider_vault_v2('vault-v2',:'root_token','http://127.0.0.1:8200','secret',NULL);
 SELECT pg_tde_set_principal_key_using_database_key_provider('vault-v2-principal-key','vault-v2');
 
 CREATE TABLE test_enc(
