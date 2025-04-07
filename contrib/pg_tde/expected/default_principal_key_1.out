@@ -7,7 +7,7 @@ SELECT pg_tde_add_global_key_provider_file('file-provider','/tmp/pg_tde_regressi
 
 SELECT pg_tde_set_default_principal_key_using_global_key_provider('default-principal-key', 'file-provider', false);
  pg_tde_set_default_principal_key_using_global_key_provider 
---------------------------------------------------------
+------------------------------------------------------------
  
 (1 row)
 
@@ -70,7 +70,7 @@ SELECT  key_provider_id, key_provider_name, principal_key_name
 \c :regress_database
 SELECT pg_tde_set_default_principal_key_using_global_key_provider('default-principal-key', 'file-provider', false);
  pg_tde_set_default_principal_key_using_global_key_provider 
---------------------------------------------------------
+------------------------------------------------------------
  
 (1 row)
 
