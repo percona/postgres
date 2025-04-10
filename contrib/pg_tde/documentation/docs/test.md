@@ -33,15 +33,7 @@ Here's how to do it:
 
     The function returns `t` if the table is encrypted and `f` - if not.
 
-3. Rotate the principal key when needed:
-
-    ```
-    SELECT pg_tde_rotate_key(); -- uses automatic key versionin
-    -- or
-    SELECT pg_tde_rotate_key('new-key', NULL); -- specify new key name
-    -- or
-    SELECT pg_tde_rotate_key('new-key', 'new-provider'); -- changeprovider
-    ```
+3. Rotate the principal key when needed, see [Principal key management](functions.md#principal-key-management))
 
 ## Encrypt existing table
 
