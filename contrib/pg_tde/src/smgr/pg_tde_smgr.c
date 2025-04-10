@@ -21,7 +21,6 @@ typedef struct TDESMgrRelationData
 	struct _MdfdVec *md_seg_fds[MAX_FORKNUM + 1];
 
 	bool		encrypted_relation;
-	InternalKey *relKey;
 } TDESMgrRelationData;
 
 typedef TDESMgrRelationData *TDESMgrRelation;
@@ -81,7 +80,7 @@ tde_mdwritev(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
 			 const void **buffers, BlockNumber nblocks, bool skipFsync)
 {
 	TDESMgrRelation tdereln = (TDESMgrRelation) reln;
-	InternalKey *int_key = tdereln->relKey;
+	InternalKey *int_key = GetSMGRRelationKey(tdereln->reln.smgr_rlocator);
 
 	if (!tdereln->encrypted_relation)
 	{
@@ -120,7 +119,7 @@ tde_mdextend(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
 			 const void *buffer, bool skipFsync)
 {
 	TDESMgrRelation tdereln = (TDESMgrRelation) reln;
-	InternalKey *int_key = tdereln->relKey;
+	InternalKey *int_key = GetSMGRRelationKey(tdereln->reln.smgr_rlocator);
 
 	if (!tdereln->encrypted_relation)
 	{
@@ -149,7 +148,7 @@ tde_mdreadv(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
 			void **buffers, BlockNumber nblocks)
 {
 	TDESMgrRelation tdereln = (TDESMgrRelation) reln;
-	InternalKey *int_key = tdereln->relKey;
+	InternalKey *int_key = GetSMGRRelationKey(tdereln->reln.smgr_rlocator);
 
 	mdreadv(reln, forknum, blocknum, buffers, nblocks);
 
@@ -233,15 +232,7 @@ tde_mdcreate(RelFileLocator relold, SMgrRelation reln, ForkNumber forknum, bool 
 		 */
 		key = tde_smgr_get_key(reln, event->alterAccessMethodMode ? NULL : &relold, true);
 
-		if (key)
-		{
-			tdereln->encrypted_relation = true;
-			tdereln->relKey = key;
-		}
-		else
-		{
-			tdereln->encrypted_relation = false;
-		}
+		tdereln->encrypted_relation = key ? true : false;
 	}
 }
 
@@ -254,15 +245,8 @@ tde_mdopen(SMgrRelation reln)
 	TDESMgrRelation tdereln = (TDESMgrRelation) reln;
 	InternalKey *key = tde_smgr_get_key(reln, NULL, false);
 
-	if (key)
-	{
-		tdereln->encrypted_relation = true;
-		tdereln->relKey = key;
-	}
-	else
-	{
-		tdereln->encrypted_relation = false;
-	}
+	tdereln->encrypted_relation = key ? true : false;
+
 	mdopen(reln);
 }
 
