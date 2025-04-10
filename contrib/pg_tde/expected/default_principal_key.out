@@ -33,6 +33,14 @@ CREATE TABLE test_enc(
 	PRIMARY KEY (id)
 ) USING tde_heap;
 INSERT INTO test_enc (k) VALUES (1), (2), (3);
+SELECT * FROM test_enc;
+ id | k 
+----+---
+  1 | 1
+  2 | 2
+  3 | 3
+(3 rows)
+
 -- Should succeed: create table localized the principal key
 SELECT  key_provider_id, key_provider_name, principal_key_name
 		FROM pg_tde_principal_key_info();
@@ -58,6 +66,14 @@ CREATE TABLE test_enc(
 	PRIMARY KEY (id)
 ) USING tde_heap;
 INSERT INTO test_enc (k) VALUES (1), (2), (3);
+SELECT * FROM test_enc;
+ id | k 
+----+---
+  1 | 1
+  2 | 2
+  3 | 3
+(3 rows)
+
 -- Should succeed: create table localized the principal key
 SELECT  key_provider_id, key_provider_name, principal_key_name
 		FROM pg_tde_principal_key_info();
@@ -80,6 +96,15 @@ SELECT  key_provider_id, key_provider_name, principal_key_name
               -3 | file-provider     | new-default-principal-key
 (1 row)
 
+--Verify table data is accessible after default key rotation
+SELECT * FROM test_enc;
+ id | k 
+----+---
+  1 | 1
+  2 | 2
+  3 | 3
+(3 rows)
+
 \c regress_pg_tde_other
 SELECT  key_provider_id, key_provider_name, principal_key_name
 		FROM pg_tde_principal_key_info();
@@ -87,6 +112,15 @@ SELECT  key_provider_id, key_provider_name, principal_key_name
 -----------------+-------------------+---------------------------
               -3 | file-provider     | new-default-principal-key
 (1 row)
+
+--Verify table data is accessible after default key rotation
+SELECT * FROM test_enc;
+ id | k 
+----+---
+  1 | 1
+  2 | 2
+  3 | 3
+(3 rows)
 
 DROP TABLE test_enc;
 DROP EXTENSION pg_tde CASCADE;
