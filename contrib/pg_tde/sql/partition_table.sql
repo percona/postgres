@@ -1,7 +1,7 @@
 CREATE EXTENSION pg_tde;
 SELECT pg_tde_add_global_key_provider_file('global_keyring_provider','/tmp/pg_tde_keyring.per');
-SELECT pg_tde_set_server_principal_key_using_global_key_provider('wal_key','global_keyring_provider');
-SELECT pg_tde_set_principal_key_using_global_key_provider('table_key','global_keyring_provider');
+SELECT pg_tde_set_server_key_using_global_key_provider('wal_key','global_keyring_provider');
+SELECT pg_tde_set_key_using_global_key_provider('table_key','global_keyring_provider');
 CREATE TABLE IF NOT EXISTS partitioned_table (
     id SERIAL,
     data TEXT,

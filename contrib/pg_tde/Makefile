@@ -23,6 +23,8 @@ relocate \
 subtransaction \
 tablespace \
 vault_v2_test \
+cluster \
+partition_table \
 default_principal_key
 TAP_TESTS = 1
 

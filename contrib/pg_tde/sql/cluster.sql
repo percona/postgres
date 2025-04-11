@@ -2,7 +2,7 @@ CREATE EXTENSION IF NOT EXISTS pg_tde;
 
 SELECT pg_tde_add_global_key_provider_file('global_keyring_provider','/tmp/keyring.per');
 
-SELECT pg_tde_set_principal_key_using_global_key_provider('principal_key_using_global_key_provider','global_keyring_provider');
+SELECT pg_tde_set_key_using_global_key_provider('principal_key_using_global_key_provider','global_keyring_provider');
 
 CREATE TABLE encrypted_table (
     id SERIAL,

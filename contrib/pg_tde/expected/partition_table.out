@@ -1,15 +1,15 @@
 CREATE EXTENSION pg_tde;
 SELECT pg_tde_add_global_key_provider_file('global_keyring_provider','/tmp/pg_tde_keyring.per');
 ERROR:  key provider "global_keyring_provider" already exists
-SELECT pg_tde_set_server_principal_key_using_global_key_provider('wal_key','global_keyring_provider');
- pg_tde_set_server_principal_key_using_global_key_provider 
------------------------------------------------------------
+SELECT pg_tde_set_server_key_using_global_key_provider('wal_key','global_keyring_provider');
+ pg_tde_set_server_key_using_global_key_provider 
+-------------------------------------------------
  
 (1 row)
 
-SELECT pg_tde_set_principal_key_using_global_key_provider('table_key','global_keyring_provider');
- pg_tde_set_principal_key_using_global_key_provider 
-----------------------------------------------------
+SELECT pg_tde_set_key_using_global_key_provider('table_key','global_keyring_provider');
+ pg_tde_set_key_using_global_key_provider 
+------------------------------------------
  
 (1 row)
 
