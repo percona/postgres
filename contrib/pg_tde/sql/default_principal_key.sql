@@ -20,6 +20,7 @@ CREATE TABLE test_enc(
 ) USING tde_heap;
 
 INSERT INTO test_enc (k) VALUES (1), (2), (3);
+SELECT * FROM test_enc;
 
 -- Should succeed: create table localized the principal key
 SELECT  key_provider_id, key_provider_name, key_name
@@ -46,6 +47,7 @@ CREATE TABLE test_enc(
 ) USING tde_heap;
 
 INSERT INTO test_enc (k) VALUES (1), (2), (3);
+SELECT * FROM test_enc;
 
 -- Should succeed: create table localized the principal key
 SELECT  key_provider_id, key_provider_name, key_name
@@ -58,10 +60,16 @@ SELECT pg_tde_set_default_key_using_global_key_provider('new-default-key', 'file
 SELECT  key_provider_id, key_provider_name, key_name
 		FROM pg_tde_key_info();
 
+--Verify table data is accessible after default key rotation
+SELECT * FROM test_enc;
+
 \c regress_pg_tde_other
 
 SELECT  key_provider_id, key_provider_name, key_name
 		FROM pg_tde_key_info();
+
+--Verify table data is accessible after default key rotation
+SELECT * FROM test_enc;
 
 DROP TABLE test_enc;
 
