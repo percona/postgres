@@ -278,6 +278,10 @@ pg_tde_add_key_provider_internal(PG_FUNCTION_ARGS, Oid dbOid)
 	KeyringProviderRecord provider;
 
 	nlen = strlen(provider_name);
+	if (nlen == 0)
+		ereport(ERROR,
+				errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+				errmsg("key provider name cannot be empty"));
 	if (nlen >= sizeof(provider.provider_name) - 1)
 		ereport(ERROR,
 				errcode(ERRCODE_INVALID_PARAMETER_VALUE),

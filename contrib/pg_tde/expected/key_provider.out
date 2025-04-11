@@ -163,4 +163,26 @@ SELECT id, provider_name FROM pg_tde_list_all_global_key_providers();
 ----+---------------
 (0 rows)
 
+-- Do not allow empty key provider name
+SELECT pg_tde_add_database_key_provider_file('','/tmp/pg_tde_test_keyring.per');
+ERROR:  key provider name cannot be empty
+SELECT pg_tde_add_global_key_provider_file('','/tmp/pg_tde_test_keyring.per');
+ERROR:  key provider name cannot be empty
+-- Do not allow duplicate key provider name
+SELECT pg_tde_add_database_key_provider_file('duplicate-key-provider','/tmp/pg_tde_test_keyring.per');
+ pg_tde_add_database_key_provider_file 
+---------------------------------------
+                                     3
+(1 row)
+
+SELECT pg_tde_add_database_key_provider_file('duplicate-key-provider','/tmp/pg_tde_test_keyring.per');
+ERROR:  key provider "duplicate-key-provider" already exists
+SELECT pg_tde_add_global_key_provider_file('duplicate-key-provider','/tmp/pg_tde_test_keyring.per');
+ pg_tde_add_global_key_provider_file 
+-------------------------------------
+                                  -3
+(1 row)
+
+SELECT pg_tde_add_global_key_provider_file('duplicate-key-provider','/tmp/pg_tde_test_keyring.per');
+ERROR:  key provider "duplicate-key-provider" already exists
 DROP EXTENSION pg_tde;

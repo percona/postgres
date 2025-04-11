@@ -54,5 +54,15 @@ SELECT id, provider_name FROM pg_tde_list_all_global_key_providers();
 SELECT pg_tde_delete_global_key_provider('file-keyring2');
 SELECT id, provider_name FROM pg_tde_list_all_global_key_providers();
 
+-- Do not allow empty key provider name
+SELECT pg_tde_add_database_key_provider_file('','/tmp/pg_tde_test_keyring.per');
+SELECT pg_tde_add_global_key_provider_file('','/tmp/pg_tde_test_keyring.per');
+
+-- Do not allow duplicate key provider name
+SELECT pg_tde_add_database_key_provider_file('duplicate-key-provider','/tmp/pg_tde_test_keyring.per');
+SELECT pg_tde_add_database_key_provider_file('duplicate-key-provider','/tmp/pg_tde_test_keyring.per');
+SELECT pg_tde_add_global_key_provider_file('duplicate-key-provider','/tmp/pg_tde_test_keyring.per');
+SELECT pg_tde_add_global_key_provider_file('duplicate-key-provider','/tmp/pg_tde_test_keyring.per');
+
 DROP EXTENSION pg_tde;
 
