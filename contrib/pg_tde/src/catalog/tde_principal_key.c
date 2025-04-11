@@ -52,8 +52,8 @@
 PG_FUNCTION_INFO_V1(pg_tde_delete_database_key_provider);
 PG_FUNCTION_INFO_V1(pg_tde_delete_global_key_provider);
 
-PG_FUNCTION_INFO_V1(pg_tde_verify_principal_key);
-PG_FUNCTION_INFO_V1(pg_tde_verify_server_principal_key);
+PG_FUNCTION_INFO_V1(pg_tde_verify_key);
+PG_FUNCTION_INFO_V1(pg_tde_verify_server_key);
 
 typedef struct TdePrincipalKeySharedState
 {
@@ -110,17 +110,17 @@ static bool pg_tde_verify_principal_key_internal(Oid databaseOid);
 
 static Datum pg_tde_delete_key_provider_internal(PG_FUNCTION_ARGS, int is_global);
 
-PG_FUNCTION_INFO_V1(pg_tde_set_default_principal_key_using_global_key_provider);
-Datum		pg_tde_set_default_principal_key_using_global_key_provider(PG_FUNCTION_ARGS);
+PG_FUNCTION_INFO_V1(pg_tde_set_default_key_using_global_key_provider);
+Datum		pg_tde_set_default_key_using_global_key_provider(PG_FUNCTION_ARGS);
 
-PG_FUNCTION_INFO_V1(pg_tde_set_principal_key_using_database_key_provider);
-Datum		pg_tde_set_principal_key_using_database_key_provider(PG_FUNCTION_ARGS);
+PG_FUNCTION_INFO_V1(pg_tde_set_key_using_database_key_provider);
+Datum		pg_tde_set_key_using_database_key_provider(PG_FUNCTION_ARGS);
 
-PG_FUNCTION_INFO_V1(pg_tde_set_principal_key_using_global_key_provider);
-Datum		pg_tde_set_principal_key_using_global_key_provider(PG_FUNCTION_ARGS);
+PG_FUNCTION_INFO_V1(pg_tde_set_key_using_global_key_provider);
+Datum		pg_tde_set_key_using_global_key_provider(PG_FUNCTION_ARGS);
 
-PG_FUNCTION_INFO_V1(pg_tde_set_server_principal_key_using_global_key_provider);
-Datum		pg_tde_set_server_principal_key_using_global_key_provider(PG_FUNCTION_ARGS);
+PG_FUNCTION_INFO_V1(pg_tde_set_server_key_using_global_key_provider);
+Datum		pg_tde_set_server_key_using_global_key_provider(PG_FUNCTION_ARGS);
 
 enum global_status
 {
@@ -142,7 +142,7 @@ static const TDEShmemSetupRoutine principal_key_info_shmem_routine = {
 void
 InitializePrincipalKeyInfo(void)
 {
-	ereport(LOG, (errmsg("Initializing TDE principal key info")));
+	ereport(LOG, errmsg("Initializing TDE principal key info"));
 	RegisterShmemRequest(&principal_key_info_shmem_routine);
 	on_ext_install(principal_key_startup_cleanup, NULL);
 }
@@ -188,7 +188,7 @@ initialize_shared_state(void *start_address)
 {
 	TdePrincipalKeySharedState *sharedState = (TdePrincipalKeySharedState *) start_address;
 
-	ereport(LOG, (errmsg("initializing shared state for principal key")));
+	ereport(LOG, errmsg("initializing shared state for principal key"));
 	principalKeyLocalState.dsa = NULL;
 	principalKeyLocalState.sharedHash = NULL;
 
@@ -204,7 +204,7 @@ initialize_objects_in_dsa_area(dsa_area *dsa, void *raw_dsa_area)
 	dshash_table *dsh;
 	TdePrincipalKeySharedState *sharedState = principalKeyLocalState.sharedPrincipalKeyState;
 
-	ereport(LOG, (errmsg("initializing dsa area objects for principal key")));
+	ereport(LOG, errmsg("initializing dsa area objects for principal key"));
 
 	Assert(sharedState != NULL);
 
@@ -271,7 +271,7 @@ set_principal_key_with_keyring(const char *key_name, const char *provider_name,
 	if (AllowInheritGlobalProviders == false && providerOid != dbOid)
 	{
 		ereport(ERROR,
-				(errmsg("Usage of global key providers is disabled. Enable it with pg_tde.inherit_global_providers = ON")));
+				errmsg("Usage of global key providers is disabled. Enable it with pg_tde.inherit_global_providers = ON"));
 	}
 
 	/*
@@ -285,7 +285,7 @@ set_principal_key_with_keyring(const char *key_name, const char *provider_name,
 	if (provider_name == NULL && !already_has_key)
 	{
 		ereport(ERROR,
-				(errmsg("provider_name is a required parameter when creating the first principal key for a database")));
+				errmsg("provider_name is a required parameter when creating the first principal key for a database"));
 	}
 
 	if (provider_name != NULL)
@@ -306,29 +306,28 @@ set_principal_key_with_keyring(const char *key_name, const char *provider_name,
 		if (kr_ret != KEYRING_CODE_SUCCESS && kr_ret != KEYRING_CODE_RESOURCE_NOT_AVAILABLE)
 		{
 			ereport(ERROR,
-					(errmsg("failed to retrieve principal key from keyring provider :\"%s\"", new_keyring->provider_name),
-					 errdetail("Error code: %d", kr_ret)));
+					errmsg("failed to retrieve principal key from keyring provider :\"%s\"", new_keyring->provider_name),
+					errdetail("Error code: %d", kr_ret));
 		}
 	}
 
 	if (keyInfo != NULL && ensure_new_key)
 	{
 		ereport(ERROR,
-				(errmsg("failed to create principal key: already exists")));
+				errmsg("failed to create principal key: already exists"));
 	}
 
 	if (strlen(key_name) >= sizeof(keyInfo->name))
 		ereport(ERROR,
-				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-				 errmsg("too long principal key name, maximum lenght is %ld bytes", sizeof(keyInfo->name) - 1)));
+				errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+				errmsg("too long principal key name, maximum lenght is %ld bytes", sizeof(keyInfo->name) - 1));
 
 	if (keyInfo == NULL)
 		keyInfo = KeyringGenerateNewKeyAndStore(new_keyring, key_name, PRINCIPAL_KEY_LEN);
 
 	if (keyInfo == NULL)
 	{
-		ereport(ERROR,
-				(errmsg("failed to retrieve/create principal key.")));
+		ereport(ERROR, errmsg("failed to retrieve/create principal key."));
 	}
 
 	new_principal_key = palloc_object(TDEPrincipalKey);
@@ -456,7 +455,7 @@ principal_key_startup_cleanup(int tde_tbl_count, XLogExtensionInstall *ext_info,
 	if (tde_tbl_count > 0)
 	{
 		ereport(WARNING,
-				(errmsg("Failed to perform initialization. database already has %d TDE tables", tde_tbl_count)));
+				errmsg("Failed to perform initialization. database already has %d TDE tables", tde_tbl_count));
 		return;
 	}
 
@@ -485,7 +484,7 @@ clear_principal_key_cache(Oid databaseId)
  */
 
 Datum
-pg_tde_set_default_principal_key_using_global_key_provider(PG_FUNCTION_ARGS)
+pg_tde_set_default_key_using_global_key_provider(PG_FUNCTION_ARGS)
 {
 	char	   *principal_key_name = text_to_cstring(PG_GETARG_TEXT_PP(0));
 	char	   *provider_name = PG_ARGISNULL(1) ? NULL : text_to_cstring(PG_GETARG_TEXT_PP(1));
@@ -497,7 +496,7 @@ pg_tde_set_default_principal_key_using_global_key_provider(PG_FUNCTION_ARGS)
 }
 
 Datum
-pg_tde_set_principal_key_using_database_key_provider(PG_FUNCTION_ARGS)
+pg_tde_set_key_using_database_key_provider(PG_FUNCTION_ARGS)
 {
 	char	   *principal_key_name = text_to_cstring(PG_GETARG_TEXT_PP(0));
 	char	   *provider_name = PG_ARGISNULL(1) ? NULL : text_to_cstring(PG_GETARG_TEXT_PP(1));
@@ -509,7 +508,7 @@ pg_tde_set_principal_key_using_database_key_provider(PG_FUNCTION_ARGS)
 }
 
 Datum
-pg_tde_set_principal_key_using_global_key_provider(PG_FUNCTION_ARGS)
+pg_tde_set_key_using_global_key_provider(PG_FUNCTION_ARGS)
 {
 	char	   *principal_key_name = text_to_cstring(PG_GETARG_TEXT_PP(0));
 	char	   *provider_name = PG_ARGISNULL(1) ? NULL : text_to_cstring(PG_GETARG_TEXT_PP(1));
@@ -521,7 +520,7 @@ pg_tde_set_principal_key_using_global_key_provider(PG_FUNCTION_ARGS)
 }
 
 Datum
-pg_tde_set_server_principal_key_using_global_key_provider(PG_FUNCTION_ARGS)
+pg_tde_set_server_key_using_global_key_provider(PG_FUNCTION_ARGS)
 {
 	char	   *principal_key_name = text_to_cstring(PG_GETARG_TEXT_PP(0));
 	char	   *provider_name = PG_ARGISNULL(1) ? NULL : text_to_cstring(PG_GETARG_TEXT_PP(1));
@@ -533,14 +532,14 @@ pg_tde_set_server_principal_key_using_global_key_provider(PG_FUNCTION_ARGS)
 }
 
 static void
-pg_tde_set_principal_key_internal(char *principal_key_name, enum global_status global, char *provider_name, bool ensure_new_key)
+pg_tde_set_principal_key_internal(char *key_name, enum global_status global, char *provider_name, bool ensure_new_key)
 {
 	Oid			providerOid = MyDatabaseId;
 	Oid			dbOid = MyDatabaseId;
 	TDEPrincipalKey *existingDefaultKey = NULL;
 	TDEPrincipalKey existingKeyCopy;
 
-	ereport(LOG, (errmsg("Setting principal key [%s : %s] for the database", principal_key_name, provider_name)));
+	ereport(LOG, errmsg("Setting principal key [%s : %s] for the database", key_name, provider_name));
 
 	if (global == GS_GLOBAL)	/* using a global provider for the current
 								 * database */
@@ -570,7 +569,7 @@ pg_tde_set_principal_key_internal(char *principal_key_name, enum global_status g
 		LWLockRelease(tde_lwlock_enc_keys());
 	}
 
-	set_principal_key_with_keyring(principal_key_name,
+	set_principal_key_with_keyring(key_name,
 								   provider_name,
 								   providerOid,
 								   dbOid,
@@ -600,28 +599,28 @@ pg_tde_set_principal_key_internal(char *principal_key_name, enum global_status g
 	}
 }
 
-PG_FUNCTION_INFO_V1(pg_tde_principal_key_info);
+PG_FUNCTION_INFO_V1(pg_tde_key_info);
 Datum
-pg_tde_principal_key_info(PG_FUNCTION_ARGS)
+pg_tde_key_info(PG_FUNCTION_ARGS)
 {
 	return pg_tde_get_key_info(fcinfo, MyDatabaseId);
 }
 
-PG_FUNCTION_INFO_V1(pg_tde_server_principal_key_info);
+PG_FUNCTION_INFO_V1(pg_tde_server_key_info);
 Datum
-pg_tde_server_principal_key_info(PG_FUNCTION_ARGS)
+pg_tde_server_key_info(PG_FUNCTION_ARGS)
 {
 	return pg_tde_get_key_info(fcinfo, GLOBAL_DATA_TDE_OID);
 }
 
 Datum
-pg_tde_verify_principal_key(PG_FUNCTION_ARGS)
+pg_tde_verify_key(PG_FUNCTION_ARGS)
 {
 	return pg_tde_verify_principal_key_internal(MyDatabaseId);
 }
 
 Datum
-pg_tde_verify_server_principal_key(PG_FUNCTION_ARGS)
+pg_tde_verify_server_key(PG_FUNCTION_ARGS)
 {
 	return pg_tde_verify_principal_key_internal(GLOBAL_DATA_TDE_OID);
 }
@@ -641,16 +640,16 @@ pg_tde_get_key_info(PG_FUNCTION_ARGS, Oid dbOid)
 	/* Build a tuple descriptor for our result type */
 	if (get_call_result_type(fcinfo, NULL, &tupdesc) != TYPEFUNC_COMPOSITE)
 		ereport(ERROR,
-				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-				 errmsg("function returning record called in context that cannot accept type record")));
+				errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+				errmsg("function returning record called in context that cannot accept type record"));
 
 	LWLockAcquire(tde_lwlock_enc_keys(), LW_SHARED);
 	principal_key = GetPrincipalKeyNoDefault(dbOid, LW_SHARED);
 	if (principal_key == NULL)
 	{
 		ereport(ERROR,
-				(errmsg("Principal key does not exists for the database"),
-				 errhint("Use set_principal_key interface to set the principal key")));
+				errmsg("Principal key does not exists for the database"),
+				errhint("Use set_key interface to set the principal key"));
 	}
 
 	keyring = GetKeyProviderByID(principal_key->keyInfo.keyringId, principal_key->keyInfo.databaseId);
@@ -718,16 +717,16 @@ get_principal_key_from_keyring(Oid dbOid)
 	keyring = GetKeyProviderByID(principalKeyInfo->data.keyringId, dbOid);
 	if (keyring == NULL)
 		ereport(ERROR,
-				(errcode(ERRCODE_DATA_CORRUPTED),
-				 errmsg("keyring lookup failed for principal key %s, unknown keyring with ID %d",
-						principalKeyInfo->data.name, principalKeyInfo->data.keyringId)));
+				errcode(ERRCODE_DATA_CORRUPTED),
+				errmsg("keyring lookup failed for principal key %s, unknown keyring with ID %d",
+					   principalKeyInfo->data.name, principalKeyInfo->data.keyringId));
 
 	keyInfo = KeyringGetKey(keyring, principalKeyInfo->data.name, &keyring_ret);
 	if (keyInfo == NULL)
 		ereport(ERROR,
-				(errcode(ERRCODE_NO_DATA_FOUND),
-				 errmsg("failed to retrieve principal key %s from keyring with ID %d",
-						principalKeyInfo->data.name, principalKeyInfo->data.keyringId)));
+				errcode(ERRCODE_NO_DATA_FOUND),
+				errmsg("failed to retrieve principal key %s from keyring with ID %d",
+					   principalKeyInfo->data.name, principalKeyInfo->data.keyringId));
 
 	principalKey = palloc_object(TDEPrincipalKey);
 
@@ -739,9 +738,9 @@ get_principal_key_from_keyring(Oid dbOid)
 
 	if (!pg_tde_verify_principal_key_info(principalKeyInfo, principalKey))
 		ereport(ERROR,
-				(errcode(ERRCODE_DATA_CORRUPTED),
-				 errmsg("Failed to verify principal key header for key %s, incorrect principal key or corrupted key file",
-						principalKeyInfo->data.name)));
+				errcode(ERRCODE_DATA_CORRUPTED),
+				errmsg("Failed to verify principal key header for key %s, incorrect principal key or corrupted key file",
+					   principalKeyInfo->data.name));
 
 	pfree(keyInfo);
 	pfree(keyring);
@@ -1052,8 +1051,7 @@ pg_tde_delete_key_provider_internal(PG_FUNCTION_ARGS, int is_global)
 
 	if (provider == NULL)
 	{
-		ereport(ERROR,
-				(errmsg("Keyring provider not found")));
+		ereport(ERROR, errmsg("Keyring provider not found"));
 	}
 
 	provider_id = provider->keyring_id;
@@ -1064,7 +1062,7 @@ pg_tde_delete_key_provider_internal(PG_FUNCTION_ARGS, int is_global)
 	if (provider_used)
 	{
 		ereport(ERROR,
-				(errmsg("Can't delete a provider which is currently in use")));
+				errmsg("Can't delete a provider which is currently in use"));
 	}
 
 	delete_key_provider_info(provider_id, db_oid, true);
@@ -1086,13 +1084,13 @@ pg_tde_verify_principal_key_internal(Oid databaseOid)
 	if (fromKeyring == NULL)
 	{
 		ereport(ERROR,
-				(errmsg("principal key not configured for current database")));
+				errmsg("principal key not configured for current database"));
 	}
 
 	if (fromCache != NULL && (fromKeyring->keyLength != fromCache->keyLength || memcmp(fromKeyring->keyData, fromCache->keyData, fromCache->keyLength) != 0))
 	{
 		ereport(ERROR,
-				(errmsg("key returned from keyring and cached in pg_tde differ")));
+				errmsg("key returned from keyring and cached in pg_tde differ"));
 	}
 
 	LWLockRelease(tde_lwlock_enc_keys());

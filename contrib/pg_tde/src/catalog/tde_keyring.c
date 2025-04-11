@@ -59,11 +59,11 @@ static GenericKeyring *load_keyring_provider_options(ProviderType provider_type,
 static VaultV2Keyring *load_vaultV2_keyring_provider_options(char *keyring_options);
 static KmipKeyring *load_kmip_keyring_provider_options(char *keyring_options);
 static void debug_print_kerying(GenericKeyring *keyring);
-static GenericKeyring *load_keyring_provider_from_record(KeyringProvideRecord *provider);
+static GenericKeyring *load_keyring_provider_from_record(KeyringProviderRecord *provider);
 static inline void get_keyring_infofile_path(char *resPath, Oid dbOid);
-static bool fetch_next_key_provider(int fd, off_t *curr_pos, KeyringProvideRecord *provider);
+static bool fetch_next_key_provider(int fd, off_t *curr_pos, KeyringProviderRecord *provider);
 
-static uint32 write_key_provider_info(KeyringProvideRecord *provider,
+static uint32 write_key_provider_info(KeyringProviderRecord *provider,
 									  Oid database_id, off_t position,
 									  bool error_if_exists, bool write_xlog);
 
@@ -149,7 +149,7 @@ tde_provider_info_lock(void)
 void
 InitializeKeyProviderInfo(void)
 {
-	ereport(LOG, (errmsg("initializing TDE key provider info")));
+	ereport(LOG, errmsg("initializing TDE key provider info"));
 	RegisterShmemRequest(&key_provider_info_shmem_routine);
 	on_ext_install(key_provider_startup_cleanup, NULL);
 }
@@ -160,7 +160,7 @@ key_provider_startup_cleanup(int tde_tbl_count, XLogExtensionInstall *ext_info, 
 	if (tde_tbl_count > 0)
 	{
 		ereport(WARNING,
-				(errmsg("failed to perform initialization. database already has %d TDE tables", tde_tbl_count)));
+				errmsg("failed to perform initialization. database already has %d TDE tables", tde_tbl_count));
 		return;
 	}
 	cleanup_key_provider_info(ext_info->database_id);
@@ -225,7 +225,7 @@ pg_tde_change_key_provider_internal(PG_FUNCTION_ARGS, Oid dbOid)
 	char	   *options = text_to_cstring(PG_GETARG_TEXT_PP(2));
 	int			nlen,
 				olen;
-	KeyringProvideRecord provider;
+	KeyringProviderRecord provider;
 
 	/* reports error if not found */
 	GenericKeyring *keyring = GetKeyProviderByName(provider_name, dbOid);
@@ -235,14 +235,14 @@ pg_tde_change_key_provider_internal(PG_FUNCTION_ARGS, Oid dbOid)
 	nlen = strlen(provider_name);
 	if (nlen >= sizeof(provider.provider_name))
 		ereport(ERROR,
-				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-				 errmsg("too long provider name, maximum lenght is %ld bytes", sizeof(provider.provider_name) - 1)));
+				errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+				errmsg("too long provider name, maximum lenght is %ld bytes", sizeof(provider.provider_name) - 1));
 
 	olen = strlen(options);
 	if (olen >= sizeof(provider.options))
 		ereport(ERROR,
-				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-				 errmsg("too large provider options, maximum size is %ld bytes", sizeof(provider.options) - 1)));
+				errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+				errmsg("too large provider options, maximum size is %ld bytes", sizeof(provider.options) - 1));
 
 	/* Struct will be saved to disk so keep clean */
 	memset(&provider, 0, sizeof(provider));
@@ -275,19 +275,19 @@ pg_tde_add_key_provider_internal(PG_FUNCTION_ARGS, Oid dbOid)
 	char	   *options = text_to_cstring(PG_GETARG_TEXT_PP(2));
 	int			nlen,
 				olen;
-	KeyringProvideRecord provider;
+	KeyringProviderRecord provider;
 
 	nlen = strlen(provider_name);
 	if (nlen >= sizeof(provider.provider_name) - 1)
 		ereport(ERROR,
-				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-				 errmsg("too long provider name, maximum lenght is %ld bytes", sizeof(provider.provider_name) - 1)));
+				errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+				errmsg("too long provider name, maximum lenght is %ld bytes", sizeof(provider.provider_name) - 1));
 
 	olen = strlen(options);
 	if (olen >= sizeof(provider.options))
 		ereport(ERROR,
-				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-				 errmsg("too large provider options, maximum size is %ld bytes", sizeof(provider.options) - 1)));
+				errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+				errmsg("too large provider options, maximum size is %ld bytes", sizeof(provider.options) - 1));
 
 	/* Struct will be saved to disk so keep clean */
 	memset(&provider, 0, sizeof(provider));
@@ -327,12 +327,12 @@ pg_tde_list_all_key_providers_internal(const char *fname, bool global, PG_FUNCTI
 	/* check to see if caller supports us returning a tuplestore */
 	if (rsinfo == NULL || !IsA(rsinfo, ReturnSetInfo))
 		ereport(ERROR,
-				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-				 errmsg("%s: set-valued function called in context that cannot accept a set", fname)));
+				errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+				errmsg("%s: set-valued function called in context that cannot accept a set", fname));
 	if (!(rsinfo->allowedModes & SFRM_Materialize))
 		ereport(ERROR,
-				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-				 errmsg("%s: materialize mode required, but it is not allowed in this context", fname)));
+				errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+				errmsg("%s: materialize mode required, but it is not allowed in this context", fname));
 
 	/* Switch into long-lived context to construct returned data structures */
 	per_query_ctx = rsinfo->econtext->ecxt_per_query_memory;
@@ -386,7 +386,7 @@ GetKeyProviderByID(int provider_id, Oid dbOid)
 #endif							/* !FRONTEND */
 
 static uint32
-write_key_provider_info(KeyringProvideRecord *provider, Oid database_id,
+write_key_provider_info(KeyringProviderRecord *provider, Oid database_id,
 						off_t position, bool error_if_exists, bool write_xlog)
 {
 	off_t		bytes_written = 0;
@@ -397,7 +397,7 @@ write_key_provider_info(KeyringProvideRecord *provider, Oid database_id,
 	/* Named max, but global key provider oids are stored as negative numbers! */
 	int			max_provider_id = 0;
 	char		kp_info_path[MAXPGPATH] = {0};
-	KeyringProvideRecord existing_provider;
+	KeyringProviderRecord existing_provider;
 	GenericKeyring *record;
 
 	Assert(provider != NULL);
@@ -405,7 +405,7 @@ write_key_provider_info(KeyringProvideRecord *provider, Oid database_id,
 	if (error_if_exists && provider->provider_id != 0)
 	{
 		ereport(ERROR,
-				(errcode(ERRCODE_DATA_EXCEPTION), errmsg("Invalid write provider call")));
+				errcode(ERRCODE_DATA_EXCEPTION), errmsg("Invalid write provider call"));
 	}
 
 	/* Try to parse the JSON data first: if it doesn't work, don't save it! */
@@ -415,7 +415,7 @@ write_key_provider_info(KeyringProvideRecord *provider, Oid database_id,
 		if (record == NULL)
 		{
 			ereport(ERROR,
-					(errcode(ERRCODE_DATA_EXCEPTION), errmsg("Invalid provider options")));
+					errcode(ERRCODE_DATA_EXCEPTION), errmsg("Invalid provider options"));
 		}
 		else
 		{
@@ -431,8 +431,8 @@ write_key_provider_info(KeyringProvideRecord *provider, Oid database_id,
 	if (fd < 0)
 	{
 		ereport(ERROR,
-				(errcode_for_file_access(),
-				 errmsg("could not open tde file \"%s\": %m", kp_info_path)));
+				errcode_for_file_access(),
+				errmsg("could not open tde file \"%s\": %m", kp_info_path));
 	}
 	if (position == -1)
 	{
@@ -455,8 +455,8 @@ write_key_provider_info(KeyringProvideRecord *provider, Oid database_id,
 				{
 					close(fd);
 					ereport(ERROR,
-							(errcode(ERRCODE_DUPLICATE_OBJECT),
-							 errmsg("key provider \"%s\" already exists", provider->provider_name)));
+							errcode(ERRCODE_DUPLICATE_OBJECT),
+							errmsg("key provider \"%s\" already exists", provider->provider_name));
 				}
 				else
 				{
@@ -521,22 +521,21 @@ write_key_provider_info(KeyringProvideRecord *provider, Oid database_id,
 	/*
 	 * All good, Just add a new provider
 	 */
-	bytes_written = pg_pwrite(fd, provider, sizeof(KeyringProvideRecord), curr_pos);
-	if (bytes_written != sizeof(KeyringProvideRecord))
+	bytes_written = pg_pwrite(fd, provider, sizeof(KeyringProviderRecord), curr_pos);
+	if (bytes_written != sizeof(KeyringProviderRecord))
 	{
 		close(fd);
 		ereport(ERROR,
-				(errcode_for_file_access(),
-				 errmsg("key provider info file \"%s\" can't be written: %m",
-						kp_info_path)));
+				errcode_for_file_access(),
+				errmsg("key provider info file \"%s\" can't be written: %m",
+					   kp_info_path));
 	}
 	if (pg_fsync(fd) != 0)
 	{
 		close(fd);
 		ereport(ERROR,
-				(errcode_for_file_access(),
-				 errmsg("could not fsync file \"%s\": %m",
-						kp_info_path)));
+				errcode_for_file_access(),
+				errmsg("could not fsync file \"%s\": %m", kp_info_path));
 	}
 	close(fd);
 	LWLockRelease(tde_provider_info_lock());
@@ -548,13 +547,13 @@ write_key_provider_info(KeyringProvideRecord *provider, Oid database_id,
  * Save the key provider info to the file
  */
 uint32
-save_new_key_provider_info(KeyringProvideRecord *provider, Oid databaseId, bool write_xlog)
+save_new_key_provider_info(KeyringProviderRecord *provider, Oid databaseId, bool write_xlog)
 {
 	return write_key_provider_info(provider, databaseId, -1, true, write_xlog);
 }
 
 uint32
-modify_key_provider_info(KeyringProvideRecord *provider, Oid databaseId, bool write_xlog)
+modify_key_provider_info(KeyringProviderRecord *provider, Oid databaseId, bool write_xlog)
 {
 	return write_key_provider_info(provider, databaseId, -1, false, write_xlog);
 }
@@ -562,9 +561,9 @@ modify_key_provider_info(KeyringProvideRecord *provider, Oid databaseId, bool wr
 uint32
 delete_key_provider_info(int provider_id, Oid databaseId, bool write_xlog)
 {
-	KeyringProvideRecord kpr;
+	KeyringProviderRecord kpr;
 
-	memset(&kpr, 0, sizeof(KeyringProvideRecord));
+	memset(&kpr, 0, sizeof(KeyringProviderRecord));
 	kpr.provider_id = provider_id;
 
 	return modify_key_provider_info(&kpr, databaseId, write_xlog);
@@ -616,7 +615,7 @@ scan_key_provider_file(ProviderScanType scanType, void *scanKey, Oid dbOid)
 	off_t		curr_pos = 0;
 	int			fd;
 	char		kp_info_path[MAXPGPATH] = {0};
-	KeyringProvideRecord provider;
+	KeyringProviderRecord provider;
 #ifndef FRONTEND
 	List	   *providers_list = NIL;
 #else
@@ -635,8 +634,8 @@ scan_key_provider_file(ProviderScanType scanType, void *scanKey, Oid dbOid)
 	{
 		LWLockRelease(tde_provider_info_lock());
 		ereport(DEBUG2,
-				(errcode_for_file_access(),
-				 errmsg("could not open tde file \"%s\": %m", kp_info_path)));
+				errcode_for_file_access(),
+				errmsg("could not open tde file \"%s\": %m", kp_info_path));
 		return providers_list;
 	}
 	while (fetch_next_key_provider(fd, &curr_pos, &provider))
@@ -650,7 +649,7 @@ scan_key_provider_file(ProviderScanType scanType, void *scanKey, Oid dbOid)
 		}
 
 		ereport(DEBUG2,
-				(errmsg("read key provider ID=%d %s", provider.provider_id, provider.provider_name)));
+				errmsg("read key provider ID=%d %s", provider.provider_id, provider.provider_name));
 
 		if (scanType == PROVIDER_SCAN_BY_NAME)
 		{
@@ -692,7 +691,7 @@ scan_key_provider_file(ProviderScanType scanType, void *scanKey, Oid dbOid)
 }
 
 static GenericKeyring *
-load_keyring_provider_from_record(KeyringProvideRecord *provider)
+load_keyring_provider_from_record(KeyringProviderRecord *provider)
 {
 	GenericKeyring *keyring = NULL;
 
@@ -745,8 +744,8 @@ load_file_keyring_provider_options(char *keyring_options)
 	if (file_keyring->file_name == NULL || file_keyring->file_name[0] == '\0')
 	{
 		ereport(WARNING,
-				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-				 errmsg("file path is missing in the keyring options")));
+				errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+				errmsg("file path is missing in the keyring options"));
 		return NULL;
 	}
 
@@ -771,11 +770,11 @@ load_vaultV2_keyring_provider_options(char *keyring_options)
 		vaultV2_keyring->vault_mount_path == NULL || vaultV2_keyring->vault_mount_path[0] == '\0')
 	{
 		ereport(WARNING,
-				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-				 errmsg("missing in the keyring options:%s%s%s",
-						(vaultV2_keyring->vault_token != NULL && vaultV2_keyring->vault_token[0] != '\0') ? "" : " token",
-						(vaultV2_keyring->vault_url != NULL && vaultV2_keyring->vault_url[0] != '\0') ? "" : " url",
-						(vaultV2_keyring->vault_mount_path != NULL && vaultV2_keyring->vault_mount_path[0] != '\0') ? "" : " mountPath")));
+				errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+				errmsg("missing in the keyring options:%s%s%s",
+					   (vaultV2_keyring->vault_token != NULL && vaultV2_keyring->vault_token[0] != '\0') ? "" : " token",
+					   (vaultV2_keyring->vault_url != NULL && vaultV2_keyring->vault_url[0] != '\0') ? "" : " url",
+					   (vaultV2_keyring->vault_mount_path != NULL && vaultV2_keyring->vault_mount_path[0] != '\0') ? "" : " mountPath"));
 		return NULL;
 	}
 
@@ -801,12 +800,12 @@ load_kmip_keyring_provider_options(char *keyring_options)
 		strlen(kmip_keyring->kmip_cert_path) == 0)
 	{
 		ereport(WARNING,
-				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-				 errmsg("missing in the keyring options:%s%s%s%s",
-						(kmip_keyring->kmip_host != NULL && kmip_keyring->kmip_host[0] != '\0') ? "" : " host",
-						(kmip_keyring->kmip_port != NULL && kmip_keyring->kmip_port[0] != '\0') ? "" : " port",
-						(kmip_keyring->kmip_ca_path != NULL && kmip_keyring->kmip_ca_path[0] != '\0') ? "" : " caPath",
-						(kmip_keyring->kmip_cert_path != NULL && kmip_keyring->kmip_cert_path[0] != '\0') ? "" : " certPath")));
+				errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+				errmsg("missing in the keyring options:%s%s%s%s",
+					   (kmip_keyring->kmip_host != NULL && kmip_keyring->kmip_host[0] != '\0') ? "" : " host",
+					   (kmip_keyring->kmip_port != NULL && kmip_keyring->kmip_port[0] != '\0') ? "" : " port",
+					   (kmip_keyring->kmip_ca_path != NULL && kmip_keyring->kmip_ca_path[0] != '\0') ? "" : " caPath",
+					   (kmip_keyring->kmip_cert_path != NULL && kmip_keyring->kmip_cert_path[0] != '\0') ? "" : " certPath"));
 		return NULL;
 	}
 
@@ -854,26 +853,26 @@ get_keyring_infofile_path(char *resPath, Oid dbOid)
  * Fetch the next key provider from the file and update the curr_pos
 */
 static bool
-fetch_next_key_provider(int fd, off_t *curr_pos, KeyringProvideRecord *provider)
+fetch_next_key_provider(int fd, off_t *curr_pos, KeyringProviderRecord *provider)
 {
 	off_t		bytes_read = 0;
 
 	Assert(provider != NULL);
 	Assert(fd >= 0);
 
-	bytes_read = pg_pread(fd, provider, sizeof(KeyringProvideRecord), *curr_pos);
+	bytes_read = pg_pread(fd, provider, sizeof(KeyringProviderRecord), *curr_pos);
 	*curr_pos += bytes_read;
 
 	if (bytes_read == 0)
 		return false;
-	if (bytes_read != sizeof(KeyringProvideRecord))
+	if (bytes_read != sizeof(KeyringProviderRecord))
 	{
 		close(fd);
 		/* Corrupt file */
 		ereport(ERROR,
-				(errcode_for_file_access(),
-				 errmsg("key provider info file is corrupted: %m"),
-				 errdetail("invalid key provider record size %ld expected %lu", bytes_read, sizeof(KeyringProvideRecord))));
+				errcode_for_file_access(),
+				errmsg("key provider info file is corrupted: %m"),
+				errdetail("invalid key provider record size %ld expected %lu", bytes_read, sizeof(KeyringProviderRecord)));
 	}
 	return true;
 }
@@ -919,9 +918,9 @@ GetKeyProviderByName(const char *provider_name, Oid dbOid)
 	else
 	{
 		ereport(ERROR,
-				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-				 errmsg("key provider \"%s\" does not exists", provider_name),
-				 errhint("Create the key provider")));
+				errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+				errmsg("key provider \"%s\" does not exists", provider_name),
+				errhint("Create the key provider"));
 	}
 	return keyring;
 }

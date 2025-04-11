@@ -27,11 +27,11 @@ Transparent Data Encryption offers encryption at the file level and solves the p
 
 ## Documentation
 
-Full and comprehensive documentation about `pg_tde` is available at https://percona.github.io/pg_tde/.
+Full and comprehensive documentation about `pg_tde` is available at https://docs.percona.com/pg-tde/index.html.
 
 ## Percona Server for PostgreSQL
 
-Percona provides binary packages of `pg_tde` extension only for Percona Server for PostgreSQL. Learn how to install them or build `pg_tde` from sources for PSPG in the [documentation](https://percona.github.io/pg_tde/main/install.html).
+Percona provides binary packages of `pg_tde` extension only for Percona Server for PostgreSQL. Learn how to install them or build `pg_tde` from sources for PSPG in the [documentation](https://docs.percona.com/pg-tde/install.html).
 
 ## Building from sources for community PostgreSQL
   1. Install required dependencies (replace XX with 16 or 17)
@@ -126,11 +126,11 @@ _See [Make Builds for Developers](https://github.com/percona/pg_tde/wiki/Make-bu
 
         **Note: The `File` provided is intended for development and stores the keys unencrypted in the specified data file.**
 
-   5. Set the principal key for the database using the `pg_tde_set_principal_key` function.
+   5. Set the principal key for the database using the `pg_tde_set_key` function.
 
         ```sql
-        -- pg_tde_set_principal_key_using_database_key_provider(principal_key_name, provider_name);
-        SELECT pg_tde_set_principal_key_using_database_key_provider('my-principal-key','file');
+        -- pg_tde_set_key_using_database_key_provider(key_name, provider_name);
+        SELECT pg_tde_set_key_using_database_key_provider('my-key','file');
         ```
    
    6. Specify `tde_heap` access method during table creation
