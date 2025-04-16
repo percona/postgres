@@ -17,14 +17,13 @@ insert_update_delete \
 key_provider \
 keyprovider_dependency \
 kmip_test \
+partition_table \
 pg_tde_is_encrypted \
 recreate_storage \
 relocate \
 subtransaction \
 tablespace \
 vault_v2_test \
-cluster \
-partition_table \
 default_principal_key
 TAP_TESTS = 1
 

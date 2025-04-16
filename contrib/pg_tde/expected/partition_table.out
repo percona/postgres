@@ -1,15 +1,13 @@
 CREATE EXTENSION pg_tde;
-SELECT pg_tde_add_global_key_provider_file('global_keyring_provider','/tmp/pg_tde_keyring.per');
-ERROR:  key provider "global_keyring_provider" already exists
-SELECT pg_tde_set_server_key_using_global_key_provider('wal_key','global_keyring_provider');
- pg_tde_set_server_key_using_global_key_provider 
--------------------------------------------------
- 
+SELECT pg_tde_add_database_key_provider_file('database_keyring_provider','/tmp/pg_tde_keyring.per');
+ pg_tde_add_database_key_provider_file 
+---------------------------------------
+                                     1
 (1 row)
 
-SELECT pg_tde_set_key_using_global_key_provider('table_key','global_keyring_provider');
- pg_tde_set_key_using_global_key_provider 
-------------------------------------------
+SELECT pg_tde_set_key_using_database_key_provider('table_key','database_keyring_provider');
+ pg_tde_set_key_using_database_key_provider 
+--------------------------------------------
  
 (1 row)
 
@@ -88,5 +86,5 @@ SELECT pg_tde_is_encrypted('partition_q4_2024');
  t
 (1 row)
 
-DROP TABLE partition_q1_2024,partition_q2_2024,partition_q3_2024,partition_q4_2024,partitioned_table;
+DROP TABLE partitioned_table;
 DROP EXTENSION pg_tde;
