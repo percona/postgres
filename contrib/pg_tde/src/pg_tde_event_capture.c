@@ -31,7 +31,7 @@
 #include "catalog/tde_global_space.h"
 
 /* Global variable that gets set at ddl start and cleard out at ddl end*/
-static TdeCreateEvent tdeCurrentCreateEvent = {.tid = {.value = 0},.relation = NULL};
+static TdeCreateEvent tdeCurrentCreateEvent = {.tid = {.value = 0}};
 static bool alterSetAccessMethod = false;
 
 static void reset_current_tde_create_event(void);
@@ -46,29 +46,32 @@ GetCurrentTdeCreateEvent(void)
 	return &tdeCurrentCreateEvent;
 }
 
-static void
-checkEncryptionClause(const char *accessMethod)
+static bool
+shouldEncryptTable(const char *accessMethod)
 {
-	if (accessMethod && strcmp(accessMethod, "tde_heap") == 0)
-	{
-		tdeCurrentCreateEvent.encryptMode = true;
-	}
-	else if ((accessMethod == NULL || accessMethod[0] == 0) && strcmp(default_table_access_method, "tde_heap") == 0)
-	{
-		tdeCurrentCreateEvent.encryptMode = true;
-	}
+	if (accessMethod)
+		return strcmp(accessMethod, "tde_heap") == 0;
+	else
+		return strcmp(default_table_access_method, "tde_heap") == 0;
+}
 
+static void
+checkPrincipalKeyConfigured(void)
+{
+	if (!pg_tde_principal_key_configured(MyDatabaseId))
+		ereport(ERROR,
+				errmsg("principal key not configured"),
+				errhint("create one using pg_tde_set_key before using encrypted tables"));
+}
+
+static void
+checkEncryptionStatus(void)
+{
 	if (tdeCurrentCreateEvent.encryptMode)
 	{
-		if (!pg_tde_principal_key_configured(MyDatabaseId))
-		{
-			ereport(ERROR,
-					errmsg("principal key not configured"),
-					errhint("create one using pg_tde_set_key before using encrypted tables"));
-		}
+		checkPrincipalKeyConfigured();
 	}
-
-	if (EnforceEncryption && !tdeCurrentCreateEvent.encryptMode)
+	else if (EnforceEncryption)
 	{
 		ereport(ERROR,
 				errmsg("pg_tde.enforce_encryption is ON, only the tde_heap access method is allowed."));
@@ -83,9 +86,8 @@ validateCurrentEventTriggerState(bool mightStartTransaction)
 	if (RecoveryInProgress())
 	{
 		reset_current_tde_create_event();
-		return;
 	}
-	if (tdeCurrentCreateEvent.tid.value != InvalidFullTransactionId.value && tid.value != tdeCurrentCreateEvent.tid.value)
+	else if (tdeCurrentCreateEvent.tid.value != InvalidFullTransactionId.value && tid.value != tdeCurrentCreateEvent.tid.value)
 	{
 		/* There was a failed query, end event trigger didn't execute */
 		reset_current_tde_create_event();
@@ -115,70 +117,63 @@ pg_tde_ddl_command_start_capture(PG_FUNCTION_ARGS)
 		ereport(ERROR,
 				errmsg("Function can only be fired by event trigger manager"));
 
-	trigdata = (EventTriggerData *) fcinfo->context;
+	trigdata = castNode(EventTriggerData, fcinfo->context);
 	parsetree = trigdata->parsetree;
 
 	if (IsA(parsetree, IndexStmt))
 	{
-		IndexStmt  *stmt = (IndexStmt *) parsetree;
-		Oid			relationId = RangeVarGetRelid(stmt->relation, AccessShareLock, true);
+		IndexStmt  *stmt = castNode(IndexStmt, parsetree);
+		Relation	rel;
 
 		validateCurrentEventTriggerState(true);
 		tdeCurrentCreateEvent.tid = GetCurrentFullTransactionId();
 
-		tdeCurrentCreateEvent.baseTableOid = relationId;
-		tdeCurrentCreateEvent.relation = stmt->relation;
+		rel = table_openrv(stmt->relation, AccessShareLock);
 
-		if (relationId != InvalidOid)
+		tdeCurrentCreateEvent.baseTableOid = rel->rd_id;
+
+		if (rel->rd_rel->relam == get_tde_table_am_oid())
 		{
-			Relation	rel = table_open(relationId, NoLock);
-
-			if (rel->rd_rel->relam == get_tde_table_am_oid())
-			{
-				/* We are creating the index on encrypted table */
-				/* set the global state */
-				tdeCurrentCreateEvent.encryptMode = true;
-			}
-
-			table_close(rel, NoLock);
-
-			if (tdeCurrentCreateEvent.encryptMode)
-			{
-				checkEncryptionClause("");
-			}
+			/*
+			 * We are creating an index on an encrypted table so set the
+			 * global state.
+			 */
+			tdeCurrentCreateEvent.encryptMode = true;
 		}
-		else
-			ereport(DEBUG1, errmsg("Failed to get relation Oid for relation:%s", stmt->relation->relname));
 
+		/* Hold on to lock until end of transaction */
+		table_close(rel, NoLock);
+
+		if (tdeCurrentCreateEvent.encryptMode)
+			checkPrincipalKeyConfigured();
 	}
 	else if (IsA(parsetree, CreateStmt))
 	{
-		CreateStmt *stmt = (CreateStmt *) parsetree;
-		const char *accessMethod = stmt->accessMethod;
+		CreateStmt *stmt = castNode(CreateStmt, parsetree);
 
 		validateCurrentEventTriggerState(true);
 		tdeCurrentCreateEvent.tid = GetCurrentFullTransactionId();
 
+		if (shouldEncryptTable(stmt->accessMethod))
+			tdeCurrentCreateEvent.encryptMode = true;
 
-		tdeCurrentCreateEvent.relation = stmt->relation;
-
-		checkEncryptionClause(accessMethod);
+		checkEncryptionStatus();
 	}
 	else if (IsA(parsetree, CreateTableAsStmt))
 	{
-		CreateTableAsStmt *stmt = (CreateTableAsStmt *) parsetree;
-		const char *accessMethod = stmt->into->accessMethod;
+		CreateTableAsStmt *stmt = castNode(CreateTableAsStmt, parsetree);
 
 		validateCurrentEventTriggerState(true);
 		tdeCurrentCreateEvent.tid = GetCurrentFullTransactionId();
 
-		tdeCurrentCreateEvent.relation = stmt->into->rel;
+		if (shouldEncryptTable(stmt->into->accessMethod))
+			tdeCurrentCreateEvent.encryptMode = true;
 
-		checkEncryptionClause(accessMethod);
+		checkEncryptionStatus();
 	}
 	else if (IsA(parsetree, AlterTableStmt))
 	{
-		AlterTableStmt *stmt = (AlterTableStmt *) parsetree;
+		AlterTableStmt *stmt = castNode(AlterTableStmt, parsetree);
 		ListCell   *lcmd;
 		Oid			relationId = RangeVarGetRelid(stmt->relation, AccessShareLock, true);
 
@@ -187,17 +182,18 @@ pg_tde_ddl_command_start_capture(PG_FUNCTION_ARGS)
 
 		foreach(lcmd, stmt->cmds)
 		{
-			AlterTableCmd *cmd = (AlterTableCmd *) lfirst(lcmd);
+			AlterTableCmd *cmd = castNode(AlterTableCmd, lfirst(lcmd));
 
 			if (cmd->subtype == AT_SetAccessMethod)
 			{
-				const char *accessMethod = cmd->name;
-
-				tdeCurrentCreateEvent.relation = stmt->relation;
 				tdeCurrentCreateEvent.baseTableOid = relationId;
 				tdeCurrentCreateEvent.alterAccessMethodMode = true;
 
-				checkEncryptionClause(accessMethod);
+				if (shouldEncryptTable(cmd->name))
+					tdeCurrentCreateEvent.encryptMode = true;
+
+				checkEncryptionStatus();
+
 				alterSetAccessMethod = true;
 			}
 		}
@@ -211,7 +207,6 @@ pg_tde_ddl_command_start_capture(PG_FUNCTION_ARGS)
 			 */
 
 			tdeCurrentCreateEvent.baseTableOid = relationId;
-			tdeCurrentCreateEvent.relation = stmt->relation;
 
 			if (relationId != InvalidOid)
 			{
@@ -229,9 +224,7 @@ pg_tde_ddl_command_start_capture(PG_FUNCTION_ARGS)
 				relation_close(rel, NoLock);
 
 				if (tdeCurrentCreateEvent.encryptMode)
-				{
-					checkEncryptionClause("");
-				}
+					checkPrincipalKeyConfigured();
 			}
 		}
 	}
@@ -248,7 +241,8 @@ pg_tde_ddl_command_start_capture(PG_FUNCTION_ARGS)
 			reset_current_tde_create_event();
 		}
 	}
-	PG_RETURN_NULL();
+
+	PG_RETURN_VOID();
 }
 
 /*
@@ -261,13 +255,13 @@ pg_tde_ddl_command_end_capture(PG_FUNCTION_ARGS)
 	EventTriggerData *trigdata;
 	Node	   *parsetree;
 
-	trigdata = (EventTriggerData *) fcinfo->context;
-	parsetree = trigdata->parsetree;
-
 	/* Ensure this function is being called as an event trigger */
 	if (!CALLED_AS_EVENT_TRIGGER(fcinfo))	/* internal error */
 		ereport(ERROR,
 				errmsg("Function can only be fired by event trigger manager"));
+
+	trigdata = castNode(EventTriggerData, fcinfo->context);
+	parsetree = trigdata->parsetree;
 
 	if (IsA(parsetree, AlterTableStmt) && tdeCurrentCreateEvent.alterAccessMethodMode)
 	{
@@ -303,7 +297,7 @@ pg_tde_ddl_command_end_capture(PG_FUNCTION_ARGS)
 		reset_current_tde_create_event();
 	}
 
-	PG_RETURN_NULL();
+	PG_RETURN_VOID();
 }
 
 static void
@@ -311,10 +305,9 @@ reset_current_tde_create_event(void)
 {
 	tdeCurrentCreateEvent.encryptMode = false;
 	tdeCurrentCreateEvent.baseTableOid = InvalidOid;
-	tdeCurrentCreateEvent.relation = NULL;
 	tdeCurrentCreateEvent.tid = InvalidFullTransactionId;
-	alterSetAccessMethod = false;
 	tdeCurrentCreateEvent.alterAccessMethodMode = false;
+	alterSetAccessMethod = false;
 }
 
 static Oid
