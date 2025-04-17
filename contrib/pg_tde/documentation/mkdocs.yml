@@ -155,6 +155,10 @@ extra:
 
 nav:
   - Home: index.md
+  - TDE Overview:
+    - "What TDE Encrypts": tde_encrypts.md
+    - "Limitations": tde_limitations.md
+    - "Versions and Supported Deployments": versions.md
   - get-help.md
   - features.md
   - Get started:
@@ -172,9 +176,9 @@ nav:
     - table-access-method.md
   - architecture.md
   - How to:
-    - Set up multi-tenancy: multi-tenant-setup.md
-    - Use reference to external parameters: external-parameters.md
-    - Decrypt an encrypted table: decrypt.md
+    - "Set up multi-tenancy": multi-tenant-setup.md
+    - "Use reference to external parameters": external-parameters.md
+    - "Decrypt an encrypted table": decrypt.md
   - faq.md
   - Release notes:
     - "pg_tde release notes": release-notes/release-notes.md
