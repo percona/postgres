@@ -19,6 +19,12 @@ SELECT pg_tde_grant_key_viewer_to_role('regress_pg_tde_access_control');
  
 (1 row)
 
+select pg_tde_grant_grant_management_to_role('regress_pg_tde_access_control');
+ pg_tde_grant_grant_management_to_role 
+---------------------------------------
+ 
+(1 row)
+
 SET ROLE regress_pg_tde_access_control;
 -- should now be allowed
 SELECT pg_tde_add_database_key_provider_file('file-vault', '/tmp/pg_tde_test_keyring.per');
