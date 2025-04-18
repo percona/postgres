@@ -12,7 +12,7 @@ RESET ROLE;
 
 SELECT pg_tde_grant_database_key_management_to_role('regress_pg_tde_access_control');
 SELECT pg_tde_grant_key_viewer_to_role('regress_pg_tde_access_control');
-select pg_tde_grant_grant_management_to_role('regress_pg_tde_access_control');
+SELECT pg_tde_grant_grant_management_to_role('regress_pg_tde_access_control');
 
 SET ROLE regress_pg_tde_access_control;
 
