@@ -214,6 +214,11 @@ pg_tde_change_database_key_provider(PG_FUNCTION_ARGS)
 Datum
 pg_tde_change_global_key_provider(PG_FUNCTION_ARGS)
 {
+	if (!superuser())
+		ereport(ERROR,
+				errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
+				errmsg("must be superuser to modify global key providers"));
+
 	return pg_tde_change_key_provider_internal(fcinfo, GLOBAL_DATA_TDE_OID);
 }
 
@@ -264,6 +269,11 @@ pg_tde_add_database_key_provider(PG_FUNCTION_ARGS)
 Datum
 pg_tde_add_global_key_provider(PG_FUNCTION_ARGS)
 {
+	if (!superuser())
+		ereport(ERROR,
+				errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
+				errmsg("must be superuser to modify global key providers"));
+
 	return pg_tde_add_key_provider_internal(fcinfo, GLOBAL_DATA_TDE_OID);
 }
 
@@ -502,7 +512,7 @@ write_key_provider_info(KeyringProviderRecord *provider, Oid database_id,
 
 			XLogBeginInsert();
 			XLogRegisterData((char *) &xlrec, sizeof(KeyringProviderXLRecord));
-			XLogInsert(RM_TDERMGR_ID, XLOG_TDE_ADD_KEY_PROVIDER_KEY);
+			XLogInsert(RM_TDERMGR_ID, XLOG_TDE_WRITE_KEY_PROVIDER);
 #else
 			Assert(0);
 #endif

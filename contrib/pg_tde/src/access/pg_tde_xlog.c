@@ -30,10 +30,8 @@ static void tdeheap_rmgr_redo(XLogReaderState *record);
 static void tdeheap_rmgr_desc(StringInfo buf, XLogReaderState *record);
 static const char *tdeheap_rmgr_identify(uint8 info);
 
-#define RM_TDERMGR_NAME	"test_tdeheap_custom_rmgr"
-
 static const RmgrData tdeheap_rmgr = {
-	.rm_name = RM_TDERMGR_NAME,
+	.rm_name = "pg_tde",
 	.rm_redo = tdeheap_rmgr_redo,
 	.rm_desc = tdeheap_rmgr_desc,
 	.rm_identify = tdeheap_rmgr_identify,
@@ -45,9 +43,6 @@ RegisterTdeRmgr(void)
 	RegisterCustomRmgr(RM_TDERMGR_ID, &tdeheap_rmgr);
 }
 
-/*
- * TDE fork XLog
- */
 static void
 tdeheap_rmgr_redo(XLogReaderState *record)
 {
@@ -59,38 +54,35 @@ tdeheap_rmgr_redo(XLogReaderState *record)
 
 		pg_tde_write_key_map_entry_redo(&xlrec->mapEntry, &xlrec->pkInfo);
 	}
+	else if (info == XLOG_TDE_REMOVE_RELATION_KEY)
+	{
+		RelFileLocator *xlrec = (RelFileLocator *) XLogRecGetData(record);
+
+		pg_tde_free_key_map_entry(xlrec, 0);
+	}
 	else if (info == XLOG_TDE_ADD_PRINCIPAL_KEY)
 	{
 		TDESignedPrincipalKeyInfo *mkey = (TDESignedPrincipalKeyInfo *) XLogRecGetData(record);
 
 		pg_tde_save_principal_key_redo(mkey);
 	}
-	else if (info == XLOG_TDE_EXTENSION_INSTALL_KEY)
-	{
-		XLogExtensionInstall *xlrec = (XLogExtensionInstall *) XLogRecGetData(record);
-
-		extension_install_redo(xlrec);
-	}
-
-	else if (info == XLOG_TDE_ADD_KEY_PROVIDER_KEY)
-	{
-		KeyringProviderXLRecord *xlrec = (KeyringProviderXLRecord *) XLogRecGetData(record);
-
-		redo_key_provider_info(xlrec);
-	}
-
-	else if (info == XLOG_TDE_ROTATE_KEY)
+	else if (info == XLOG_TDE_ROTATE_PRINCIPAL_KEY)
 	{
 		XLogPrincipalKeyRotate *xlrec = (XLogPrincipalKeyRotate *) XLogRecGetData(record);
 
 		xl_tde_perform_rotate_key(xlrec);
 	}
-
-	else if (info == XLOG_TDE_FREE_MAP_ENTRY)
+	else if (info == XLOG_TDE_WRITE_KEY_PROVIDER)
 	{
-		RelFileLocator *xlrec = (RelFileLocator *) XLogRecGetData(record);
+		KeyringProviderXLRecord *xlrec = (KeyringProviderXLRecord *) XLogRecGetData(record);
 
-		pg_tde_free_key_map_entry(xlrec, 0);
+		redo_key_provider_info(xlrec);
+	}
+	else if (info == XLOG_TDE_INSTALL_EXTENSION)
+	{
+		XLogExtensionInstall *xlrec = (XLogExtensionInstall *) XLogRecGetData(record);
+
+		extension_install_redo(xlrec);
 	}
 	else
 	{
@@ -107,45 +99,58 @@ tdeheap_rmgr_desc(StringInfo buf, XLogReaderState *record)
 	{
 		XLogRelKey *xlrec = (XLogRelKey *) XLogRecGetData(record);
 
-		appendStringInfo(buf, "add tde internal key for relation %u/%u", xlrec->pkInfo.data.databaseId, xlrec->mapEntry.relNumber);
+		appendStringInfo(buf, "rel: %u/%u/%u", xlrec->mapEntry.spcOid, xlrec->pkInfo.data.databaseId, xlrec->mapEntry.relNumber);
 	}
-	if (info == XLOG_TDE_ADD_PRINCIPAL_KEY)
+	else if (info == XLOG_TDE_REMOVE_RELATION_KEY)
+	{
+		RelFileLocator *xlrec = (RelFileLocator *) XLogRecGetData(record);
+
+		appendStringInfo(buf, "rel: %u/%u/%u", xlrec->spcOid, xlrec->dbOid, xlrec->relNumber);
+	}
+	else if (info == XLOG_TDE_ADD_PRINCIPAL_KEY)
 	{
 		TDEPrincipalKeyInfo *xlrec = (TDEPrincipalKeyInfo *) XLogRecGetData(record);
 
-		appendStringInfo(buf, "add tde principal key for db %u", xlrec->databaseId);
+		appendStringInfo(buf, "db: %u", xlrec->databaseId);
 	}
-	if (info == XLOG_TDE_EXTENSION_INSTALL_KEY)
-	{
-		XLogExtensionInstall *xlrec = (XLogExtensionInstall *) XLogRecGetData(record);
-
-		appendStringInfo(buf, "tde extension install for db %u", xlrec->database_id);
-	}
-	if (info == XLOG_TDE_ROTATE_KEY)
+	else if (info == XLOG_TDE_ROTATE_PRINCIPAL_KEY)
 	{
 		XLogPrincipalKeyRotate *xlrec = (XLogPrincipalKeyRotate *) XLogRecGetData(record);
 
-		appendStringInfo(buf, "rotate principal key for %u", xlrec->databaseId);
+		appendStringInfo(buf, "db: %u", xlrec->databaseId);
 	}
-	if (info == XLOG_TDE_ADD_KEY_PROVIDER_KEY)
+	else if (info == XLOG_TDE_WRITE_KEY_PROVIDER)
 	{
 		KeyringProviderXLRecord *xlrec = (KeyringProviderXLRecord *) XLogRecGetData(record);
 
-		appendStringInfo(buf, "add key provider %s for %u", xlrec->provider.provider_name, xlrec->database_id);
+		appendStringInfo(buf, "db: %u, provider id: %d", xlrec->database_id, xlrec->provider.provider_id);
+	}
+	else if (info == XLOG_TDE_INSTALL_EXTENSION)
+	{
+		XLogExtensionInstall *xlrec = (XLogExtensionInstall *) XLogRecGetData(record);
+
+		appendStringInfo(buf, "db: %u", xlrec->database_id);
 	}
 }
 
 static const char *
 tdeheap_rmgr_identify(uint8 info)
 {
-	if ((info & ~XLR_INFO_MASK) == XLOG_TDE_ADD_RELATION_KEY)
-		return "XLOG_TDE_ADD_RELATION_KEY";
-
-	if ((info & ~XLR_INFO_MASK) == XLOG_TDE_ADD_PRINCIPAL_KEY)
-		return "XLOG_TDE_ADD_PRINCIPAL_KEY";
-
-	if ((info & ~XLR_INFO_MASK) == XLOG_TDE_EXTENSION_INSTALL_KEY)
-		return "XLOG_TDE_EXTENSION_INSTALL_KEY";
-
-	return NULL;
+	switch (info & ~XLR_INFO_MASK)
+	{
+		case XLOG_TDE_ADD_RELATION_KEY:
+			return "ADD_RELATION_KEY";
+		case XLOG_TDE_REMOVE_RELATION_KEY:
+			return "REMOVE_RELATION_KEY";
+		case XLOG_TDE_ADD_PRINCIPAL_KEY:
+			return "ADD_PRINCIPAL_KEY";
+		case XLOG_TDE_ROTATE_PRINCIPAL_KEY:
+			return "ROTATE_PRINCIPAL_KEY";
+		case XLOG_TDE_WRITE_KEY_PROVIDER:
+			return "WRITE_KEY_PROVIDER";
+		case XLOG_TDE_INSTALL_EXTENSION:
+			return "INSTALL_EXTENSION";
+		default:
+			return NULL;
+	}
 }

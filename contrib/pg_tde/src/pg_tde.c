@@ -32,7 +32,6 @@
 #include "keyring/keyring_vault.h"
 #include "keyring/keyring_kmip.h"
 #include "utils/builtins.h"
-#include "pg_tde_defs.h"
 #include "smgr/pg_tde_smgr.h"
 #include "catalog/tde_global_space.h"
 #include "utils/percona.h"
@@ -148,7 +147,7 @@ pg_tde_extension_initialize(PG_FUNCTION_ARGS)
 	 */
 	XLogBeginInsert();
 	XLogRegisterData((char *) &xlrec, sizeof(XLogExtensionInstall));
-	XLogInsert(RM_TDERMGR_ID, XLOG_TDE_EXTENSION_INSTALL_KEY);
+	XLogInsert(RM_TDERMGR_ID, XLOG_TDE_INSTALL_EXTENSION);
 
 	PG_RETURN_NULL();
 }
@@ -222,7 +221,7 @@ run_extension_install_callbacks(XLogExtensionInstall *xlrec, bool redo)
 Datum
 pg_tde_version(PG_FUNCTION_ARGS)
 {
-	PG_RETURN_TEXT_P(cstring_to_text(pg_tde_package_string()));
+	PG_RETURN_TEXT_P(cstring_to_text(PG_TDE_VERSION_STRING));
 }
 
 Datum
