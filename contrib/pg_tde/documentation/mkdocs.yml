@@ -155,13 +155,15 @@ extra:
 
 nav:
   - Home: index.md
-  - TDE Overview:
-    - "What is TDE": index/what_is_tde.md
-    - "How does TDE work": index/how_does_tde_work.md
-    - "How does TDE help": index/how_tde_helps.md
-    - "What does TDE encrypt": index/tde_encrypts.md
-    - "Limitations": index/tde_limitations.md
-    - "Versions and supported deployments": index/supported_versions.md
+  - Overview:
+    - "Transparent Data Encryption (TDE)":
+      - "What is TDE?": index/what-is-tde.md
+      - "How does TDE work?": index/how-does-tde-work.md
+      - "How does TDE help?": index/how-tde-helps.md
+      - "What does TDE encrypt?": index/tde_encrypts.md
+      - "Table access methods and TDE": index/table-access-method.md
+    - "Limitations of TDE": index/tde-limitations.md
+    - "Versions and supported deployments": index/supported-versions.md
   - get-help.md
   - features.md
   - Get started:
@@ -174,9 +176,6 @@ nav:
   - functions.md
   - command-line-tools.md
   - variables.md
-  - Concepts:
-    - "What is TDE": tde.md
-    - table-access-method.md
   - architecture.md
   - How to:
     - "Uninstall pg_tde": uninstall.md

@@ -20,13 +20,11 @@ Check that the table is not encrypted:
 SELECT pg_tde_is_encrypted('mytable');
 ```
 
-The output returns `f` meaning that the table is no longer encrypted. 
-
-
+The output returns `f` meaning that the table is no longer encrypted.
 
 ## Method 2. Create a new not encrypted table on the base of the encrypted one
 
-Alternatively, you can create a new not encrypted table with the same structure and data as the initial table. For example, the original encrypted table is `EncryptedCustomers`. Use the following command to create a new table `Customers`: 
+Alternatively, you can create a new not encrypted table with the same structure and data as the initial table. For example, the original encrypted table is `EncryptedCustomers`. Use the following command to create a new table `Customers`:
 
 ```
 CREATE TABLE Customers AS
