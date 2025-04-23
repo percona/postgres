@@ -14,22 +14,18 @@ $node->init;
 $node->append_conf('postgresql.conf', "shared_preload_libraries = 'pg_tde'");
 $node->start;
 
-PGTDE::psql($node, 'postgres', 'CREATE EXTENSION IF NOT EXISTS pg_tde;');
-
-PGTDE::psql($node, 'postgres',
-	"SELECT pg_tde_add_database_key_provider_file('file-vault','/tmp/pg_tde_test_keyring.per');"
+$node->safe_psql('postgres', q{CREATE EXTENSION IF NOT EXISTS pg_tde});
+$node->safe_psql('postgres',
+	q{SELECT pg_tde_add_database_key_provider_file('file-vault','/tmp/pg_tde_test_keyring.per')}
 );
-
-PGTDE::psql($node, 'postgres',
-	"SELECT pg_tde_set_key_using_database_key_provider('test-db-key','file-vault');"
+$node->safe_psql('postgres',
+	q{SELECT pg_tde_set_key_using_database_key_provider('test-db-key','file-vault')}
 );
-
-PGTDE::psql($node, 'postgres',
-	'CREATE TABLE test_enc(id SERIAL,k VARCHAR(32),PRIMARY KEY (id)) USING tde_heap;'
+$node->safe_psql('postgres',
+	q{CREATE TABLE test_enc(id SERIAL,k VARCHAR(32),PRIMARY KEY (id)) USING tde_heap}
 );
-
-PGTDE::psql($node, 'postgres',
-	'INSERT INTO test_enc (k) VALUES (\'foobar\'),(\'barfoo\');');
+$node->safe_psql('postgres',
+	q{INSERT INTO test_enc (k) VALUES ('foobar'),('barfoo')});
 
 $node->restart;
 

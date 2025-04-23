@@ -1,18 +1,3 @@
-CREATE EXTENSION IF NOT EXISTS pg_tde;
-SELECT pg_tde_add_database_key_provider_file('file-vault','/tmp/pg_tde_test_keyring.per');
- pg_tde_add_database_key_provider_file 
----------------------------------------
-                                     1
-(1 row)
-
-SELECT pg_tde_set_key_using_database_key_provider('test-db-key','file-vault');
- pg_tde_set_key_using_database_key_provider 
---------------------------------------------
- 
-(1 row)
-
-CREATE TABLE test_enc(id SERIAL,k VARCHAR(32),PRIMARY KEY (id)) USING tde_heap;
-INSERT INTO test_enc (k) VALUES ('foobar'),('barfoo');
 SELECT * FROM test_enc ORDER BY id ASC;
  id |   k    
 ----+--------
