@@ -1,8 +1,12 @@
 # Features
 
-We provide `pg_tde` in two versions for both PostgreSQL Community and [Percona Server for PostgreSQL](https://docs.percona.com/postgresql/17/). The difference between the versions is in the set of included features which in its turn depends on the Storage Manager API. While PostgreSQL Community uses the default Storage Manager API, Percona Server for PostgreSQL extends the Storage Manager API enabling to integrate custom storage managers.
+`pg_tde` is available in two variants (or "flavors"):
 
-The following table provides features available for each version:
+* PostgreSQL Community
+* [Percona Server for PostgreSQL](https://docs.percona.com/postgresql/17/)
+The key difference between these variants lies in the set of supported features, which depends on the underlying Storage Manager API. The PostgreSQL Community variant uses the default Storage Manager API, while the Percona Server for PostgreSQL provides an extended Storage Manager API that allows integration with custom storage managers.
+
+The following table presents the features available for each variant:
 
 | Percona Server for PostgreSQL version | PostgreSQL Community version (deprecated)  |
 |-------------------------------|----------------------|
@@ -13,8 +17,5 @@ The following table provides features available for each version:
 | Table-level granularity | Table-level granularity |
 | Key management via: <br> - HashiCorp Vault; <br> - KMIP server; <br> - Local keyfile | Key management via: <br> - HashiCorp Vault; <br> - Local keyfile |
 | Logical replication of encrypted tables | |
-
-
-
 
 [Get started](install.md){.md-button}

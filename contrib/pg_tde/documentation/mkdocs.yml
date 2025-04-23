@@ -155,6 +155,15 @@ extra:
 
 nav:
   - Home: index.md
+  - Overview:
+    - "Transparent Data Encryption (TDE)":
+      - "What is TDE?": index/what-is-tde.md
+      - "How does TDE work?": index/how-does-tde-work.md
+      - "How does TDE help?": index/how-tde-helps.md
+      - "What does TDE encrypt?": index/tde_encrypts.md
+      - "Table access methods and TDE": index/table-access-method.md
+    - "Limitations of TDE": index/tde-limitations.md
+    - "Versions and supported deployments": index/supported-versions.md
   - get-help.md
   - features.md
   - Get started:
@@ -167,14 +176,12 @@ nav:
   - functions.md
   - command-line-tools.md
   - variables.md
-  - Concepts:
-    - "What is TDE": tde.md
-    - table-access-method.md
   - architecture.md
   - How to:
-    - Set up multi-tenancy: multi-tenant-setup.md
-    - Use reference to external parameters: external-parameters.md
-    - Decrypt an encrypted table: decrypt.md
+    - "Uninstall pg_tde": uninstall.md
+    - "Set up multi-tenancy": multi-tenant-setup.md
+    - "Use reference to external parameters": external-parameters.md
+    - "Decrypt an encrypted table": decrypt.md
   - faq.md
   - Release notes:
     - "pg_tde release notes": release-notes/release-notes.md
@@ -183,7 +190,6 @@ nav:
     - release-notes/beta.md
     - release-notes/alpha1.md
     - release-notes/mvp.md
-  - uninstall.md
   - contribute.md
 
 

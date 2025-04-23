@@ -29,7 +29,6 @@ Install `pg_tde` using one of the available installation methods:
 
     [Install from tarballs :material-arrow-right:](https://docs.percona.com/postgresql/17/tarball.html){.md-button}
 
-
 ## Next steps
 
 [Setup :material-arrow-right:](setup.md){.md-button}

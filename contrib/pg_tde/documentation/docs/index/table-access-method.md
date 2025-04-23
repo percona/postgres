@@ -1,4 +1,4 @@
-# Table access method
+# How TDE uses table access methods
 
 A table access method is the way how PostgreSQL stores the data in a table. The default table access method is `heap`. PostgreSQL organizes data in a heap structure, meaning there is no particular order to the rows in the table. Each row is stored independently and identified by its unique row identifier (TID).
 
@@ -30,28 +30,27 @@ CREATE TABLE table_name (
 
 ### How `tde_heap` works
 
-The `tde_heap` access method works on top of the default `heap` access method and is a marker to point which tables require encryption. It uses the custom storage manager TDE SMGR, which becomes active only after you installed the `pg_tde` extension. 
+The `tde_heap` access method works on top of the default `heap` access method and is a marker to point which tables require encryption. It uses the custom storage manager TDE SMGR, which becomes active only after you installed the `pg_tde` extension.
 
-Every data modification operation is first sent to the Buffer Manager, which updates the buffer cache. Then, it is passed to the storage manager, which then writes it to disk. When a table requires encryption, the data is sent to the TDE storage manager, where it is encrypted before written to disk. 
+Every data modification operation is first sent to the Buffer Manager, which updates the buffer cache. Then, it is passed to the storage manager, which then writes it to disk. When a table requires encryption, the data is sent to the TDE storage manager, where it is encrypted before written to disk.
 
-Similarly, when a client queries the database, the PostgreSQL core sends the request to the Buffer Manager which checks if the requested data is already in the buffer cache. If it’s not there, the Buffer Manager requests the data from the storage manager. The TDE storage manager  reads the encrypted data from disk, decrypts it and loads it to the buffer cache. The Buffer Manager sends the requested data to the PostgreSQL core and then to the client. 
+Similarly, when a client queries the database, the PostgreSQL core sends the request to the Buffer Manager which checks if the requested data is already in the buffer cache. If it’s not there, the Buffer Manager requests the data from the storage manager. The TDE storage manager  reads the encrypted data from disk, decrypts it and loads it to the buffer cache. The Buffer Manager sends the requested data to the PostgreSQL core and then to the client.
 
-
-Thus, the encryption is done at the storage manager level. 
+Thus, the encryption is done at the storage manager level.
 
 ## Changing the default table access method
 
-You can change the default table access method so that every table in the entire database cluster is created using the custom access method. For example, you can enable data encryption by default by defining the `tde_heap` as the default table access method. 
+You can change the default table access method so that every table in the entire database cluster is created using the custom access method. For example, you can enable data encryption by default by defining the `tde_heap` as the default table access method.
 
 However, consider the following before making this change:
 
-* This is a global setting and applies across the entire database cluster and not just a single database. 
-We recommend setting it with caution because all tables and materialized views created without an explicit access method in their `CREATE` statement will default to the specified table access method. 
+* This is a global setting and applies across the entire database cluster and not just a single database.
+We recommend setting it with caution because all tables and materialized views created without an explicit access method in their `CREATE` statement will default to the specified table access method.
 * You must create the `pg_tde` extension and configure the key provider for all databases before you modify the configuration. Otherwise PostgreSQL won't find the specified access method and will throw an error.
 
-Here's how you can set the new default table access method:
+Here is how you can set the new default table access method:
 
-1. Add the access method to the `default_table_access_method` parameter.        
+1. Add the access method to the `default_table_access_method` parameter:
 
     === "via the SQL statement"
 
@@ -88,4 +87,3 @@ Here's how you can set the new default table access method:
     ```sql
     SELECT pg_reload_conf();
     ```
-
