@@ -6,31 +6,35 @@ use PostgreSQL::Test::Cluster;
 use PostgreSQL::Test::Utils;
 use Test::More;
 
+use FindBin;
+use lib $FindBin::RealBin;
+
+use pgtde;
 
 my $node = PostgreSQL::Test::Cluster->new('main');
 $node->init;
 $node->append_conf('postgresql.conf', "shared_preload_libraries = 'pg_tde'");
 $node->start;
 
-$node->safe_psql('postgres', q{CREATE EXTENSION IF NOT EXISTS pg_tde});
-$node->safe_psql(
-	'postgres', q{
+PGTDE::do_psql($node, 'postgres', q{CREATE EXTENSION IF NOT EXISTS pg_tde});
+PGTDE::do_psql(
+	$node, 'postgres', q{
 		SELECT pg_tde_add_database_key_provider_file(
 			provider_name => 'file-vault',
 			file_path => '/tmp/pg_tde_test_keyring.per'
 		)
 	}
 );
-$node->safe_psql(
-	'postgres', q{
+PGTDE::do_psql(
+	$node, 'postgres', q{
 		SELECT pg_tde_set_key_using_database_key_provider(
 			key_name => 'test-db-key',
 			provider_name => 'file-vault'
 		)
 	}
 );
-$node->safe_psql(
-	'postgres', q{
+PGTDE::do_psql(
+	$node, 'postgres', q{
 		CREATE TABLE test_enc(
 			id SERIAL,
 			k VARCHAR(32),
@@ -38,24 +42,26 @@ $node->safe_psql(
 		) USING tde_heap
 	}
 );
-$node->safe_psql(
-	'postgres', q{
+PGTDE::do_psql(
+	$node, 'postgres', q{
 		INSERT INTO test_enc (k) VALUES ('foobar'), ('barfoo')
 	}
 );
 
 $node->restart;
 
-is( $node->safe_psql(
-		'postgres', q{
+is( PGTDE::do_psql(
+		$node, 'postgres', q{
 			SELECT * FROM test_enc ORDER BY id ASC
 		}
 	),
 	"1|foobar\n2|barfoo",
 	'tde_heap table can be read after server restart');
 
-my $tablefile = $node->data_dir . '/'
-  . $node->safe_psql('postgres', q{SELECT pg_relation_filepath('test_enc')});
+my $tablefile =
+  $node->data_dir . '/'
+  . PGTDE::do_psql($node, 'postgres',
+	q{SELECT pg_relation_filepath('test_enc')});
 my $tablefilecontents = slurp_file($tablefile);
 
 unlike($tablefilecontents, qr/foo/,

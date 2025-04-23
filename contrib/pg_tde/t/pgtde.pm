@@ -81,4 +81,31 @@ sub compare_results
 	return compare($expected_filename_with_path, $out_filename_with_path);
 }
 
+sub do_psql
+{
+	my ($node, $dbname, $sql, %params) = @_;
+
+	local %ENV = $node->_get_env();
+
+	my ($stdout, $stderr);
+	my $ret = $node->psql(
+		$dbname, $sql,
+		%params,
+		stdout => \$stdout,
+		stderr => \$stderr,
+		on_error_die => 0,
+		on_error_stop => 1);
+
+	# psql can emit stderr from NOTICEs etc
+	if ($stderr ne "")
+	{
+		diag("#### Begin standard error\n");
+		diag($stderr);
+		diag("\n#### End standard error\n");
+	}
+
+	die() if $ret;
+
+	return $stdout;
+}
 1;
