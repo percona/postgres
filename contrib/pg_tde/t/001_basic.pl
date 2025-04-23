@@ -17,17 +17,6 @@ $node->start;
 PGTDE::psql($node, 'postgres', 'CREATE EXTENSION IF NOT EXISTS pg_tde;');
 
 PGTDE::psql($node, 'postgres',
-	'SELECT extname, extversion FROM pg_extension WHERE extname = \'pg_tde\';'
-);
-
-PGTDE::psql($node, 'postgres',
-	'CREATE TABLE test_enc(id SERIAL,k INTEGER,PRIMARY KEY (id)) USING tde_heap;'
-);
-
-PGTDE::append_to_result_file("-- server restart");
-$node->restart;
-
-PGTDE::psql($node, 'postgres',
 	"SELECT pg_tde_add_database_key_provider_file('file-vault','/tmp/pg_tde_test_keyring.per');"
 );
 
@@ -42,9 +31,6 @@ PGTDE::psql($node, 'postgres',
 PGTDE::psql($node, 'postgres',
 	'INSERT INTO test_enc (k) VALUES (\'foobar\'),(\'barfoo\');');
 
-PGTDE::psql($node, 'postgres', 'SELECT * FROM test_enc ORDER BY id ASC;');
-
-PGTDE::append_to_result_file("-- server restart");
 $node->restart;
 
 PGTDE::psql($node, 'postgres', 'SELECT * FROM test_enc ORDER BY id ASC;');
@@ -62,10 +48,6 @@ PGTDE::append_to_result_file($strings);
 $strings = 'CONTAINS FOO (should be empty): ';
 $strings .= `strings $tablefile | grep foo`;
 PGTDE::append_to_result_file($strings);
-
-PGTDE::psql($node, 'postgres', 'DROP TABLE test_enc;');
-
-PGTDE::psql($node, 'postgres', 'DROP EXTENSION pg_tde;');
 
 $node->stop;
 
