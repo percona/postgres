@@ -1,13 +1,11 @@
 #!/usr/bin/perl
 
 use strict;
-use warnings;
-use File::Basename;
+use warnings FATAL => 'all';
+use PostgreSQL::Test::Cluster;
+use PostgreSQL::Test::Utils;
 use Test::More;
-use lib 't';
-use pgtde;
 
-PGTDE::setup_files_dir(basename($0));
 
 my $node = PostgreSQL::Test::Cluster->new('main');
 $node->init;
@@ -29,29 +27,16 @@ $node->safe_psql('postgres',
 
 $node->restart;
 
-PGTDE::psql($node, 'postgres', 'SELECT * FROM test_enc ORDER BY id ASC;');
+is($node->safe_psql('postgres', q{SELECT * FROM test_enc ORDER BY id ASC}),
+	"1|foobar\n2|barfoo", 'tde_heap table can be read after server restart');
 
-# Verify that we can't see the data in the file
-my $tablefile = $node->safe_psql('postgres', 'SHOW data_directory;');
-$tablefile .= '/';
-$tablefile .=
-  $node->safe_psql('postgres', 'SELECT pg_relation_filepath(\'test_enc\');');
+my $tablefile = $node->data_dir . '/'
+  . $node->safe_psql('postgres', q{SELECT pg_relation_filepath('test_enc')});
+my $tablefilecontents = slurp_file($tablefile);
 
-my $strings = 'TABLEFILE FOUND: ';
-$strings .= `(ls  $tablefile >/dev/null && echo yes) || echo no`;
-PGTDE::append_to_result_file($strings);
-
-$strings = 'CONTAINS FOO (should be empty): ';
-$strings .= `strings $tablefile | grep foo`;
-PGTDE::append_to_result_file($strings);
+unlike($tablefilecontents, qr/foo/,
+	'table file does not contain plaintext data');
 
 $node->stop;
-
-# Compare the expected and out file
-my $compare = PGTDE->compare_results();
-
-is($compare, 0,
-	"Compare Files: $PGTDE::expected_filename_with_path and $PGTDE::out_filename_with_path files."
-);
 
 done_testing();
