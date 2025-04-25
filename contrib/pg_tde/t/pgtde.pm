@@ -87,7 +87,8 @@ sub compare_results
 sub check_encryption_status
 {
 	my ($node, $table_name, $expected) = @_;
-	my $result = safe_psql('postgres', "SELECT pg_tde_is_encrypted('$table_name')");
+	my $result =
+	  safe_psql('postgres', "SELECT pg_tde_is_encrypted('$table_name')");
 	append_to_result_file($node->name . ": encryption check result for $table_name = $result");
 	is($result, $expected, "Check encryption status for '$table_name' on " . $node->name);
 }
