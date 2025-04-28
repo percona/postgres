@@ -158,8 +158,8 @@ nav:
   - Overview:
     - "Transparent Data Encryption (TDE)":
       - "What is TDE?": index/what-is-tde.md
-      - "How does TDE work?": index/how-does-tde-work.md
       - "How does TDE help?": index/how-tde-helps.md
+      - "How does TDE work?": index/how-does-tde-work.md
       - "What does TDE encrypt?": index/tde_encrypts.md
       - "Table access methods and TDE": index/table-access-method.md
     - "Limitations of TDE": index/tde-limitations.md
