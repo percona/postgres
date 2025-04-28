@@ -19,3 +19,5 @@ When a user creates an encrypted table using `pg_tde`, a new random key is gener
 The internal key itself is encrypted using the principal key. The principal key is stored externally in the key management store.
 
 Similarly when the user queries the encrypted table, the principal key is retrieved from the key store to decrypt the internal key. Then the same unique internal key for that table is used to decrypt the data, and unencrypted data gets returned to the user. So, effectively, every TDE table has a unique key, and each table key is encrypted using the principal key.
+
+[What does TDE encrypt?](tde-encrypts.md){.md-button}

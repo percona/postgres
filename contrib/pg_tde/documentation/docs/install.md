@@ -2,7 +2,7 @@
 
 Install `pg_tde` using one of the available installation methods:
 
-=== ":octicons-terminal-16: Package manager" 
+=== ":octicons-terminal-16: Package manager"
 
     The packages are available for the following operating systems:
     
@@ -23,9 +23,9 @@ Install `pg_tde` using one of the available installation methods:
 
     [Run in Docker :material-arrow-right:](https://docs.percona.com/postgresql/latest/docker.html){.md-button}
 
-=== ":octicons-download-16: Manual download"
+=== ":octicons-download-16: Tar download"
 
-    `pg_tde` is included in the Percona Distribution for PostgreSQL tarball. Check below to get access to a detailed step-by-step guide. 
+    `pg_tde` is included in the Percona Distribution for PostgreSQL tarball. Select the below link to access the step-by-step guide. 
 
     [Install from tarballs :material-arrow-right:](https://docs.percona.com/postgresql/17/tarball.html){.md-button}
 

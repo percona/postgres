@@ -157,20 +157,24 @@ nav:
   - Home: index.md
   - Overview:
     - "Transparent Data Encryption (TDE)":
-      - "What is TDE?": index/what-is-tde.md
+      - "Introduction": index/index.md
       - "How does TDE help?": index/how-tde-helps.md
       - "How does TDE work?": index/how-does-tde-work.md
       - "What does TDE encrypt?": index/tde-encrypts.md
       - "Table access methods and TDE": index/table-access-method.md
     - "Limitations of TDE": index/tde-limitations.md
     - "Versions and supported deployments": index/supported-versions.md
-  - get-help.md
-  - features.md
+  - features.md 
   - Get started:
     - "1. Install": "install.md"
-    - "Via apt": apt.md
-    - "Via yum": yum.md   
+    - "1.1 Via apt": apt.md
+    - "1.2 Via yum": yum.md   
     - "2. Set up": "setup.md"
+    - "2.1 Global Key Provider Configuration":
+      - "Introduction": global-key-provider-configuration/index.md
+      - "Set up with KMIP server": global-key-provider-configuration/kmip-server.md
+      - "Set up with HashiCorp Vault": global-key-provider-configuration/vault.md
+      - "Set up with local keyring file": global-key-provider-configuration/keyring.md
     - "3. Configure WAL encryption (tech preview)": wal-encryption.md
     - "4. Test TDE": "test.md"
   - functions.md
@@ -190,6 +194,7 @@ nav:
     - release-notes/beta.md
     - release-notes/alpha1.md
     - release-notes/mvp.md
+  - get-help.md
   - contribute.md
 
 

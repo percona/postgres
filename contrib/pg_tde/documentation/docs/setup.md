@@ -1,6 +1,10 @@
 # Set up `pg_tde`
 
-The steps below describe the default key configuration. This means that the entire PostgreSQL cluster is encrypted using the same global encryption key. For how to configure multi-tenancy, see the [Set up multi-tenancy](how-to/multi-tenant-setup.md) guidelines.
+The steps below describe the default key configuration. This means that the entire PostgreSQL cluster is encrypted using the same global encryption key. 
+
+!!! note
+
+    For how to configure multi-tenancy, see the [Set up multi-tenancy](how-to/multi-tenant-setup.md) guidelines.    
 
 --8<-- "kms-considerations.md"
 
