@@ -1,6 +1,6 @@
 # Set up `pg_tde`
 
-The steps below describe the default key configuration. This means that the entire PostgreSQL cluster is encrypted using the same global encryption key. For how to configure multi-tenancy, see the [Set up multi-tenancy](multi-tenant-setup.md) guidelines.
+The steps below describe the default key configuration. This means that the entire PostgreSQL cluster is encrypted using the same global encryption key. For how to configure multi-tenancy, see the [Set up multi-tenancy](how-to/multi-tenant-setup.md) guidelines.
 
 --8<-- "kms-considerations.md"
 
@@ -8,7 +8,7 @@ The steps below describe the default key configuration. This means that the enti
 
 Load the `pg_tde` at startup time. The extension requires additional shared memory; therefore, add the `pg_tde` value for the `shared_preload_libraries` parameter and restart the `postgresql` cluster.
 
-1. Use the [ALTER SYSTEM :octicons-link-external-16:](https://www.postgresql.org/docs/current/sql-altersystem.html) command from `psql` terminal to modify the `shared_preload_libraries` parameter. This requires superuser privileges. 
+1. Use the [ALTER SYSTEM :octicons-link-external-16:](https://www.postgresql.org/docs/current/sql-altersystem.html) command from `psql` terminal to modify the `shared_preload_libraries` parameter. This requires superuser privileges.
 
     ```sql
     ALTER SYSTEM SET shared_preload_libraries = 'pg_tde';
@@ -16,12 +16,12 @@ Load the `pg_tde` at startup time. The extension requires additional shared memo
 
 2. Start or restart the `postgresql` cluster to apply the changes.
 
-    * On Debian and Ubuntu:    
+    * On Debian and Ubuntu:
 
        ```sh
        sudo systemctl restart postgresql.service
        ```
-    
+
     * On RHEL and derivatives
 
        ```sh
@@ -34,9 +34,9 @@ Load the `pg_tde` at startup time. The extension requires additional shared memo
     CREATE EXTENSION pg_tde;
     ```
     
-    The `pg_tde` extension is created for the currently used database. To enable data encryption in other databases, you must explicitly run the `CREATE EXTENSION` command against them. 
+    The `pg_tde` extension is created for the currently used database. To enable data encryption in other databases, you must explicitly run the `CREATE EXTENSION` command against them.
 
-4. Enable the `pg_tde` extension automatically for every newly created database. Modify the template `template1` database as follows: 
+4. Enable the `pg_tde` extension automatically for every newly created database. Modify the template `template1` database as follows:
 
     ```sh
     psql -d template1 -c 'CREATE EXTENSION pg_tde;'
@@ -95,7 +95,7 @@ Load the `pg_tde` at startup time. The extension requires additional shared memo
 
     === "With a keyring file"
 
-        This setup is intended for development and stores the keys unencrypted in the specified data file. See [how to use external reference to parameters](external-parameters.md) to add an extra security layer to your setup.
+        This setup is intended for development and stores the keys unencrypted in the specified data file. See [how to use external reference to parameters](how-to/external-parameters.md) to add an extra security layer to your setup.
   
 
         ```sql
@@ -134,4 +134,3 @@ Load the `pg_tde` at startup time. The extension requires additional shared memo
 ## Next steps
 
 [WAL encryption](wal-encryption.md){.md-button}
- 

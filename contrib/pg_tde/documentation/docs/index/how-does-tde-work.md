@@ -12,7 +12,7 @@ You have the following options to store and manage principal keys externally:
 
 The encryption process is the following:
 
-![image](_images/tde-flow.png)
+![image](../_images/tde-flow.png)
 
 When a user creates an encrypted table using `pg_tde`, a new random key is generated internally for that table and is encrypted using the AES-CBC cipher algorithm. This key is used to encrypt all data the user inserts in that table. Eventually the encrypted data gets stored in the underlying storage.
 

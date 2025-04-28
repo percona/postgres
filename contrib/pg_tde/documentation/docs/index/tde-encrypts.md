@@ -8,4 +8,4 @@
 * Indexes on encrypted tables
 * Logical replication on encrypted tables
 
-[Check the full feature list](features.md){.md-button}
+[Check the full feature list](../features.md){.md-button}

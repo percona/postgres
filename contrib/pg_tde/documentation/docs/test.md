@@ -23,7 +23,7 @@ Here's how to do it:
     ) USING tde_heap;
     ```
     
-    Learn more about table access methods and how you can enable data encryption by default in the [Table access methods](table-access-method.md) section.
+    Learn more about table access methods and how you can enable data encryption by default in the [Table access methods](index/table-access-method.md) section.
 
 2. To check if the data is encrypted, run the following function:
 
@@ -53,4 +53,4 @@ SELECT count(*) FROM table_name;
 
 !!! hint
 
-    If you no longer wish to use `pg_tde` or wish to switch to using the `tde_heap_basic` access method, see how you can [decrypt your data](decrypt.md).
+    If you no longer wish to use `pg_tde` or wish to switch to using the `tde_heap_basic` access method, see how you can [decrypt your data](how-to/decrypt.md).

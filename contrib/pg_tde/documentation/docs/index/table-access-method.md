@@ -16,7 +16,7 @@ Custom access methods allow you to implement and define your own way of organizi
 
 Custom access methods are typically available with PostgreSQL extensions. When you install an extension and enable it in PostgreSQL, a custom access method is created.
 
-An example of such an approach is the `tde_heap` access method. It is automatically created **only** for the databases where you [enabled the `pg_tde` extension](setup.md) and configured the key provider, enabling you to encrypt the data.
+An example of such an approach is the `tde_heap` access method. It is automatically created **only** for the databases where you [enabled the `pg_tde` extension](../setup.md) and configured the key provider, enabling you to encrypt the data.
 
 To use a custom access method, specify the `USING` clause for the `CREATE TABLE` command:
 

@@ -160,7 +160,7 @@ nav:
       - "What is TDE?": index/what-is-tde.md
       - "How does TDE help?": index/how-tde-helps.md
       - "How does TDE work?": index/how-does-tde-work.md
-      - "What does TDE encrypt?": index/tde_encrypts.md
+      - "What does TDE encrypt?": index/tde-encrypts.md
       - "Table access methods and TDE": index/table-access-method.md
     - "Limitations of TDE": index/tde-limitations.md
     - "Versions and supported deployments": index/supported-versions.md
@@ -176,12 +176,12 @@ nav:
   - functions.md
   - command-line-tools.md
   - variables.md
-  - architecture.md
+  - Architecture: architecture/index.md
   - How to:
-    - "Uninstall pg_tde": uninstall.md
-    - "Set up multi-tenancy": multi-tenant-setup.md
-    - "Use reference to external parameters": external-parameters.md
-    - "Decrypt an encrypted table": decrypt.md
+    - "Uninstall pg_tde": how-to/uninstall.md
+    - "Set up multi-tenancy": how-to/multi-tenant-setup.md
+    - "Use reference to external parameters": how-to/external-parameters.md
+    - "Decrypt an encrypted table": how-to/decrypt.md
   - faq.md
   - Release notes:
     - "pg_tde release notes": release-notes/release-notes.md

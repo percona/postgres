@@ -28,14 +28,12 @@ These functions allow or revoke the use of the permissions management functions:
 * `pg_tde_grant_grant_management_to_role(role)`
 * `pg_tde_revoke_grant_management_from_role(role)`
 
-
 ### Inspections
 
 Use these functions to grant or revoke the use of query functions, which do not modify the encryption settings:
 
 * `pg_tde_grant_key_viewer_to_role(role)`
 * `pg_tde_revoke_key_viewer_from_role(role)`
-
 
 ## Key provider management
 
@@ -47,16 +45,16 @@ A key provider is a system or service responsible for managing encryption keys. 
 
 Key provider management includes the following operations:
 
-* creating a new key provider, 
-* changing an existing key provider, 
-* deleting a key provider, 
+* creating a new key provider,
+* changing an existing key provider,
+* deleting a key provider,
 * listing key providers.
 
 ### Add a provider
 
 You can add a new key provider using the provided functions, which are implemented for each provider type.
 
-There are two functions to add a key provider: one function adds it for the current database and another one - for the global scope. 
+There are two functions to add a key provider: one function adds it for the current database and another one - for the global scope.
 
 * `pg_tde_add_database_key_provider_<type>('provider-name', <provider specific parameters>)`
 * `pg_tde_add_global_key_provider_<type>('provider-name', <provider specific parameters>)`
@@ -106,16 +104,15 @@ where:
 * `secret_token` is an access token with read and write access to the above mount point
 * [optional] `ca_path` is the path of the CA file used for SSL verification
 
-All parameters can be either strings, or JSON objects [referencing remote parameters](external-parameters.md).
+All parameters can be either strings, or JSON objects [referencing remote parameters](how-to/external-parameters.md).
 
 **Never specify the secret token directly, use a remote parameter instead.**
-
 
 #### Adding or modifying KMIP providers
 
 The KMIP provider uses a remote KMIP server.
 
-Use these functions to add a KMIP provider: 
+Use these functions to add a KMIP provider:
 
 ```
 SELECT pg_tde_add_database_key_provider_kmip('provider-name','kmip-addr', `port`, '/path_to/server_certificate.pem', '/path_to/client_key.pem');
@@ -140,7 +137,7 @@ where:
 
 The specified access parameters require permission to read and write keys at the server.
 
-All parameters can be either strings, or JSON objects [referencing remote parameters](external-parameters.md).
+All parameters can be either strings, or JSON objects [referencing remote parameters](how-to/external-parameters.md).
 
 ### Adding or modifying local keyfile providers
 
@@ -169,7 +166,7 @@ where:
 * `provider-name` is the name of the provider. You can specify any name, it's for you to identify the provider.
 * `/path/to/the/key/provider/data.file` is the path to the key provider file.
 
-All parameters can be either strings, or JSON objects [referencing remote parameters](external-parameters.md).
+All parameters can be either strings, or JSON objects [referencing remote parameters](how-to/external-parameters.md).
 
 ### Delete a provider
 
@@ -190,7 +187,6 @@ These functions list the details of all key providers for the current database o
 * `pg_tde_list_all_global_key_providers()`
 
 **All configuration values include possibly sensitive values, such as passwords. Never specify these directly, use the remote configuration option instead.**
-
 
 ## Principal key management
 
@@ -239,7 +235,6 @@ The `ensure_new_key` parameter instructs the function how to handle a principal 
 * If set to `true` (default), a new key must be unique. 
   If the provider already stores a key by that name, the function returns an error.
 * If set to `false`, an existing principal key may be reused.
-
 
 ### pg_tde_set_default_key_using_global_key_provider
 
