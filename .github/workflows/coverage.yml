@@ -24,8 +24,8 @@ jobs:
       - name: Setup kmip and vault
         run: ci_scripts/setup-keyring-servers.sh
 
-      - name: Test postgres with TDE to generate coverage
-        run: ci_scripts/make-test.sh --tde-only
+      - name: Test postgres to generate coverage
+        run: ci_scripts/make-test.sh
 
       - name: Collect coverage data
         run: find . -type f -name "*.c" ! -path '*libkmip*' | xargs -t gcov -abcfu
