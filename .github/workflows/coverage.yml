@@ -30,9 +30,9 @@ jobs:
       - name: Upload coverage data to codecov.io
         uses: codecov/codecov-action@v5
         with:
-          directory: contrib/pg_tde
+          working-directory: contrib/pg_tde
           gcov_ignore: "*/libkmip/*"
-          gcov_include: "*.[ch]"
+          gcov_include: "*.c,*.h"
           token: ${{ secrets.CODECOV_TOKEN }}
           verbose: true
 
@@ -43,9 +43,15 @@ jobs:
           name: coverage-testlog-tde
           path: |
             build/testrun/
-            contrib/pg_tde/t/
-            contrib/pg_tde/results
-            contrib/pg_tde/regression.diffs
-            contrib/pg_tde/regression.out
-            contrib/pg_tde/*.gcov
+            contrib/*/log
+            contrib/*/regression.diffs
+            contrib/*/regression.out
+            contrib/*/results
+            contrib/*/tmp_check
+            contrib/*/t/results
+            src/test/*/log
+            src/test/*/regression.diffs
+            src/test/*/regression.out
+            src/test/*/results
+            src/test/*/tmp_check
           retention-days: 3
