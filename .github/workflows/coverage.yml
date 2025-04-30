@@ -25,19 +25,16 @@ jobs:
         run: ci_scripts/setup-keyring-servers.sh
 
       - name: Test postgres with TDE to generate coverage
-        run: ci_scripts/make-test.sh --tde-only
-
-      - name: Collect coverage data
-        run: find . -type f -name "*.c" ! -path '*libkmip*' | xargs -t gcov -abcfu
-        working-directory: contrib/pg_tde
+        run: ci_scripts/make-test.sh
 
       - name: Upload coverage data to codecov.io
         uses: codecov/codecov-action@v5
         with:
-          verbose: true
+          directory: contrib/pg_tde
+          gcov_ignore: "*/libkmip/*"
+          gcov_include: "*.[ch]"
           token: ${{ secrets.CODECOV_TOKEN }}
-          working-directory: contrib/pg_tde
-          files: "*.c.gcov"
+          verbose: true
 
       - name: Report on test fail
         uses: actions/upload-artifact@v4
@@ -52,5 +49,3 @@ jobs:
             contrib/pg_tde/regression.out
             contrib/pg_tde/*.gcov
           retention-days: 3
-
-
