@@ -1,8 +1,8 @@
-# Install `pg_tde` on Debian or Ubuntu
+# Install pg_tde on Debian or Ubuntu
 
-This tutorial shows how to install `pg_tde` with [Percona Distribution for PostgreSQL :octicons-link-external-16:](https://docs.percona.com/postgresql/latest/index.html).
+This page explains how to install `pg_tde` with [Percona Distribution for PostgreSQL :octicons-link-external-16:](https://docs.percona.com/postgresql/latest/index.html).
 
-Check the [list of supported platforms](install.md#__tabbed_1_1).
+Make sure you check the [list of supported platforms](install.md#__tabbed_1_1) before continuing.
 
 ## Preconditions
 
@@ -21,31 +21,31 @@ Check the [list of supported platforms](install.md#__tabbed_1_1).
     Install them with the following command:
 
     ```{.bash data-prompt="$"}
-    $ sudo apt-get install -y wget gnupg2 curl lsb-release
+        $ sudo apt-get install -y wget gnupg2 curl lsb-release
     ```
 
 2. Fetch the `percona-release` package
 
     ```{.bash data-prompt="$"}
-    $ sudo wget https://repo.percona.com/apt/percona-release_latest.generic_all.deb
+        $ sudo wget https://repo.percona.com/apt/percona-release_latest.generic_all.deb
     ```
 
 3. Install `percona-release`
 
     ```{.bash data-prompt="$"}
-    $ sudo dpkg -i percona-release_latest.generic_all.deb
+        $ sudo dpkg -i percona-release_latest.generic_all.deb
     ```
 
 4. Enable the Percona Distribution for PostgreSQL repository
 
     ```{.bash data-prompt="$"}
-    $ sudo percona-release enable-only ppg-{{pgversion17}} 
+        $ sudo percona-release enable-only ppg-{{pgversion17}} 
     ```
 
 6. Update the local cache
 
     ```bash
-    sudo apt-get update
+        sudo apt-get update
     ```
 
 ## Install `pg_tde` {.power-number}
@@ -59,7 +59,7 @@ Check the [list of supported platforms](install.md#__tabbed_1_1).
         The use of the `CASCADE` parameter deletes all tables that were created in the database with `pg_tde` enabled and also all dependencies upon the encrypted table (e.g. foreign keys in a non-encrypted table used in the encrypted one).     
 
         ```sql
-        DROP EXTENSION pg_tde CASCADE
+            DROP EXTENSION pg_tde CASCADE
         ```
 
     2. Uninstall the `percona-postgresql-17-pg-tde` package.  
@@ -67,9 +67,9 @@ Check the [list of supported platforms](install.md#__tabbed_1_1).
 After all [preconditions](#preconditions) are met, run the following command to install `pg_tde`:
 
 ```{.bash data-prompt="$"}
-$ sudo apt-get install -y percona-postgresql-17 
+    $ sudo apt-get install -y percona-postgresql-17 
 ```
 
 ## Next step
 
-[Setup :material-arrow-right:](setup.md){.md-button}
+[Configure pg_tde :material-arrow-right:](setup.md){.md-button}

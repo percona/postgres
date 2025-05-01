@@ -1,6 +1,6 @@
-# Installation
+# Install pg_tde
 
-Install `pg_tde` using one of the available installation methods:
+To install `pg_tde`, use one of the following methods:
 
 === ":octicons-terminal-16: Package manager"
 
@@ -29,6 +29,10 @@ Install `pg_tde` using one of the available installation methods:
 
     [Install from tarballs :material-arrow-right:](https://docs.percona.com/postgresql/17/tarball.html){.md-button}
 
-## Next steps
+Follow the configuration steps below to continue:
 
-[Setup :material-arrow-right:](setup.md){.md-button}
+[Configure pg_tde :material-arrow-right:](setup.md){.md-button}
+
+If you’ve already completed these steps, feel free to skip ahead to a later section:
+
+ [Configure Global Key Provider :material-arrow-right:](global-key-provider-configuration/index.md){.md-button} [Test pg_tde :material-arrow-right:](test.md){.md-button} [WAL encryption configuration :material-arrow-right:](global-key-provider-configuration/index.md){.md-button}

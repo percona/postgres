@@ -1,33 +1,31 @@
-# Test Transparent Data Encryption
+# Test pg_tde
 
 Enabling `pg_tde` extension for a database creates the table access method `tde_heap` . This access method enables you to encrypt the data.
-
-Here's how to do it:
 
 ## Encrypt data in a new table
 
 1. Create a table in the database for which you have [enabled `pg_tde`](setup.md) using the `tde_heap` access method as follows:
 
-    ```
+    ```sql
     CREATE TABLE <table_name> (<field> <datatype>) USING tde_heap;
     ```
 
     <i warning>:material-information: Warning:</i> Example for testing purposes only:
 
+    ```sql
+        CREATE TABLE albums (
+            album_id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+            artist_id INTEGER,
+            title TEXT NOT NULL,
+            released DATE NOT NULL
+        ) USING tde_heap;
     ```
-    CREATE TABLE albums (
-    album_id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    artist_id INTEGER,
-    title TEXT NOT NULL,
-    released DATE NOT NULL
-    ) USING tde_heap;
-    ```
-    
+
     Learn more about table access methods and how you can enable data encryption by default in the [Table access methods](index/table-access-method.md) section.
 
 2. To check if the data is encrypted, run the following function:
 
-    ```
+    ```sql
     SELECT pg_tde_is_encrypted('table_name');
     ```
 
@@ -41,16 +39,15 @@ You can encrypt an existing table. It requires rewriting the table, so for large
 
 Run the following command:
 
-```
+```sql
 ALTER TABLE table_name SET ACCESS METHOD tde_heap;
 ```
 
 Note that the `SET ACCESS METHOD` command drops hint bits and this may affect the performance. Running a plain `SELECT count(*)` or `VACUUM` commands on the entire table will check every tuple for visibility and set its hint bits. Therefore, after executing the `ALTER TABLE` command, run a simple `count(*)` on your tables:
 
-```
+```sql
 SELECT count(*) FROM table_name;
 ```
 
 !!! hint
-
     If you no longer wish to use `pg_tde` or wish to switch to using the `tde_heap_basic` access method, see how you can [decrypt your data](how-to/decrypt.md).

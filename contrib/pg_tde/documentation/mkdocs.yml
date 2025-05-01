@@ -166,24 +166,24 @@ nav:
     - "Versions and supported deployments": index/supported-versions.md
   - features.md 
   - Get started:
-    - "1. Install": "install.md"
+    - "1. Install pg_tde": install.md
     - "1.1 Via apt": apt.md
     - "1.2 Via yum": yum.md   
-    - "2. Set up": "setup.md"
-    - "2.1 Global Key Provider Configuration":
-      - "Introduction": global-key-provider-configuration/index.md
-      - "Set up with KMIP server": global-key-provider-configuration/kmip-server.md
-      - "Set up with HashiCorp Vault": global-key-provider-configuration/vault.md
-      - "Set up with local keyring file": global-key-provider-configuration/keyring.md
-    - "3. Configure WAL encryption (tech preview)": wal-encryption.md
-    - "4. Test TDE": "test.md"
+    - "2. Configure pg_tde": setup.md
+    - "2.1 Configure Key Management (KMS)": 
+      - "Overview of Key Management": global-key-provider-configuration/index.md
+      - "Configure KMIP server": global-key-provider-configuration/kmip-server.md
+      - "Configure HashiCorp Vault": global-key-provider-configuration/vault.md
+      - "Configure local keyring file": global-key-provider-configuration/keyring.md
+    - "3. Test pg_tde": test.md
+    - "4. Configure WAL encryption (tech preview)": wal-encryption.md
   - functions.md
   - command-line-tools.md
   - variables.md
   - Architecture: architecture/index.md
   - How to:
     - "Uninstall pg_tde": how-to/uninstall.md
-    - "Set up multi-tenancy": how-to/multi-tenant-setup.md
+    - "Configure multi-tenancy": how-to/multi-tenant-setup.md
     - "Use reference to external parameters": how-to/external-parameters.md
     - "Decrypt an encrypted table": how-to/decrypt.md
   - faq.md

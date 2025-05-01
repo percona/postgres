@@ -6,7 +6,7 @@ Here's how to do it:
 
 1. Drop the extension using the `DROP EXTENSION` command:
 
-    ```
+    ```sql
     DROP EXTENSION pg_tde;
     ```
 

@@ -1,15 +1,13 @@
 ## Considerations
 
-You can use the following options to manage encryption keys:
-
-* Use the Key Management Store (KMS). This is the recommended approach. `pg_tde` supports the following KMS:
+You can use external key providers to manage encryption keys. The recommended approach is to use the Key Management Store (KMS).  `pg_tde` supports the following KMS:
 
     * HashiCorp Vault as the key/value secrets engine version 2 with secret versioning
     * HashiCorp Vault as the KMIP server. The KMIP server is part of Vault Enterprise and requires a license
     * OpenBao as the open-source alternative to HashiCorp Vault KMIP 
     * A KMIP-compatible server. For testing and development purposes you can use PyKMIP
 
-    The KMS configuration is out of scope of this document. We assume that you have the KMS up and running. For the `pg_tde` configuration, you need the following information:  
+    For the `pg_tde` configuration, you need the following information:  
 
     === "Vault secrets engine"  
 
