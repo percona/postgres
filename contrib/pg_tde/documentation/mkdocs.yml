@@ -154,9 +154,10 @@ extra:
             feedback form</a>.
 
 nav:
-  - Home: index.md
-  - Overview:
-    - "Transparent Data Encryption (TDE)":
+  - "Home": index.md
+  - "Features": features.md 
+  - "Overview":
+    - "What is Transparent Data Encryption (TDE)?":
       - "Introduction": index/index.md
       - "How does TDE help?": index/how-tde-helps.md
       - "How does TDE work?": index/how-does-tde-work.md
@@ -164,8 +165,7 @@ nav:
       - "Table access methods and TDE": index/table-access-method.md
     - "Limitations of TDE": index/tde-limitations.md
     - "Versions and supported deployments": index/supported-versions.md
-  - features.md 
-  - Get started:
+  - "Get started":
     - "1. Install pg_tde": install.md
     - "1.1 Via apt": apt.md
     - "1.2 Via yum": yum.md   
@@ -180,14 +180,14 @@ nav:
   - functions.md
   - command-line-tools.md
   - variables.md
-  - Architecture: architecture/index.md
-  - How to:
+  - "Architecture": architecture/index.md
+  - "How to":
     - "Uninstall pg_tde": how-to/uninstall.md
     - "Configure multi-tenancy": how-to/multi-tenant-setup.md
     - "Use reference to external parameters": how-to/external-parameters.md
     - "Decrypt an encrypted table": how-to/decrypt.md
   - faq.md
-  - Release notes:
+  - "Release notes":
     - "pg_tde release notes": release-notes/release-notes.md
     - release-notes/rc.md
     - release-notes/beta2.md

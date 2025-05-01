@@ -7,7 +7,7 @@ Enabling `pg_tde` extension for a database creates the table access method `tde_
 1. Create a table in the database for which you have [enabled `pg_tde`](setup.md) using the `tde_heap` access method as follows:
 
     ```sql
-    CREATE TABLE <table_name> (<field> <datatype>) USING tde_heap;
+        CREATE TABLE <table_name> (<field> <datatype>) USING tde_heap;
     ```
 
     <i warning>:material-information: Warning:</i> Example for testing purposes only:
@@ -26,7 +26,7 @@ Enabling `pg_tde` extension for a database creates the table access method `tde_
 2. To check if the data is encrypted, run the following function:
 
     ```sql
-    SELECT pg_tde_is_encrypted('table_name');
+        SELECT pg_tde_is_encrypted('table_name');
     ```
 
     The function returns `t` if the table is encrypted and `f` - if not.
@@ -40,14 +40,14 @@ You can encrypt an existing table. It requires rewriting the table, so for large
 Run the following command:
 
 ```sql
-ALTER TABLE table_name SET ACCESS METHOD tde_heap;
+    ALTER TABLE table_name SET ACCESS METHOD tde_heap;
 ```
 
 Note that the `SET ACCESS METHOD` command drops hint bits and this may affect the performance. Running a plain `SELECT count(*)` or `VACUUM` commands on the entire table will check every tuple for visibility and set its hint bits. Therefore, after executing the `ALTER TABLE` command, run a simple `count(*)` on your tables:
 
 ```sql
-SELECT count(*) FROM table_name;
+    SELECT count(*) FROM table_name;
 ```
 
 !!! hint
-    If you no longer wish to use `pg_tde` or wish to switch to using the `tde_heap_basic` access method, see how you can [decrypt your data](how-to/decrypt.md).
+    If you no longer wish to use `pg_tde` or wish to switch the access method, see how you can [decrypt your data](how-to/decrypt.md).

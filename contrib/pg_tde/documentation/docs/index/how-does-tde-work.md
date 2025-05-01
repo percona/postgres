@@ -2,8 +2,8 @@
 
 To encrypt the data, two types of keys are used:
 
-* Internal encryption keys to encrypt user data. They are stored internally, near the data that they encrypt.
-* The principal key to encrypt database keys. It is kept separately from the database keys and is managed externally in the key management store.
+* **Internal encryption keys** to encrypt user data. They are stored internally, near the data that they encrypt.
+* The **principal key** to encrypt database keys. It is kept separately from the database keys and is managed externally in the key management store.
 
 !!! note
     For more information on managing and storing principal keys externally, see [Configure Global Key Provider](../global-key-provider-configuration/index)
