@@ -73,6 +73,7 @@ typedef enum JsonKeyringField
 	JK_KMIP_PORT,
 	JK_KMIP_CA_PATH,
 	JK_KMIP_CERT_PATH,
+	JK_KMIP_KEY_PATH,
 
 	/* must be the last */
 	JK_FIELDS_TOTAL
@@ -99,6 +100,7 @@ static const char *JK_FIELD_NAMES[JK_FIELDS_TOTAL] = {
 	[JK_KMIP_PORT] = "port",
 	[JK_KMIP_CA_PATH] = "caPath",
 	[JK_KMIP_CERT_PATH] = "certPath",
+	[JK_KMIP_KEY_PATH] = "keyPath",
 };
 
 #define MAX_JSON_DEPTH 64
@@ -362,6 +364,8 @@ json_kring_object_field_start(void *state, char *fname, bool isnull)
 						*field = JK_KMIP_CA_PATH;
 					else if (strcmp(fname, JK_FIELD_NAMES[JK_KMIP_CERT_PATH]) == 0)
 						*field = JK_KMIP_CERT_PATH;
+					else if (strcmp(fname, JK_FIELD_NAMES[JK_KMIP_KEY_PATH]) == 0)
+						*field = JK_KMIP_KEY_PATH;
 					else
 					{
 						*field = JK_FIELD_UNKNOWN;
@@ -457,6 +461,9 @@ json_kring_assign_scalar(JsonKeyringState *parse, JsonKeyringField field, char *
 			break;
 		case JK_KMIP_CERT_PATH:
 			kmip->kmip_cert_path = value;
+			break;
+		case JK_KMIP_KEY_PATH:
+			kmip->kmip_key_path = value;
 			break;
 
 		default:

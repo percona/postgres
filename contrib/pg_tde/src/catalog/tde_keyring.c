@@ -930,10 +930,16 @@ debug_print_kerying(GenericKeyring *keyring)
 			elog(debug_level, "Vault Keyring CA Path: %s", ((VaultV2Keyring *) keyring)->vault_ca_path);
 			break;
 		case KMIP_KEY_PROVIDER:
-			elog(debug_level, "KMIP Keyring Host: %s", ((KmipKeyring *) keyring)->kmip_host);
-			elog(debug_level, "KMIP Keyring Port: %s", ((KmipKeyring *) keyring)->kmip_port);
-			elog(debug_level, "KMIP Keyring CA Path: %s", ((KmipKeyring *) keyring)->kmip_ca_path);
-			elog(debug_level, "KMIP Keyring Cert Path: %s", ((KmipKeyring *) keyring)->kmip_cert_path);
+			{
+				KmipKeyring *kkeyring = (KmipKeyring *) keyring;
+				char	   *key_path = kkeyring->kmip_key_path == NULL ? "" : kkeyring->kmip_key_path;
+
+				elog(debug_level, "KMIP Keyring Host: %s", kkeyring->kmip_host);
+				elog(debug_level, "KMIP Keyring Port: %s", kkeyring->kmip_port);
+				elog(debug_level, "KMIP Keyring CA Path: %s", kkeyring->kmip_ca_path);
+				elog(debug_level, "KMIP Keyring Cert Path: %s", kkeyring->kmip_cert_path);
+				elog(debug_level, "KMIP Keyring Key Path: %s", key_path);
+			}
 			break;
 		case UNKNOWN_KEY_PROVIDER:
 			elog(debug_level, "Unknown Keyring ");

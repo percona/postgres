@@ -5,6 +5,12 @@ SELECT pg_tde_add_database_key_provider_kmip('kmip-prov','127.0.0.1', 5696, '/tm
                                      1
 (1 row)
 
+SELECT pg_tde_add_database_key_provider_kmip('kmip-prov2','127.0.0.1', 5696, '/tmp/server_certificate.pem', '/tmp/client_certificate_jane_smith.pem', '/tmp/client_key_jane_smith.pem');
+ pg_tde_add_database_key_provider_kmip 
+---------------------------------------
+                                     2
+(1 row)
+
 SELECT pg_tde_set_key_using_database_key_provider('kmip-key','kmip-prov');
  pg_tde_set_key_using_database_key_provider 
 --------------------------------------------
@@ -26,6 +32,18 @@ SELECT * from test_enc;
   2 | 2
   3 | 3
 (3 rows)
+
+SELECT pg_tde_verify_key();
+ pg_tde_verify_key 
+-------------------
+ 
+(1 row)
+
+SELECT pg_tde_set_key_using_database_key_provider('kmip-key2','kmip-prov2');
+ pg_tde_set_key_using_database_key_provider 
+--------------------------------------------
+ 
+(1 row)
 
 SELECT pg_tde_verify_key();
  pg_tde_verify_key 

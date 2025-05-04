@@ -69,7 +69,8 @@ CREATE FUNCTION pg_tde_add_database_key_provider_kmip(provider_name TEXT,
                                              kmip_host TEXT,
                                              kmip_port INT,
                                              kmip_ca_path TEXT,
-                                             kmip_cert_path TEXT)
+                                             kmip_cert_path TEXT,
+                                             kmip_key_path TEXT DEFAULT '')
 RETURNS INT
 LANGUAGE SQL
 BEGIN ATOMIC
@@ -80,14 +81,16 @@ BEGIN ATOMIC
                             'host' VALUE COALESCE(kmip_host, ''),
                             'port' VALUE kmip_port,
                             'caPath' VALUE COALESCE(kmip_ca_path, ''),
-                            'certPath' VALUE COALESCE(kmip_cert_path, '')));
+                            'certPath' VALUE COALESCE(kmip_cert_path, ''),
+                            'keyPath' VALUE COALESCE(kmip_key_path, '')));
 END;
 
 CREATE FUNCTION pg_tde_add_database_key_provider_kmip(provider_name TEXT,
                                              kmip_host JSON,
                                              kmip_port JSON,
                                              kmip_ca_path JSON,
-                                             kmip_cert_path JSON)
+                                             kmip_cert_path JSON,
+                                             kmip_key_path JSON)
 RETURNS INT
 LANGUAGE SQL
 BEGIN ATOMIC
@@ -98,7 +101,8 @@ BEGIN ATOMIC
                             'host' VALUE kmip_host,
                             'port' VALUE kmip_port,
                             'caPath' VALUE kmip_ca_path,
-                            'certPath' VALUE kmip_cert_path));
+                            'certPath' VALUE kmip_cert_path,
+                            'keyPath' VALUE kmip_key_path));
 END;
 
 
@@ -186,7 +190,8 @@ CREATE FUNCTION pg_tde_add_global_key_provider_kmip(provider_name TEXT,
                                                     kmip_host TEXT,
                                                     kmip_port INT,
                                                     kmip_ca_path TEXT,
-                                                    kmip_cert_path TEXT)
+                                                    kmip_cert_path TEXT,
+                                                    kmip_key_path TEXT DEFAULT '')
 RETURNS INT
 LANGUAGE SQL
 BEGIN ATOMIC
@@ -197,14 +202,16 @@ BEGIN ATOMIC
                             'host' VALUE COALESCE(kmip_host, ''),
                             'port' VALUE kmip_port,
                             'caPath' VALUE COALESCE(kmip_ca_path, ''),
-                            'certPath' VALUE COALESCE(kmip_cert_path, '')));
+                            'certPath' VALUE COALESCE(kmip_cert_path, ''),
+                            'keyPath' VALUE COALESCE(kmip_key_path, '')));
 END;
 
 CREATE FUNCTION pg_tde_add_global_key_provider_kmip(provider_name TEXT,
                                                     kmip_host JSON,
                                                     kmip_port JSON,
                                                     kmip_ca_path JSON,
-                                                    kmip_cert_path JSON)
+                                                    kmip_cert_path JSON,
+                                                    kmip_key_path JSON)
 RETURNS INT
 LANGUAGE SQL
 BEGIN ATOMIC
@@ -215,7 +222,8 @@ BEGIN ATOMIC
                             'host' VALUE kmip_host,
                             'port' VALUE kmip_port,
                             'caPath' VALUE kmip_ca_path,
-                            'certPath' VALUE kmip_cert_path));
+                            'certPath' VALUE kmip_cert_path,
+                            'keyPath' VALUE kmip_key_path));
 END;
 
 -- Key Provider Management
@@ -284,7 +292,8 @@ CREATE FUNCTION pg_tde_change_database_key_provider_kmip(provider_name TEXT,
                                                 kmip_host TEXT,
                                                 kmip_port INT,
                                                 kmip_ca_path TEXT,
-                                                kmip_cert_path TEXT)
+                                                kmip_cert_path TEXT,
+                                                kmip_key_path TEXT DEFAULT '')
 RETURNS INT
 LANGUAGE SQL
 BEGIN ATOMIC
@@ -295,14 +304,16 @@ BEGIN ATOMIC
                             'host' VALUE COALESCE(kmip_host, ''),
                             'port' VALUE kmip_port,
                             'caPath' VALUE COALESCE(kmip_ca_path, ''),
-                            'certPath' VALUE COALESCE(kmip_cert_path, '')));
+                            'certPath' VALUE COALESCE(kmip_cert_path, ''),
+                            'keyPath' VALUE COALESCE(kmip_key_path, '')));
 END;
 
 CREATE FUNCTION pg_tde_change_database_key_provider_kmip(provider_name TEXT,
                                                 kmip_host JSON,
                                                 kmip_port JSON,
                                                 kmip_ca_path JSON,
-                                                kmip_cert_path JSON)
+                                                kmip_cert_path JSON,
+                                                kmip_key_path JSON)
 RETURNS INT
 LANGUAGE SQL
 BEGIN ATOMIC
@@ -313,7 +324,8 @@ BEGIN ATOMIC
                             'host' VALUE kmip_host,
                             'port' VALUE kmip_port,
                             'caPath' VALUE kmip_ca_path,
-                            'certPath' VALUE kmip_cert_path));
+                            'certPath' VALUE kmip_cert_path,
+                            'keyPath' VALUE kmip_key_path));
 END;
 
 -- Global Tablespace Key Provider Management
@@ -382,7 +394,8 @@ CREATE FUNCTION pg_tde_change_global_key_provider_kmip(provider_name TEXT,
                                                        kmip_host TEXT,
                                                        kmip_port INT,
                                                        kmip_ca_path TEXT,
-                                                       kmip_cert_path TEXT)
+                                                       kmip_cert_path TEXT,
+                                                       kmip_key_path TEXT DEFAULT NULL)
 RETURNS INT
 LANGUAGE SQL
 BEGIN ATOMIC
@@ -393,14 +406,16 @@ BEGIN ATOMIC
                             'host' VALUE COALESCE(kmip_host, ''),
                             'port' VALUE kmip_port,
                             'caPath' VALUE COALESCE(kmip_ca_path, ''),
-                            'certPath' VALUE COALESCE(kmip_cert_path, '')));
+                            'certPath' VALUE COALESCE(kmip_cert_path, ''),
+                            'keyPath' VALUE COALESCE(kmip_key_path, '')));
 END;
 
 CREATE FUNCTION pg_tde_change_global_key_provider_kmip(provider_name TEXT,
                                                        kmip_host JSON,
                                                        kmip_port JSON,
                                                        kmip_ca_path JSON,
-                                                       kmip_cert_path JSON)
+                                                       kmip_cert_path JSON,
+                                                       kmip_key_path JSON)
 RETURNS INT
 LANGUAGE SQL
 BEGIN ATOMIC
@@ -411,7 +426,8 @@ BEGIN ATOMIC
                             'host' VALUE kmip_host,
                             'port' VALUE kmip_port,
                             'caPath' VALUE kmip_ca_path,
-                            'certPath' VALUE kmip_cert_path));
+                            'certPath' VALUE kmip_cert_path,
+                            'keyPath' VALUE kmip_key_path));
 END;
 
 CREATE FUNCTION pg_tde_is_encrypted(relation regclass)

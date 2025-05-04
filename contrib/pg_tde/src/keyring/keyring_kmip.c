@@ -51,6 +51,7 @@ kmipSslConnect(KmipCtx *ctx, KmipKeyring *kmip_keyring, bool throw_error)
 {
 	SSL		   *ssl = NULL;
 	int			level = throw_error ? ERROR : WARNING;
+	char	   *key_path = kmip_keyring->kmip_key_path == NULL || strlen(kmip_keyring->kmip_key_path) == 0 ? kmip_keyring->kmip_cert_path : kmip_keyring->kmip_key_path;
 
 	ctx->ssl = SSL_CTX_new(SSLv23_method());
 
@@ -61,10 +62,10 @@ kmipSslConnect(KmipCtx *ctx, KmipKeyring *kmip_keyring, bool throw_error)
 		return false;
 	}
 
-	if (SSL_CTX_use_PrivateKey_file(ctx->ssl, kmip_keyring->kmip_cert_path, SSL_FILETYPE_PEM) != 1)
+	if (SSL_CTX_use_PrivateKey_file(ctx->ssl, key_path, SSL_FILETYPE_PEM) != 1)
 	{
 		SSL_CTX_free(ctx->ssl);
-		ereport(level, errmsg("SSL error: Loading the client key failed"));
+		ereport(level, errmsg("SSL error: Loading the client key failed: %s", key_path));
 		return false;
 	}
 

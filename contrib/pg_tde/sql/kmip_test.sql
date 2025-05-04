@@ -1,6 +1,7 @@
 CREATE EXTENSION pg_tde;
 
 SELECT pg_tde_add_database_key_provider_kmip('kmip-prov','127.0.0.1', 5696, '/tmp/server_certificate.pem', '/tmp/client_key_jane_doe.pem');
+SELECT pg_tde_add_database_key_provider_kmip('kmip-prov2','127.0.0.1', 5696, '/tmp/server_certificate.pem', '/tmp/client_certificate_jane_smith.pem', '/tmp/client_key_jane_smith.pem');
 SELECT pg_tde_set_key_using_database_key_provider('kmip-key','kmip-prov');
 
 CREATE TABLE test_enc(
@@ -15,6 +16,9 @@ INSERT INTO test_enc (k) VALUES (3);
 
 SELECT * from test_enc;
 
+SELECT pg_tde_verify_key();
+
+SELECT pg_tde_set_key_using_database_key_provider('kmip-key2','kmip-prov2');
 SELECT pg_tde_verify_key();
 
 DROP TABLE test_enc;
