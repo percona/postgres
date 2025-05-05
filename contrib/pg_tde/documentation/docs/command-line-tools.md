@@ -37,7 +37,7 @@ Depending on the provider type, the additional parameters are:
 ```
 pg_tde_change_key_provider [-D <datadir>] <dbOid> <provider_name> file <filename>
 pg_tde_change_key_provider [-D <datadir>] <dbOid> <provider_name> vault <token> <url> <mount_path> [<ca_path>]
-pg_tde_change_key_provider [-D <datadir>] <dbOid> <provider_name> kmip <host> <port> <cert_path> [<ca_path>]
+pg_tde_change_key_provider [-D <datadir>] <dbOid> <provider_name> kmip <host> <port> <cert_path> <key_path> [<ca_path>] 
 ```
 
 ## pg_waldump

@@ -18,6 +18,7 @@ For testing purposes, you can use a lightweight PyKMIP server, which enables eas
         'kmip-IP', 
         5696,
         '/path_to/server_certificate.pem', 
+        '/path_to/client_cert.pem',
         '/path_to/client_key.pem'
     );
     ```
@@ -28,20 +29,22 @@ For testing purposes, you can use a lightweight PyKMIP server, which enables eas
 * `kmip-IP` is the IP address of a domain name of the KMIP server
 * `port` is the port to communicate with the KMIP server. Typically used port is 5696
 * `server-certificate` is the path to the certificate file for the KMIP server
-* `client key` is the path to the client key
+* `client_cert` is the path to the client certificate.
+* `client_key` is the path to the client key. Optional, if not specified the certificate file has to contain both the certificate and the key.
 
 <i warning>:material-information: Warning:</i> `pg_tde_add_global_key_provider_kmip` currently accepts only a combined client key and a client certificate for its final parameter, reffered to as `client key`.
 
 <i note>:material-information: Note:</i> The following example is for testing purposes only.
 
-```sql
+    ```sql
     SELECT pg_tde_add_global_key_provider_kmip(
         'kmip','127.0.0.1', 
         5696, 
         '/tmp/server_certificate.pem', 
+        '/tmp/client_cert_jane_doe.pem',
         '/tmp/client_key_jane_doe.pem'
     );
-```
+    ```
 
 For more information on related functions, see the link below:
 

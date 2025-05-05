@@ -175,6 +175,7 @@ nav:
       - "Configure KMIP server": global-key-provider-configuration/kmip-server.md
       - "Configure HashiCorp Vault": global-key-provider-configuration/vault.md
       - "Configure local keyring file": global-key-provider-configuration/keyring.md
+      - "Set the Global Principal Key": global-key-provider-configuration/set-principal-key.md
     - "3. Test pg_tde": test.md
     - "4. Configure WAL encryption (tech preview)": wal-encryption.md
   - functions.md

@@ -1,6 +1,6 @@
 # Set the Global Principal Key
 
-Add a default principal key
+Add a default principal key:
 
     ```sql
     SELECT pg_tde_set_default_key_using_global_key_provider('name-of-the-key','provider-name','ensure_new_key');
