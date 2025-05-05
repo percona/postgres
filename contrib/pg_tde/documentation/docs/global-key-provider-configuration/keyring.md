@@ -20,4 +20,4 @@ This setup is intended for development and stores the keys unencrypted in the sp
 
 ## Next Step
 
-[Test pg_tde :material-arrow-right:](../test.md){.md-button}
+[Validate Encryption with pg_tde :material-arrow-right:](../test.md){.md-button}

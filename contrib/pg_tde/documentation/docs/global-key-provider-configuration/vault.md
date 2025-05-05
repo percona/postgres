@@ -43,4 +43,4 @@ For more information on related functions, see the link below:
 
 ## Next Step
 
-[Test pg_tde :material-arrow-right:](../test.md){.md-button}
+[Validate Encryption with pg_tde :material-arrow-right:](../test.md){.md-button}
