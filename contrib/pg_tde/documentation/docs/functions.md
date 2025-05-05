@@ -19,13 +19,6 @@ Use these functions to grant or revoke permissions to manage the key of the curr
 
 Managment of the global scope is restricted to superusers only.
 
-### Permission management
-
-These functions allow or revoke the use of the permissions management functions:
-
-* `pg_tde_grant_grant_management_to_role(role)`
-* `pg_tde_revoke_grant_management_from_role(role)`
-
 ### Inspections
 
 Use these functions to grant or revoke the use of query functions, which do not modify the encryption settings:
@@ -147,14 +140,14 @@ This function is intended for development or quick testing, and stores the keys 
 
 Add a local keyfile provider:
 
-```
+```sql
 SELECT pg_tde_add_database_key_provider_file('provider-name','/path/to/the/key/provider/data.file');
 SELECT pg_tde_add_global_key_provider_file('provider-name','/path/to/the/key/provider/data.file');
 ```
 
 Change a local keyfile provider:
 
-```
+```sql
 SELECT pg_tde_change_database_key_provider_file('provider-name','/path/to/the/key/provider/data.file');
 SELECT pg_tde_change_global_key_provider_file('provider-name','/path/to/the/key/provider/data.file');
 ```
@@ -196,7 +189,7 @@ Princial keys are stored on key providers by the name specified in this function
 
 Creates or rotates the principal key for the current database using the specified database key provider and key name.
 
-```
+```sql
 SELECT pg_tde_set_key_using_database_key_provider('name-of-the-key','provider-name','ensure_new_key');
 ```
 
@@ -210,7 +203,7 @@ SELECT pg_tde_set_key_using_database_key_provider('name-of-the-key','provider-na
 
 Creates or rotates the global principal key using the specified global key provider and the key name. This key is used for global settings like WAL encryption.
 
-```
+```sql
 SELECT pg_tde_set_key_using_global_key_provider('name-of-the-key','provider-name','ensure_new_key');
 ```
 
@@ -224,7 +217,7 @@ SELECT pg_tde_set_key_using_global_key_provider('name-of-the-key','provider-name
 
 Creates or rotates the server principal key using the specified global key provider. Use this function to set a principal key for WAL encryption.
 
-```
+```sql
 SELECT pg_tde_set_server_key_using_global_key_provider('name-of-the-key','provider-name','ensure_new_key');
 ```
 
@@ -240,7 +233,7 @@ Creates or rotates the default principal key for the server using the specified 
 
 The default key is automatically used as a principal key  by any database that doesn't have an individual key provider and key configuration.
 
-```
+```sql
 SELECT pg_tde_set_default_key_using_global_key_provider('name-of-the-key','provider-name','ensure_new_key');
 ```
 
@@ -260,13 +253,13 @@ tables and indexes.
 
 To verify that a table is encrypted, run the following statement:
 
-```
+```sql
 SELECT pg_tde_is_encrypted('table_name');
 ```
 
 You can also verify if the table in a custom schema is encrypted. Pass the schema name for the function as follows:
 
-```
+```sql
 SELECT pg_tde_is_encrypted('schema.table_name');
 ```
 
@@ -276,7 +269,7 @@ This can additionally be used to verify that indexes and sequences are encrypted
 
 Displays information about the principal key for the current database, if it exists.
 
-```
+```sql
 SELECT pg_tde_key_info()
 ```
 
@@ -284,7 +277,7 @@ SELECT pg_tde_key_info()
 
 Displays information about the principal key for the server scope, if exists.
 
-```
+```sql
 SELECT pg_tde_server_key_info()
 ```
 
@@ -292,7 +285,7 @@ SELECT pg_tde_server_key_info()
 
 Displays the information about the default principal key, if it exists.
 
-```
+```sql
 SELECT pg_tde_default_key_info()
 ```
 
@@ -308,7 +301,7 @@ This function checks that the current database has a properly functional encrypt
 
 If any of the above checks fail, the function reports an error.
 
-```
+```sql
 SELECT pg_tde_verify_key()
 ```
 
@@ -324,7 +317,7 @@ This function checks that the server scope has a properly functional encryption 
 
 If any of the above checks fail, the function reports an error.
 
-```
+```sql
 SELECT pg_tde_verify_server_key()
 ```
 
@@ -340,6 +333,6 @@ This function checks that the default key is properly configured, which means:
 
 If any of the above checks fail, the function reports an error.
 
-```
+```sql
 SELECT pg_tde_verify_default_key()
 ```
