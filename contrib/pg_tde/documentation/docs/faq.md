@@ -53,7 +53,7 @@ Thus, to protect your sensitive data, consider using TDE to encrypt it at the ta
 
 ## Is TDE enough to ensure data security?
 
-No. TDE is an additional layer to ensure data security. It protects data at rest. Consider introducing also these measures:
+**No.** Transparent Data Encryption (TDE) adds an extra layer of security for data at rest. You should also consider implementing the following additional security features:
 
 * Access control and authentication
 * Strong network security like TLS
@@ -122,7 +122,7 @@ No, it's not yet supported. In our implementation we reply on OpenSSL libraries 
 
 Yes, you can encrypt an existing table. Run the `ALTER TABLE` command as follows:
 
-```
+```sql
 ALTER TABLE table_name SET ACCESS METHOD tde_heap;
 ```
 

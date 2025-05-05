@@ -1,6 +1,6 @@
-# Test pg_tde
+# Validate Encryption with pg_tde
 
-Enabling `pg_tde` extension for a database creates the table access method `tde_heap` . This access method enables you to encrypt the data.
+After enabling the `pg_tde` extension for a database, you can begin encrypting data using the `tde_heap` table access method.
 
 ## Encrypt data in a new table
 

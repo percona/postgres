@@ -158,10 +158,10 @@ nav:
   - "Features": features.md 
   - "Overview":
     - "What is Transparent Data Encryption (TDE)?":
-      - "Introduction": index/index.md
-      - "How does TDE help?": index/how-tde-helps.md
-      - "How does TDE work?": index/how-does-tde-work.md
-      - "What does TDE encrypt?": index/tde-encrypts.md
+      - "TDE Overview": index/index.md
+      - "TDE Benefits": index/how-tde-helps.md
+      - "How TDE work": index/how-does-tde-work.md
+      - "Encrypted Data Scope": index/tde-encrypts.md
       - "Table access methods and TDE": index/table-access-method.md
     - "Limitations of TDE": index/tde-limitations.md
     - "Versions and supported deployments": index/supported-versions.md
@@ -171,15 +171,19 @@ nav:
     - "1.2 Via yum": yum.md   
     - "2. Configure pg_tde": setup.md
     - "2.1 Configure Key Management (KMS)": 
-      - "Overview of Key Management": global-key-provider-configuration/index.md
-      - "Configure KMIP server": global-key-provider-configuration/kmip-server.md
-      - "Configure HashiCorp Vault": global-key-provider-configuration/vault.md
-      - "Configure local keyring file": global-key-provider-configuration/keyring.md
-      - "Set the Global Principal Key": global-key-provider-configuration/set-principal-key.md
-    - "3. Test pg_tde": test.md
+      - "Key Management Overview": global-key-provider-configuration/index.md
+      - "KMIP Configuration": global-key-provider-configuration/kmip-server.md
+      - "Vault Configuration": global-key-provider-configuration/vault.md
+      - "Keyring File Configuration": global-key-provider-configuration/keyring.md
+    - "2.2 Global Principal Key Configuration": global-key-provider-configuration/set-principal-key.md
+    - "3. Validate Encryption with pg_tde": test.md
     - "4. Configure WAL encryption (tech preview)": wal-encryption.md
   - functions.md
-  - command-line-tools.md
+  - "TDE CLI Tools": 
+    - "CLI Overview": command-line-tools/index.md
+    - "pg_tde_change_key_provider": command-line-tools/pg-tde-change-key-provider.md
+    - "pg_waldump": command-line-tools/pg-waldump.md
+    - "pg_checksums": command-line-tools/pg-tde-checksums.md
   - variables.md
   - "Architecture": architecture/index.md
   - "How to":

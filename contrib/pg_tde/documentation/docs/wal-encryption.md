@@ -85,7 +85,3 @@ Before turning WAL encryption on, you must follow the steps below to create your
     ```
 
 Now WAL files start to be encrypted for both encrypted and unencrypted tables.
-
-## Next steps
-
-[Test TDE](test.md){.md-button}
