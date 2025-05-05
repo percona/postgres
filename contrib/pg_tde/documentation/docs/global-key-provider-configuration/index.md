@@ -5,7 +5,7 @@ In production environments, storing encryption keys locally on the PostgreSQL se
 This section describes how you can configure `pg_tde` to use the local and external key providers.
 To use an external KMS with `pg_tde`, follow these two steps:
 
-1. [Configure a Key Provider](vault.md)(kmip-server.md)(keyring.md)
+1. Configure a Key Provider
 2. Set the [Global Principal Key](set-principal-key.md)
 
 !!! note
