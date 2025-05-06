@@ -63,7 +63,7 @@ Load the `pg_tde` at startup time. The extension requires additional shared memo
         * `port` is the port to communicate with the KMIP server. Typically used port is 5696.
         * `server-certificate` is the path to the certificate file for the KMIP server.
         * `client-cert` is the path to the client certificate.
-        * `client-key` is the path to the client key. This is optional, if not specified, the certificate key has to contain both the certifcate and the key.
+        * `client-key` (optional) is the path to the client key. If not specified, the certificate key has to contain both the certifcate and the key.
 
         <i warning>:material-information: Warning:</i> Note that pg_tde_add_global_key_provider_kmip currently accepts only a combined client key + client certificate for the last parameter of this function named as `client key`.
 
