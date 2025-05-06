@@ -1,4 +1,4 @@
-# How does TDE work?
+# How TDE works
 
 To encrypt the data, two types of keys are used:
 
@@ -6,7 +6,7 @@ To encrypt the data, two types of keys are used:
 * The **principal key** to encrypt database keys. It is kept separately from the database keys and is managed externally in the key management store.
 
 !!! note
-    For more information on managing and storing principal keys externally, see [Configure Global Key Provider](../global-key-provider-configuration/index.md)
+    For more information on managing and storing principal keys externally, see [Configure Global Key Provider](../global-key-provider-configuration/index.md).
 
 You have the following options to store and manage principal keys externally:
 
@@ -23,4 +23,4 @@ The internal key itself is encrypted using the principal key. The principal key 
 
 Similarly when the user queries the encrypted table, the principal key is retrieved from the key store to decrypt the internal key. Then the same unique internal key for that table is used to decrypt the data, and unencrypted data gets returned to the user. So, effectively, every TDE table has a unique key, and each table key is encrypted using the principal key.
 
-[What does TDE encrypt?](tde-encrypts.md){.md-button}
+[Encrypted Data Scope](tde-encrypts.md){.md-button}

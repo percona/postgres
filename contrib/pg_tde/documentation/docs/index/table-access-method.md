@@ -1,4 +1,4 @@
-# How TDE uses table access methods
+# Table access methods and TDE
 
 A table access method is the way how PostgreSQL stores the data in a table. The default table access method is `heap`. PostgreSQL organizes data in a heap structure, meaning there is no particular order to the rows in the table. Each row is stored independently and identified by its unique row identifier (TID).
 

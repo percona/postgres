@@ -1,4 +1,4 @@
-# What does TDE encrypt?
+# Encrypted Data Scope
 
 `pg_tde` encrypts the following components:
 
@@ -8,4 +8,4 @@
 * **Indexes** associated encrypted tables.
 * **Logical replication data** for encrypted tables (ensures encrypted content is preserved across replicas).
 
-[How TDE uses table access methods?](table-access-method.md){.md-button}
+[Table access methods and TDE](table-access-method.md){.md-button}

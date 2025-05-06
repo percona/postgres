@@ -1,6 +1,9 @@
 # Keyring File Configuration
 
 This setup is intended for development and stores the keys unencrypted in the specified data file. See [how to use external reference to parameters](../how-to/external-parameters.md) to add an extra security layer to your setup.
+
+!!! note
+     While keyfiles may be acceptable for **local** or **testing environments**, KMS integration is the recommended approach for production deployments.
   
 ```sql
     SELECT pg_tde_add_global_key_provider_file(
@@ -9,7 +12,7 @@ This setup is intended for development and stores the keys unencrypted in the sp
     );
 ```
 
-<i note>:material-information: Note:</i> The following example is used for testing purposes only:
+The following example is used for testing purposes only:
 
 ```sql
     SELECT pg_tde_add_global_key_provider_file(
@@ -20,4 +23,4 @@ This setup is intended for development and stores the keys unencrypted in the sp
 
 ## Next Step
 
-[Validate Encryption with pg_tde :material-arrow-right:](../test.md){.md-button}
+[Global Principal Key Configuration :material-arrow-right:](set-principal-key.md){.md-button}

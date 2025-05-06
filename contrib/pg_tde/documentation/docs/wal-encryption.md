@@ -1,10 +1,10 @@
-# WAL encryption configuration (tech preview)
+# Configure WAL encryption (tech preview)
 
 Before turning WAL encryption on, you must follow the steps below to create your first principal key.
 
 ## Create the principal key
 
-1. Create the `pg_tde` extesion if it does not exist:
+1. Create the `pg_tde` extension if it does not exist:
 
 ```sql
     CREATE EXTENSION IF NOT EXISTS pg_tde;
@@ -40,9 +40,9 @@ Before turning WAL encryption on, you must follow the steps below to create your
 
     ```sql
         SELECT pg_tde_add_global_key_provider_vault_v2('provider-name', 'secret_token', 'url', 'mount', 'ca_path');
-    ``` 
+    ```
 
-        where: 
+        where:
 
         * `provider-name` is the name you define for the key provider
         * `url` is the URL of the Vault server
@@ -50,9 +50,9 @@ Before turning WAL encryption on, you must follow the steps below to create your
         * `secret_token` is an access token with read and write access to the above mount point
         * [optional] `ca_path` is the path of the CA file used for SSL verification
 
-    === "With keyring file"
+    === "With keyring file (not recommended)"
 
-        This setup is intended for development and stores the keys unencrypted in the specified data file.    
+        This setup is intended for development and stores the keys unencrypted in the specified data file.
 
     ```sql
         SELECT pg_tde_add_global_key_provider_file('provider-name','/path/to/the/keyring/data.file');
@@ -85,3 +85,5 @@ Before turning WAL encryption on, you must follow the steps below to create your
     ```
 
 Now WAL files start to be encrypted for both encrypted and unencrypted tables.
+
+For more technical references related to architecture, variables or functions, see [Technical Reference](advanced-topics/index.md).

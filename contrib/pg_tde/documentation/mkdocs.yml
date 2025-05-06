@@ -160,34 +160,36 @@ nav:
     - "What is Transparent Data Encryption (TDE)?":
       - "TDE Overview": index/index.md
       - "TDE Benefits": index/how-tde-helps.md
-      - "How TDE work": index/how-does-tde-work.md
+      - "How TDE works": index/how-does-tde-work.md
       - "Encrypted Data Scope": index/tde-encrypts.md
       - "Table access methods and TDE": index/table-access-method.md
     - "Limitations of TDE": index/tde-limitations.md
-    - "Versions and supported deployments": index/supported-versions.md
+    - "Versions and supported PostgreSQL deployments": index/supported-versions.md
   - "Get started":
     - "1. Install pg_tde": install.md
     - "1.1 Via apt": apt.md
     - "1.2 Via yum": yum.md   
     - "2. Configure pg_tde": setup.md
     - "2.1 Configure Key Management (KMS)": 
-      - "Key Management Overview": global-key-provider-configuration/index.md
+      - "2.1 Configure Key Management (KMS)": global-key-provider-configuration/index.md
       - "KMIP Configuration": global-key-provider-configuration/kmip-server.md
       - "Vault Configuration": global-key-provider-configuration/vault.md
       - "Keyring File Configuration": global-key-provider-configuration/keyring.md
     - "2.2 Global Principal Key Configuration": global-key-provider-configuration/set-principal-key.md
     - "3. Validate Encryption with pg_tde": test.md
     - "4. Configure WAL encryption (tech preview)": wal-encryption.md
-  - functions.md
-  - "TDE CLI Tools": 
-    - "CLI Overview": command-line-tools/index.md
-    - "pg_tde_change_key_provider": command-line-tools/pg-tde-change-key-provider.md
-    - "pg_waldump": command-line-tools/pg-waldump.md
-    - "pg_checksums": command-line-tools/pg-tde-checksums.md
-  - variables.md
-  - "Architecture": architecture/index.md
-  - "How to":
-    - "Uninstall pg_tde": how-to/uninstall.md
+  - "Technical Reference":
+    - "Technical Reference": advanced-topics/index.md
+    - "Architecture": architecture/index.md
+    - "GUC Variables": variables.md
+    - "Functions": functions.md
+  - "TDE Operations":
+    - "TDE CLI Tools":
+      - "CLI Overview": command-line-tools/index.md
+      - "pg_tde_change_key_provider": command-line-tools/pg-tde-change-key-provider.md
+      - "pg_waldump": command-line-tools/pg-waldump.md
+      - "pg_checksums": command-line-tools/pg-tde-checksums.md 
+    - "Uninstall TDE": how-to/uninstall.md
     - "Configure multi-tenancy": how-to/multi-tenant-setup.md
     - "Use reference to external parameters": how-to/external-parameters.md
     - "Decrypt an encrypted table": how-to/decrypt.md

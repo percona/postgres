@@ -56,3 +56,5 @@ Run the following command:
 
 !!! hint
     Want to remove encryption later? See how to [decrypt your data](how-to/decrypt.md).
+
+[Configure WAL encryption (tech preview) :material-arrow-right:](wal-encryption.md){.md-button}

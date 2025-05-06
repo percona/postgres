@@ -25,7 +25,7 @@ You can configure `pg_tde` to use HashiCorp Vault as a global key provider for m
 * `mount` is the mount point where the keyring should store the keys
 * [optional] `ca_path` is the path of the CA file used for SSL verification
 
-<i note>:material-information: Note:</i> The following example is for testing purposes only. Use secure tokens and proper SSL validation in production environments:
+The following example is for testing purposes only. Use secure tokens and proper SSL validation in production environments:
 
 ```sql
     SELECT pg_tde_add_global_key_provider_vault_v2(

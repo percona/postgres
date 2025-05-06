@@ -34,7 +34,7 @@ For testing purposes, you can use a lightweight PyKMIP server, which enables eas
 
 <i warning>:material-information: Warning:</i> `pg_tde_add_global_key_provider_kmip` currently accepts only a combined client key and a client certificate for its final parameter, reffered to as `client key`.
 
-<i note>:material-information: Note:</i> The following example is for testing purposes only.
+The following example is for testing purposes only.
 
     ```sql
     SELECT pg_tde_add_global_key_provider_kmip(

@@ -9,8 +9,8 @@ To use an external KMS with `pg_tde`, follow these two steps:
 2. Set the [Global Principal Key](set-principal-key.md)
 
 !!! note
-     KMS integration is optional and intended for advanced deployments that require higher security standards.
+     While keyfiles may be acceptable for **local** or **testing environments**, KMS integration is the recommended approach for production deployments.
 
 Select your prefered configuration from the links below:
 
-[Configure KMIP :material-arrow-right:](kmip-server.md){.md-button} [Configure Vault :material-arrow-right:](vault.md){.md-button} [Configure Keyring :material-arrow-right:](keyring.md){.md-button}
+[KMIP Configuration :material-arrow-right:](kmip-server.md){.md-button} [Vault Configuration :material-arrow-right:](vault.md){.md-button} [Keyring File Configuration (not recommended) :material-arrow-right:](keyring.md){.md-button}
