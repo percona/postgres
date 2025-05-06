@@ -1,4 +1,4 @@
-# Configure local keyring file
+# Keyring File Configuration
 
 This setup is intended for development and stores the keys unencrypted in the specified data file. See [how to use external reference to parameters](../how-to/external-parameters.md) to add an extra security layer to your setup.
   

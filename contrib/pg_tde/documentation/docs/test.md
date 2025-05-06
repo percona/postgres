@@ -31,7 +31,9 @@ After enabling the `pg_tde` extension for a database, you can begin encrypting d
 
     The function returns `t` if the table is encrypted and `f` - if not.
 
-3. Rotate the principal key when needed, see [Principal key management](functions.md#principal-key-management))
+3. (Optional) Rotate the principal key.
+
+To re-encrypt the data using a new key, see [Principal key management](functions.md#principal-key-management)
 
 ## Encrypt existing table
 
@@ -43,11 +45,14 @@ Run the following command:
     ALTER TABLE table_name SET ACCESS METHOD tde_heap;
 ```
 
-Note that the `SET ACCESS METHOD` command drops hint bits and this may affect the performance. Running a plain `SELECT count(*)` or `VACUUM` commands on the entire table will check every tuple for visibility and set its hint bits. Therefore, after executing the `ALTER TABLE` command, run a simple `count(*)` on your tables:
+!!! important
+    Using `SET ACCESS METHOD` drops hint bits which can impact query performance. To restore performance, run:
 
-```sql
-    SELECT count(*) FROM table_name;
-```
+    ```sql
+        SELECT count(*) FROM table_name;
+    ```
+
+    This forces PostgreSQL to check every tuple for visibility and reset the hint bits.
 
 !!! hint
-    If you no longer wish to use `pg_tde` or wish to switch the access method, see how you can [decrypt your data](how-to/decrypt.md).
+    Want to remove encryption later? See how to [decrypt your data](how-to/decrypt.md).
