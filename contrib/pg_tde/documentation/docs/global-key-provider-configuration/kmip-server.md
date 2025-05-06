@@ -30,7 +30,7 @@ For testing purposes, you can use a lightweight PyKMIP server, which enables eas
 * `port` is the port to communicate with the KMIP server. Typically used port is 5696
 * `server-certificate` is the path to the certificate file for the KMIP server
 * `client_cert` is the path to the client certificate.
-* `client_key` is the path to the client key. Optional, if not specified the certificate file has to contain both the certificate and the key.
+* `client_key` (optional) is the path to the client key. If not specified, the certificate key has to contain both the certifcate and the key.
 
 <i warning>:material-information: Warning:</i> `pg_tde_add_global_key_provider_kmip` currently accepts only a combined client key and a client certificate for its final parameter, reffered to as `client key`.
 

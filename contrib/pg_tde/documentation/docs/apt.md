@@ -59,7 +59,7 @@ Make sure you check the [list of supported platforms](install.md#__tabbed_1_1) b
         The use of the `CASCADE` parameter deletes all tables that were created in the database with `pg_tde` enabled and also all dependencies upon the encrypted table (e.g. foreign keys in a non-encrypted table used in the encrypted one).     
 
         ```sql
-            DROP EXTENSION pg_tde CASCADE
+            DROP EXTENSION pg_tde CASCADE;
         ```
 
     2. Uninstall the `percona-postgresql-17-pg-tde` package.  

@@ -105,14 +105,14 @@ The KMIP provider uses a remote KMIP server.
 
 Use these functions to add a KMIP provider:
 
-```
+```sql
 SELECT pg_tde_add_database_key_provider_kmip('provider-name','kmip-addr', `port`, '/path_to/server_certificate.pem', '/path_to/client_key.pem');
 SELECT pg_tde_add_global_key_provider_kmip('provider-name','kmip-addr', `port`, '/path_to/server_certificate.pem', '/path_to/client_key.pem');
 ```
 
 These functions change the KMIP provider:
 
-```
+```sql
 SELECT pg_tde_change_database_key_provider_kmip('provider-name','kmip-addr', `port`, '/path_to/server_certificate.pem', '/path_to/client_key.pem');
 SELECT pg_tde_change_global_key_provider_kmip('provider-name','kmip-addr', `port`, '/path_to/server_certificate.pem', '/path_to/client_key.pem');
 ```
