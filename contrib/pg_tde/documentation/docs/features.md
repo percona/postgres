@@ -1,21 +1,22 @@
 # Features
 
-`pg_tde` is available in two variants (or "flavors"):
+`pg_tde` is available for [Percona Server for PostgreSQL](https://docs.percona.com/postgresql/17/)
+The Percona Server for PostgreSQL provides an extended Storage Manager API that allows integration with custom storage managers.
 
-* PostgreSQL Community
-* [Percona Server for PostgreSQL](https://docs.percona.com/postgresql/17/)
-The key difference between these variants lies in the set of supported features, which depends on the underlying Storage Manager API. The PostgreSQL Community variant uses the default Storage Manager API, while the Percona Server for PostgreSQL provides an extended Storage Manager API that allows integration with custom storage managers.
+The following features are available for the extension:
 
-The following table presents the features available for each variant:
+* Table encryption, including:
+  * Data tables
+  * Index data for encrypted tables
+  * TOAST tables
+  * Temporary tables created during database operations
+    !!! note
+        Metadata of those tables is not encrypted
+* Global Write-Ahead Log (WAL) encryption for data in both encrypted and non-encrypted tables
+* Single-tenancy support via a global keyring provider
+* Multi-tenancy support
+* Table-level granularity for encryption and access control
+* Multiple Key management options
+* Logical replication of encrypted tables
 
-| Percona Server for PostgreSQL version | PostgreSQL Community version (deprecated)  |
-|-------------------------------|----------------------|
-| Table encryption: <br> - data tables, <br> - **Index data for encrypted tables**, <br> - TOAST tables, <br> - temporary tables created during the database operation.<br><br> Metadata of those tables is not encrypted.  | Table encryption: <br> - data tables, <br> - TOAST tables <br> - temporary tables created during the database operation.<br><br> Metadata of those tables is not encrypted. |
-| **Global** Write-Ahead Log (WAL) encryption: for data in encrypted and non-encrypted tables | Write-Ahead Log (WAL) encryption of data in encrypted tables |
-| Single-tenancy support via global keyring provider |   | 
-| Multi-tenancy support | Multi-tenancy support |
-| Table-level granularity | Table-level granularity |
-| Key management via: <br> - HashiCorp Vault; <br> - KMIP server; <br> - Local keyfile | Key management via: <br> - HashiCorp Vault; <br> - Local keyfile |
-| Logical replication of encrypted tables | |
-
-[Get started](install.md){.md-button}
+You can continue learning about `pg_tde` in the [Overview](index/index.md), or get started with the installation by following the [Get started](install.md) guide.
