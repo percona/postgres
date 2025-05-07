@@ -12,15 +12,13 @@ The `pg_tde` extension requires additional shared memory. You need to configure 
 
 You can configure the `shared_preload_libraries` parameter in two ways:
 
-* Edit `shared_preload_libraries` manually:
-Add the following line to the `shared_preload_libraries` file:
+* Add the following line to the `shared_preload_libraries` file:
 
     ```bash
     shared_preload_libraries = 'pg_tde'
     ```
 
-* Use the [ALTER SYSTEM :octicons-link-external-16:](https://www.postgresql.org/docs/current/sql-altersystem.html) command:
-Run the following command in ```psql``` as a **superuser**:
+* Use the [ALTER SYSTEM :octicons-link-external-16:](https://www.postgresql.org/docs/current/sql-altersystem.html) command. Run the following command in `psql` as a **superuser**:
 
     ```sql
     ALTER SYSTEM SET shared_preload_libraries = 'pg_tde';
@@ -42,11 +40,11 @@ Restart the `postgresql` cluster to apply the configuration.
        sudo systemctl restart postgresql-17
        ```
 
-## 3. Create the extension in the Database
+## 3. Create the extension
 
 To do this after restarting PostgreSQL, create the extension in your database by running the [CREATE EXTENSION :octicons-link-external-16:](https://www.postgresql.org/docs/current/sql-createextension.html) command as a **superuser** or **database owner**. Connect to `psql` and type:
 
-```
+```sql
     CREATE EXTENSION pg_tde;
 ```
 

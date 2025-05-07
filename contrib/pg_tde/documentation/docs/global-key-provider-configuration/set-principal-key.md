@@ -29,6 +29,7 @@ This example is for testing purposes only. Replace the key name and provider nam
         'ensure_new_key'
     );
 ```
+
 !!! note
     The key is auto-generated.
 

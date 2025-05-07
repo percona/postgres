@@ -184,7 +184,7 @@ nav:
     - "GUC Variables": variables.md
     - "Functions": functions.md
   - "TDE Operations":
-    - "TDE CLI Tools":
+    - "pg_tde CLI Tools":
       - "CLI Overview": command-line-tools/index.md
       - "pg_tde_change_key_provider": command-line-tools/pg-tde-change-key-provider.md
       - "pg_waldump": command-line-tools/pg-waldump.md

@@ -1,4 +1,4 @@
-# Limitations of TDE
+# Limitations of pg_tde
 
 * Keys in the local keyfile are stored unencrypted. For better security we recommend using the Key management storage.
 * System tables are currently not encrypted. This means that statistics data and database metadata are currently not encrypted.

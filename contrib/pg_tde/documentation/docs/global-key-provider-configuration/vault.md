@@ -3,6 +3,7 @@
 You can configure `pg_tde` to use HashiCorp Vault as a global key provider for managing encryption keys securely.
 
 !!! note
+
     This guide assumes that your Vault server is already set up and accessible. Vault configuration is outside the scope of this document, see [Vault's official documentation](https://developer.hashicorp.com/vault/docs) for more information.
 
 ## Example usage
