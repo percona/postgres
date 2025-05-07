@@ -204,14 +204,14 @@ SELECT pg_tde_set_key_using_database_key_provider('name-of-the-key','provider-na
 Creates or rotates the global principal key using the specified global key provider and the key name. This key is used for global settings like WAL encryption.
 
 ```sql
-SELECT pg_tde_set_key_using_global_key_provider('name-of-the-key','provider-name','ensure_new_key');
+  SELECT pg_tde_set_key_using_global_key_provider('name-of-the-key','provider-name','ensure_new_key');
 ```
 
  The `ensure_new_key` parameter instructs the function how to handle a principal key during key rotation:
 
-* If set to `true` (default), a new key must be unique.
+* If set to `true`, a new key must be unique.
   If the provider already stores a key by that name, the function returns an error.
-* If set to `false`, an existing principal key may be reused.
+* If set to `false` (default), an existing principal key may be reused.
 
 ### pg_tde_set_server_key_using_global_key_provider
 
