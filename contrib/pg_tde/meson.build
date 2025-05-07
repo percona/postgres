@@ -80,10 +80,9 @@ install_data(
   kwargs: contrib_data_args,
 )
 
-# toast_decrypt needs to be the first test when running with pg_tde
-# preinstalled and default_principal_key needs to run after key_provider.
+# create_database must run after default_principal_key which must run after
+# key_provider.
 sql_tests = [
-  'toast_decrypt',
   'access_control',
   'alter_index',
   'cache_alloc',
@@ -96,9 +95,11 @@ sql_tests = [
   'relocate',
   'recreate_storage',
   'tablespace',
+  'toast_decrypt',
   'vault_v2_test',
   'version',
   'default_principal_key',
+  'create_database',
 ]
 
 tap_tests = [
@@ -114,6 +115,9 @@ tap_tests = [
   't/010_change_key_provider.pl',
   't/011_unlogged_tables.pl',
   't/012_replication.pl',
+  't/013_crash_recovery.pl',
+  't/014_pg_waldump_basic.pl',
+  't/015_pg_waldump_fullpage.pl',
 ]
 
 tests += {

@@ -41,39 +41,40 @@
  * 16 byte blocks.
  */
 
-static const EVP_CIPHER *cipher_cbc;
-static const EVP_CIPHER *cipher_gcm;
-static const EVP_CIPHER *cipher_ctr_ecb;
+static const EVP_CIPHER *cipher_cbc = NULL;
+static const EVP_CIPHER *cipher_gcm = NULL;
+static const EVP_CIPHER *cipher_ctr_ecb = NULL;
 
 void
 AesInit(void)
 {
-	static int	initialized = 0;
+	static bool initialized = false;
 
-	if (!initialized)
-	{
-		OpenSSL_add_all_algorithms();
-		ERR_load_crypto_strings();
+	Assert(!initialized);
 
-		cipher_cbc = EVP_aes_128_cbc();
-		cipher_gcm = EVP_aes_128_gcm();
-		cipher_ctr_ecb = EVP_aes_128_ecb();
+	OpenSSL_add_all_algorithms();
+	ERR_load_crypto_strings();
 
-		initialized = 1;
-	}
+	cipher_cbc = EVP_aes_128_cbc();
+	cipher_gcm = EVP_aes_128_gcm();
+	cipher_ctr_ecb = EVP_aes_128_ecb();
+
+	initialized = true;
 }
 
 static void
-AesRunCtr(EVP_CIPHER_CTX **ctxPtr, int enc, const unsigned char *key, const unsigned char *iv, const unsigned char *in, int in_len, unsigned char *out)
+AesEcbEncrypt(EVP_CIPHER_CTX **ctxPtr, const unsigned char *key, const unsigned char *in, int in_len, unsigned char *out)
 {
 	int			out_len;
 
 	if (*ctxPtr == NULL)
 	{
+		Assert(cipher_ctr_ecb != NULL);
+
 		*ctxPtr = EVP_CIPHER_CTX_new();
 		EVP_CIPHER_CTX_init(*ctxPtr);
 
-		if (EVP_CipherInit_ex(*ctxPtr, cipher_ctr_ecb, NULL, key, iv, enc) == 0)
+		if (EVP_CipherInit_ex(*ctxPtr, cipher_ctr_ecb, NULL, key, NULL, 1) == 0)
 			ereport(ERROR,
 					errmsg("EVP_CipherInit_ex failed. OpenSSL error: %s", ERR_error_string(ERR_get_error(), NULL)));
 
@@ -94,6 +95,7 @@ AesRunCbc(int enc, const unsigned char *key, const unsigned char *iv, const unsi
 	int			out_len_final;
 	EVP_CIPHER_CTX *ctx = NULL;
 
+	Assert(cipher_cbc != NULL);
 	Assert(in_len % EVP_CIPHER_block_size(cipher_cbc) == 0);
 
 	ctx = EVP_CIPHER_CTX_new();
@@ -143,6 +145,7 @@ AesGcmEncrypt(const unsigned char *key, const unsigned char *iv, const unsigned 
 	int			out_len_final;
 	EVP_CIPHER_CTX *ctx;
 
+	Assert(cipher_gcm != NULL);
 	Assert(in_len % EVP_CIPHER_block_size(cipher_gcm) == 0);
 
 	ctx = EVP_CIPHER_CTX_new();
@@ -251,12 +254,12 @@ AesGcmDecrypt(const unsigned char *key, const unsigned char *iv, const unsigned 
 	return true;
 }
 
-/* This function assumes that the out buffer is big enough: at least (blockNumber2 - blockNumber1) * 16 bytes
+/*
+ * This function assumes that the out buffer is big enough: at least (blockNumber2 - blockNumber1) * 16 bytes
  */
 void
-Aes128EncryptedZeroBlocks(void *ctxPtr, const unsigned char *key, const char *iv_prefix, uint64_t blockNumber1, uint64_t blockNumber2, unsigned char *out)
+AesCtrEncryptedZeroBlocks(void *ctxPtr, const unsigned char *key, const char *iv_prefix, uint64_t blockNumber1, uint64_t blockNumber2, unsigned char *out)
 {
-	const unsigned char iv[16] = {0,};
 	unsigned char *p;
 
 	Assert(blockNumber2 >= blockNumber1);
@@ -277,5 +280,5 @@ Aes128EncryptedZeroBlocks(void *ctxPtr, const unsigned char *key, const char *iv
 		p += sizeof(j);
 	}
 
-	AesRunCtr(ctxPtr, 1, key, iv, out, p - out, out);
+	AesEcbEncrypt(ctxPtr, key, out, p - out, out);
 }

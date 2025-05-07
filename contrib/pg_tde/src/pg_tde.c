@@ -25,7 +25,6 @@
 #include "access/xloginsert.h"
 #include "keyring/keyring_api.h"
 #include "common/pg_tde_shmem.h"
-#include "common/pg_tde_utils.h"
 #include "catalog/tde_principal_key.h"
 #include "keyring/keyring_file.h"
 #include "keyring/keyring_vault.h"
@@ -33,30 +32,16 @@
 #include "utils/builtins.h"
 #include "smgr/pg_tde_smgr.h"
 #include "catalog/tde_global_space.h"
+#include "pg_tde_event_capture.h"
 #include "utils/percona.h"
 #include "pg_tde_guc.h"
 #include "access/tableam.h"
 
 #include <sys/stat.h>
 
-#define MAX_ON_INSTALLS 5
-
 PG_MODULE_MAGIC;
 
-struct OnExtInstall
-{
-	pg_tde_on_ext_install_callback function;
-	void	   *arg;
-};
-
-static struct OnExtInstall on_ext_install_list[MAX_ON_INSTALLS];
-static int	on_ext_install_index = 0;
 static void pg_tde_init_data_dir(void);
-static void run_extension_install_callbacks(XLogExtensionInstall *xlrec, bool redo);
-void		_PG_init(void);
-Datum		pg_tde_extension_initialize(PG_FUNCTION_ARGS);
-Datum		pg_tde_version(PG_FUNCTION_ARGS);
-Datum		pg_tdeam_handler(PG_FUNCTION_ARGS);
 
 static shmem_startup_hook_type prev_shmem_startup_hook = NULL;
 static shmem_request_hook_type prev_shmem_request_hook = NULL;
@@ -87,8 +72,6 @@ tde_shmem_startup(void)
 		prev_shmem_startup_hook();
 
 	TdeShmemInit();
-	AesInit();
-
 	TDEXLogShmemInit();
 	TDEXLogSmgrInit();
 }
@@ -110,34 +93,39 @@ _PG_init(void)
 
 	check_percona_api_version();
 
+	AesInit();
 	TdeGucInit();
-
+	TdeEventCaptureInit();
 	InitializePrincipalKeyInfo();
 	InitializeKeyProviderInfo();
+	InstallFileKeyring();
+	InstallVaultV2Keyring();
+	InstallKmipKeyring();
+	RegisterTdeRmgr();
+	RegisterStorageMgr();
 
 	prev_shmem_request_hook = shmem_request_hook;
 	shmem_request_hook = tde_shmem_request;
 	prev_shmem_startup_hook = shmem_startup_hook;
 	shmem_startup_hook = tde_shmem_startup;
+}
 
-	InstallFileKeyring();
-	InstallVaultV2Keyring();
-	InstallKmipKeyring();
-	RegisterTdeRmgr();
-
-	RegisterStorageMgr();
+static void
+extension_install(Oid databaseId)
+{
+	/* Initialize the TDE dir */
+	pg_tde_init_data_dir();
+	key_provider_startup_cleanup(databaseId);
+	principal_key_startup_cleanup(databaseId);
 }
 
 Datum
 pg_tde_extension_initialize(PG_FUNCTION_ARGS)
 {
-	/* Initialize the TDE map */
 	XLogExtensionInstall xlrec;
 
-	pg_tde_init_data_dir();
-
 	xlrec.database_id = MyDatabaseId;
-	run_extension_install_callbacks(&xlrec, false);
+	extension_install(xlrec.database_id);
 
 	/*
 	 * Also put this info in xlog, so we can replicate the same on the other
@@ -147,34 +135,13 @@ pg_tde_extension_initialize(PG_FUNCTION_ARGS)
 	XLogRegisterData((char *) &xlrec, sizeof(XLogExtensionInstall));
 	XLogInsert(RM_TDERMGR_ID, XLOG_TDE_INSTALL_EXTENSION);
 
-	PG_RETURN_NULL();
+	PG_RETURN_VOID();
 }
+
 void
 extension_install_redo(XLogExtensionInstall *xlrec)
 {
-	pg_tde_init_data_dir();
-	run_extension_install_callbacks(xlrec, true);
-}
-
-/* ----------------------------------------------------------------
- *		on_ext_install
- *
- *		Register ordinary callback to perform initializations
- *		run at the time of pg_tde extension installs.
- * ----------------------------------------------------------------
- */
-void
-on_ext_install(pg_tde_on_ext_install_callback function, void *arg)
-{
-	if (on_ext_install_index >= MAX_ON_INSTALLS)
-		ereport(FATAL,
-				errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
-				errmsg_internal("out of on extension install slots"));
-
-	on_ext_install_list[on_ext_install_index].function = function;
-	on_ext_install_list[on_ext_install_index].arg = arg;
-
-	++on_ext_install_index;
+	extension_install(xlrec->database_id);
 }
 
 /* Creates a tde directory for internal files if not exists */
@@ -191,28 +158,6 @@ pg_tde_init_data_dir(void)
 					errmsg("could not create tde directory \"%s\": %m",
 						   PG_TDE_DATA_DIR));
 	}
-}
-
-/* ------------------
- * Run all of the on_ext_install routines and execute those one by one
- * ------------------
- */
-static void
-run_extension_install_callbacks(XLogExtensionInstall *xlrec, bool redo)
-{
-	int			i;
-	int			tde_table_count = 0;
-
-	/*
-	 * Get the number of tde tables in this database should always be zero.
-	 * But still, it prevents the cleanup if someone explicitly calls this
-	 * function.
-	 */
-	if (!redo)
-		tde_table_count = get_tde_tables_count();
-	for (i = 0; i < on_ext_install_index; i++)
-		on_ext_install_list[i]
-			.function(tde_table_count, xlrec, redo, on_ext_install_list[i].arg);
 }
 
 /* Returns package version */

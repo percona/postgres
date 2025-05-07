@@ -6,7 +6,6 @@ site_author: Percona LLC
 copyright: >
   <a href="https://www.percona.com/about">Percona LLC</a> and/or its affiliates © 2025 — <a href="#__consent">Cookie Consent</a>
 
- 
 repo_name: percona/postgres
 repo_url: https://github.com/percona/postgres
 edit_uri: edit/TDE_REL_17_STABLE/contrib/pg_tde/documentation/docs
@@ -54,8 +53,6 @@ theme:
     - navigation.tracking
     - navigation.indexes
 
-
-
 extra_css:
   - https://unicons.iconscout.com/release/v3.0.3/css/line.css
   - https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.4.0/css/font-awesome.min.css
@@ -100,7 +97,6 @@ markdown_extensions:
         custom_icons:
          - _resource/.icons
 
-
 plugins:
   - search:
       separator: '[\s\-,:!=\[\]()"/]+|(?!\b)(?=[A-Z][a-z])|\.(?!\d)|&[lg]t;'
@@ -128,8 +124,8 @@ plugins:
   #        cover_logo: docs/_images/Percona_Logo_Color.png
   #        debug_html: false
 #          two_columns_level: 3
-  #        custom_template_path: _resource/templates
-  #        enabled_if_env: ENABLE_PDF_EXPORT   
+          custom_template_path: _resource/templates
+          enabled_if_env: ENABLE_PDF_EXPORT
 
 extra:
   version:
@@ -148,8 +144,8 @@ extra:
         - icon: material/emoticon-sad-outline
           name: This page could be improved
           data: 0
-          note: >- 
-            Thank you for your feedback! Help us improve by using our 
+          note: >-
+            Thank you for your feedback! Help us improve by using our
             <a href="https://docs.google.com/forms/d/1bkWACehjqlwA0AKf-qTJcXvYbOSYgze8iTPXjntqmNo/edit" target="_blank" rel="noopener">
             feedback form</a>.
 
@@ -203,5 +199,3 @@ nav:
     - release-notes/alpha1.md
     - release-notes/mvp.md
   - contribute.md
-
-

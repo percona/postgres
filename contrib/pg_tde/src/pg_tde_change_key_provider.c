@@ -1,4 +1,3 @@
-
 #include "postgres_fe.h"
 
 #include "pg_tde.h"
@@ -63,7 +62,6 @@ build_json(char *buffer, int count,...)
 		{
 			ptr = strcat(ptr, ",");
 		}
-
 
 		ptr = strcat(ptr, "\"");
 		ptr = strcat(ptr, key);
@@ -146,7 +144,6 @@ main(int argc, char *argv[])
 		}
 		argstart += 2;
 	}
-
 
 	if (datadir == NULL || strlen(datadir) == 0)
 	{

@@ -176,7 +176,7 @@ TDEXLogWriteEncryptedPages(int fd, const void *buf, size_t count, off_t offset,
 #endif
 
 	CalcXLogPageIVPrefix(tli, segno, key->base_iv, iv_prefix);
-	PG_TDE_ENCRYPT_DATA(iv_prefix, offset,
+	pg_tde_stream_crypt(iv_prefix, offset,
 						(char *) buf, count,
 						enc_buff, key, &EncryptionCryptCtx);
 
@@ -270,10 +270,10 @@ tdeheap_xlog_seg_read(int fd, void *buf, size_t count, off_t offset,
 		 count, offset, offset, LSN_FORMAT_ARGS(segno));
 #endif
 
-	/*
-	 * Read data from disk
-	 */
 	readsz = pg_pread(fd, buf, count, offset);
+
+	if (readsz <= 0)
+		return readsz;
 
 	if (!keys)
 	{
@@ -302,7 +302,7 @@ tdeheap_xlog_seg_read(int fd, void *buf, size_t count, off_t offset,
 #endif
 
 	XLogSegNoOffsetToRecPtr(segno, offset, segSize, data_start);
-	XLogSegNoOffsetToRecPtr(segno, offset + count, segSize, data_end);
+	XLogSegNoOffsetToRecPtr(segno, offset + readsz, segSize, data_end);
 
 	/*
 	 * TODO: this is higly ineffective. We should get rid of linked list and
@@ -330,24 +330,25 @@ tdeheap_xlog_seg_read(int fd, void *buf, size_t count, off_t offset,
 				off_t		dec_off = XLogSegmentOffset(Max(data_start, curr_key->start_lsn), segSize);
 				off_t		dec_end = XLogSegmentOffset(Min(data_end, curr_key->end_lsn), segSize);
 				size_t		dec_sz;
+				char	   *dec_buf = (char *) buf + (dec_off - offset);
+
+				Assert(dec_off >= offset);
 
 				CalcXLogPageIVPrefix(tli, segno, curr_key->key->base_iv, iv_prefix);
 
 				/* We have reached the end of the segment */
 				if (dec_end == 0)
 				{
-					dec_end = offset + count;
+					dec_end = offset + readsz;
 				}
 
 				dec_sz = dec_end - dec_off;
 
 #ifdef TDE_XLOG_DEBUG
 				elog(DEBUG1, "decrypt WAL, dec_off: %lu [buff_off %lu], sz: %lu | key %X/%X",
-					 dec_off, offset - dec_off, dec_sz, LSN_FORMAT_ARGS(curr_key->key->start_lsn));
+					 dec_off, dec_off - offset, dec_sz, LSN_FORMAT_ARGS(curr_key->key->start_lsn));
 #endif
-				PG_TDE_DECRYPT_DATA(iv_prefix, dec_off,
-									(char *) buf + (offset - dec_off),
-									dec_sz, (char *) buf + (offset - dec_off),
+				pg_tde_stream_crypt(iv_prefix, dec_off, dec_buf, dec_sz, dec_buf,
 									curr_key->key, &curr_key->crypt_ctx);
 
 				if (dec_off + dec_sz == offset)

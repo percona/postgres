@@ -11,23 +11,15 @@
 
 #include "postgres.h"
 
-#include "utils/snapmgr.h"
-#include "commands/defrem.h"
 #include "common/pg_tde_utils.h"
-#include "miscadmin.h"
-#include "catalog/tde_principal_key.h"
-#include "access/pg_tde_tdemap.h"
 #include "pg_tde.h"
 
 #ifndef FRONTEND
-#include "access/genam.h"
-#include "access/heapam.h"
-
-static Oid
-get_tde_table_am_oid(void)
-{
-	return get_table_am_oid("tde_heap", false);
-}
+#include "fmgr.h"
+#include "catalog/pg_class.h"
+#include "access/pg_tde_tdemap.h"
+#include "access/relation.h"
+#include "utils/rel.h"
 
 PG_FUNCTION_INFO_V1(pg_tde_is_encrypted);
 Datum
@@ -57,43 +49,6 @@ pg_tde_is_encrypted(PG_FUNCTION_ARGS)
 	PG_RETURN_BOOL(key != NULL);
 }
 
-/*
- * Returns the number of TDE tables in a database
- */
-int
-get_tde_tables_count(void)
-{
-	Relation	pg_class;
-	SysScanDesc scan;
-	HeapTuple	tuple;
-	int			count = 0;
-	Oid			am_oid = get_tde_table_am_oid();
-
-	/* Open the pg_class table */
-	pg_class = table_open(RelationRelationId, AccessShareLock);
-
-	/* Start a scan */
-	scan = systable_beginscan(pg_class, ClassOidIndexId, true,
-							  SnapshotSelf, 0, NULL);
-
-	/* Iterate over all tuples in the table */
-	while ((tuple = systable_getnext(scan)) != NULL)
-	{
-		Form_pg_class classForm = (Form_pg_class) GETSTRUCT(tuple);
-
-		/* Check if the table uses the specified access method */
-		if (classForm->relam == am_oid)
-			count++;
-	}
-
-	/* End the scan */
-	systable_endscan(scan);
-
-	/* Close the pg_class table */
-	table_close(pg_class, AccessShareLock);
-	return count;
-}
-
 #endif							/* !FRONTEND */
 
 static char tde_data_dir[MAXPGPATH] = PG_TDE_DATA_DIR;
@@ -105,9 +60,8 @@ pg_tde_set_data_dir(const char *dir)
 	strlcpy(tde_data_dir, dir, sizeof(tde_data_dir));
 }
 
-/* returns the palloc'd string */
-char *
-pg_tde_get_tde_data_dir(void)
+const char *
+pg_tde_get_data_dir(void)
 {
 	return tde_data_dir;
 }

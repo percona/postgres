@@ -1,0 +1,63 @@
+name: Code coverage
+on:
+  pull_request:
+  push:
+    branches:
+      - TDE_REL_17_STABLE
+
+env:
+  PGCTLTIMEOUT: 120 # Avoid failures on slow recovery
+
+jobs:
+  collect:
+    name: Collect and upload
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install dependencies
+        run: ci_scripts/ubuntu-deps.sh
+
+      - name: Build postgres
+        run: ci_scripts/make-build.sh debug --enable-coverage
+
+      - name: Setup kmip and vault
+        run: ci_scripts/setup-keyring-servers.sh
+
+      - name: Test postgres with TDE to generate coverage
+        run: ci_scripts/make-test.sh --tde-only
+
+      - name: Collect coverage data
+        run: find . -type f -name "*.c" ! -path '*libkmip*' | xargs -t gcov -abcfu
+        working-directory: contrib/pg_tde
+
+      - name: Upload coverage data to codecov.io
+        uses: codecov/codecov-action@v5
+        with:
+          verbose: true
+          token: ${{ secrets.CODECOV_TOKEN }}
+          working-directory: contrib/pg_tde
+          files: "*.c.gcov"
+
+      - name: Report on test fail
+        uses: actions/upload-artifact@v4
+        if: ${{ failure() }}
+        with:
+          name: coverage-testlog-tde
+          path: |
+            build/testrun
+            contrib/*/log
+            contrib/*/regression.diffs
+            contrib/*/regression.out
+            contrib/*/results
+            contrib/*/tmp_check
+            contrib/*/t/results
+            src/test/*/log
+            src/test/*/regression.diffs
+            src/test/*/regression.out
+            src/test/*/results
+            src/test/*/tmp_check
+          retention-days: 3

@@ -34,6 +34,7 @@ extern GenericKeyring *GetKeyProviderByName(const char *provider_name, Oid dbOid
 extern GenericKeyring *GetKeyProviderByID(int provider_id, Oid dbOid);
 extern ProviderType get_keyring_provider_from_typename(char *provider_type);
 extern void InitializeKeyProviderInfo(void);
+extern void key_provider_startup_cleanup(Oid databaseId);
 extern void save_new_key_provider_info(KeyringProviderRecord *provider,
 									   Oid databaseId, bool write_xlog);
 extern void modify_key_provider_info(KeyringProviderRecord *provider,
@@ -42,7 +43,8 @@ extern void delete_key_provider_info(char *provider_name,
 									 Oid databaseId, bool write_xlog);
 extern void redo_key_provider_info(KeyringProviderRecordInFile *xlrec);
 
-extern bool ParseKeyringJSONOptions(ProviderType provider_type, void *out_opts,
+extern void ParseKeyringJSONOptions(ProviderType provider_type,
+									GenericKeyring *out_opts,
 									char *in_buf, int buf_len);
 
 #endif							/* TDE_KEYRING_H */

@@ -89,7 +89,6 @@ typedef struct WALKeyCacheRec
 	struct WALKeyCacheRec *next;
 } WALKeyCacheRec;
 
-
 extern InternalKey *pg_tde_read_last_wal_key(void);
 
 extern WALKeyCacheRec *pg_tde_get_last_wal_key(void);
@@ -102,15 +101,16 @@ extern void pg_tde_create_smgr_key_perm_redo(const RelFileLocator *newrlocator);
 extern void pg_tde_create_wal_key(InternalKey *rel_key_data, const RelFileLocator *newrlocator, uint32 flags);
 extern void pg_tde_free_key_map_entry(const RelFileLocator *rlocator);
 
-#define PG_TDE_MAP_FILENAME			"pg_tde_%d_map"
+#define PG_TDE_MAP_FILENAME			"%d_keys"
 
 static inline void
 pg_tde_set_db_file_path(Oid dbOid, char *path)
 {
-	join_path_components(path, pg_tde_get_tde_data_dir(), psprintf(PG_TDE_MAP_FILENAME, dbOid));
+	join_path_components(path, pg_tde_get_data_dir(), psprintf(PG_TDE_MAP_FILENAME, dbOid));
 }
 
 extern InternalKey *GetSMGRRelationKey(RelFileLocatorBackend rel);
+extern int	pg_tde_count_relations(Oid dbOid);
 
 extern void pg_tde_delete_tde_files(Oid dbOid);
 
@@ -119,7 +119,6 @@ extern bool pg_tde_verify_principal_key_info(TDESignedPrincipalKeyInfo *signed_k
 extern void pg_tde_save_principal_key(const TDEPrincipalKey *principal_key, bool write_xlog);
 extern void pg_tde_save_principal_key_redo(const TDESignedPrincipalKeyInfo *signed_key_info);
 extern void pg_tde_perform_rotate_key(TDEPrincipalKey *principal_key, TDEPrincipalKey *new_principal_key, bool write_xlog);
-extern void pg_tde_write_map_keydata_file(off_t size, char *file_data);
 
 const char *tde_sprint_key(InternalKey *k);
 

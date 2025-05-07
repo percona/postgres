@@ -47,22 +47,21 @@ typedef enum ProviderScanType
 	PROVIDER_SCAN_ALL
 } ProviderScanType;
 
-#define PG_TDE_KEYRING_FILENAME "pg_tde_%d_keyring"
+#define PG_TDE_KEYRING_FILENAME "%d_providers"
 
 #define FILE_KEYRING_TYPE "file"
 #define VAULTV2_KEYRING_TYPE "vault-v2"
 #define KMIP_KEYRING_TYPE "kmip"
 
-static FileKeyring *load_file_keyring_provider_options(char *keyring_options);
-static GenericKeyring *load_keyring_provider_options(ProviderType provider_type, char *keyring_options);
-static VaultV2Keyring *load_vaultV2_keyring_provider_options(char *keyring_options);
-static KmipKeyring *load_kmip_keyring_provider_options(char *keyring_options);
 static void debug_print_kerying(GenericKeyring *keyring);
-static GenericKeyring *load_keyring_provider_from_record(KeyringProviderRecord *provider);
-static inline void get_keyring_infofile_path(char *resPath, Oid dbOid);
-static int	open_keyring_infofile(Oid dbOid, int flags);
 static bool fetch_next_key_provider(int fd, off_t *curr_pos, KeyringProviderRecord *provider);
-
+static inline void get_keyring_infofile_path(char *resPath, Oid dbOid);
+static FileKeyring *load_file_keyring_provider_options(char *keyring_options);
+static GenericKeyring *load_keyring_provider_from_record(KeyringProviderRecord *provider);
+static GenericKeyring *load_keyring_provider_options(ProviderType provider_type, char *keyring_options);
+static KmipKeyring *load_kmip_keyring_provider_options(char *keyring_options);
+static VaultV2Keyring *load_vaultV2_keyring_provider_options(char *keyring_options);
+static int	open_keyring_infofile(Oid dbOid, int flags);
 static void write_key_provider_info(KeyringProviderRecordInFile *record, bool write_xlog);
 
 #ifdef FRONTEND
@@ -72,41 +71,26 @@ static void simple_list_free(SimplePtrList *list);
 
 #else
 
-static List *scan_key_provider_file(ProviderScanType scanType, void *scanKey, Oid dbOid);
-
 PG_FUNCTION_INFO_V1(pg_tde_add_database_key_provider);
-Datum		pg_tde_add_database_key_provider(PG_FUNCTION_ARGS);
-
 PG_FUNCTION_INFO_V1(pg_tde_add_global_key_provider);
-Datum		pg_tde_add_global_key_provider(PG_FUNCTION_ARGS);
-
 PG_FUNCTION_INFO_V1(pg_tde_change_database_key_provider);
-Datum		pg_tde_change_database_key_provider(PG_FUNCTION_ARGS);
-
 PG_FUNCTION_INFO_V1(pg_tde_change_global_key_provider);
-Datum		pg_tde_change_global_key_provider(PG_FUNCTION_ARGS);
-
-static Datum pg_tde_list_all_key_providers_internal(const char *fname, bool global, PG_FUNCTION_ARGS);
-
+PG_FUNCTION_INFO_V1(pg_tde_delete_database_key_provider);
+PG_FUNCTION_INFO_V1(pg_tde_delete_global_key_provider);
 PG_FUNCTION_INFO_V1(pg_tde_list_all_database_key_providers);
-Datum		pg_tde_list_all_database_key_providers(PG_FUNCTION_ARGS);
-
 PG_FUNCTION_INFO_V1(pg_tde_list_all_global_key_providers);
-Datum		pg_tde_list_all_global_key_providers(PG_FUNCTION_ARGS);
 
-static Datum pg_tde_change_key_provider_internal(PG_FUNCTION_ARGS, Oid dbOid);
-
-static Datum pg_tde_add_key_provider_internal(PG_FUNCTION_ARGS, Oid dbOid);
-
-#define PG_TDE_LIST_PROVIDERS_COLS 4
-
-static void key_provider_startup_cleanup(int tde_tbl_count, XLogExtensionInstall *ext_info, bool redo, void *arg);
 static const char *get_keyring_provider_typename(ProviderType p_type);
 static List *GetAllKeyringProviders(Oid dbOid);
-static void cleanup_key_provider_info(Oid databaseId);
-
 static Size initialize_shared_state(void *start_address);
+static Datum pg_tde_add_key_provider_internal(PG_FUNCTION_ARGS, Oid dbOid);
+static Datum pg_tde_change_key_provider_internal(PG_FUNCTION_ARGS, Oid dbOid);
+static Datum pg_tde_delete_key_provider_internal(PG_FUNCTION_ARGS, Oid dbOid);
+static Datum pg_tde_list_all_key_providers_internal(PG_FUNCTION_ARGS, const char *fname, Oid dbOid);
 static Size required_shared_mem_size(void);
+static List *scan_key_provider_file(ProviderScanType scanType, void *scanKey, Oid dbOid);
+
+#define PG_TDE_LIST_PROVIDERS_COLS 4
 
 typedef struct TdeKeyProviderInfoSharedState
 {
@@ -149,19 +133,15 @@ InitializeKeyProviderInfo(void)
 {
 	ereport(LOG, errmsg("initializing TDE key provider info"));
 	RegisterShmemRequest(&key_provider_info_shmem_routine);
-	on_ext_install(key_provider_startup_cleanup, NULL);
 }
-static void
-key_provider_startup_cleanup(int tde_tbl_count, XLogExtensionInstall *ext_info, bool redo, void *arg)
-{
 
-	if (tde_tbl_count > 0)
-	{
-		ereport(WARNING,
-				errmsg("failed to perform initialization. database already has %d TDE tables", tde_tbl_count));
-		return;
-	}
-	cleanup_key_provider_info(ext_info->database_id);
+void
+key_provider_startup_cleanup(Oid databaseId)
+{
+	char		kp_info_path[MAXPGPATH];
+
+	get_keyring_infofile_path(kp_info_path, databaseId);
+	PathNameDeleteTemporaryFile(kp_info_path, false);
 }
 
 static const char *
@@ -176,9 +156,8 @@ get_keyring_provider_typename(ProviderType p_type)
 		case KMIP_KEY_PROVIDER:
 			return KMIP_KEYRING_TYPE;
 		default:
-			break;
+			return NULL;
 	}
-	return NULL;
 }
 
 static List *
@@ -195,14 +174,15 @@ redo_key_provider_info(KeyringProviderRecordInFile *xlrec)
 	LWLockRelease(tde_provider_info_lock());
 }
 
-static void
-cleanup_key_provider_info(Oid databaseId)
+static char *
+required_text_argument(NullableDatum arg, const char *name)
 {
-	/* Remove the key provider info file */
-	char		kp_info_path[MAXPGPATH] = {0};
+	if (arg.isnull)
+		ereport(ERROR,
+				errcode(ERRCODE_NULL_VALUE_NOT_ALLOWED),
+				errmsg("%s cannot be null", name));
 
-	get_keyring_infofile_path(kp_info_path, databaseId);
-	PathNameDeleteTemporaryFile(kp_info_path, false);
+	return text_to_cstring(DatumGetTextPP(arg.value));
 }
 
 Datum
@@ -214,32 +194,30 @@ pg_tde_change_database_key_provider(PG_FUNCTION_ARGS)
 Datum
 pg_tde_change_global_key_provider(PG_FUNCTION_ARGS)
 {
-	if (!superuser())
-		ereport(ERROR,
-				errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-				errmsg("must be superuser to modify global key providers"));
-
 	return pg_tde_change_key_provider_internal(fcinfo, GLOBAL_DATA_TDE_OID);
 }
 
 static Datum
 pg_tde_change_key_provider_internal(PG_FUNCTION_ARGS, Oid dbOid)
 {
-	char	   *provider_type = text_to_cstring(PG_GETARG_TEXT_PP(0));
-	char	   *provider_name = text_to_cstring(PG_GETARG_TEXT_PP(1));
-	char	   *options = text_to_cstring(PG_GETARG_TEXT_PP(2));
-	int			nlen,
-				olen;
+	char	   *provider_type;
+	char	   *provider_name;
+	char	   *options;
+	int			olen;
 	KeyringProviderRecord provider;
+	GenericKeyring *keyring;
+
+	if (!superuser())
+		ereport(ERROR,
+				errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
+				errmsg("must be superuser to modify key providers"));
+
+	provider_type = required_text_argument(fcinfo->args[0], "provider type");
+	provider_name = required_text_argument(fcinfo->args[1], "provider name");
+	options = required_text_argument(fcinfo->args[2], "provider options");
 
 	/* reports error if not found */
-	GenericKeyring *keyring = GetKeyProviderByName(provider_name, dbOid);
-
-	nlen = strlen(provider_name);
-	if (nlen >= sizeof(provider.provider_name))
-		ereport(ERROR,
-				errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-				errmsg("too long provider name, maximum lenght is %ld bytes", sizeof(provider.provider_name) - 1));
+	keyring = GetKeyProviderByName(provider_name, dbOid);
 
 	olen = strlen(options);
 	if (olen >= sizeof(provider.options))
@@ -250,7 +228,7 @@ pg_tde_change_key_provider_internal(PG_FUNCTION_ARGS, Oid dbOid)
 	/* Struct will be saved to disk so keep clean */
 	memset(&provider, 0, sizeof(provider));
 	provider.provider_id = keyring->keyring_id;
-	memcpy(provider.provider_name, provider_name, nlen);
+	memcpy(provider.provider_name, provider_name, strlen(provider_name));
 	memcpy(provider.options, options, olen);
 	provider.provider_type = get_keyring_provider_from_typename(provider_type);
 
@@ -270,29 +248,38 @@ pg_tde_add_database_key_provider(PG_FUNCTION_ARGS)
 Datum
 pg_tde_add_global_key_provider(PG_FUNCTION_ARGS)
 {
-	if (!superuser())
-		ereport(ERROR,
-				errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-				errmsg("must be superuser to modify global key providers"));
-
 	return pg_tde_add_key_provider_internal(fcinfo, GLOBAL_DATA_TDE_OID);
 }
 
 Datum
 pg_tde_add_key_provider_internal(PG_FUNCTION_ARGS, Oid dbOid)
 {
-	char	   *provider_type = text_to_cstring(PG_GETARG_TEXT_PP(0));
-	char	   *provider_name = text_to_cstring(PG_GETARG_TEXT_PP(1));
-	char	   *options = text_to_cstring(PG_GETARG_TEXT_PP(2));
+	char	   *provider_type;
+	char	   *provider_name;
+	char	   *options;
 	int			nlen,
 				olen;
 	KeyringProviderRecord provider;
 
+	if (!superuser())
+		ereport(ERROR,
+				errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
+				errmsg("must be superuser to modify key providers"));
+
+	provider_type = required_text_argument(fcinfo->args[0], "provider type");
+	provider_name = required_text_argument(fcinfo->args[1], "provider name");
+	options = required_text_argument(fcinfo->args[2], "provider options");
+
 	nlen = strlen(provider_name);
+	if (nlen == 0)
+		ereport(ERROR,
+				errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+				errmsg("provider name \"\" is too short"));
 	if (nlen >= sizeof(provider.provider_name) - 1)
 		ereport(ERROR,
 				errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-				errmsg("too long provider name, maximum lenght is %ld bytes", sizeof(provider.provider_name) - 1));
+				errmsg("provider name \"%s\" is too long", provider_name),
+				errhint("Maximum length is %ld bytes.", sizeof(provider.provider_name) - 1));
 
 	olen = strlen(options);
 	if (olen >= sizeof(provider.options))
@@ -312,22 +299,70 @@ pg_tde_add_key_provider_internal(PG_FUNCTION_ARGS, Oid dbOid)
 }
 
 Datum
+pg_tde_delete_database_key_provider(PG_FUNCTION_ARGS)
+{
+	return pg_tde_delete_key_provider_internal(fcinfo, MyDatabaseId);
+}
+
+Datum
+pg_tde_delete_global_key_provider(PG_FUNCTION_ARGS)
+{
+	return pg_tde_delete_key_provider_internal(fcinfo, GLOBAL_DATA_TDE_OID);
+}
+
+Datum
+pg_tde_delete_key_provider_internal(PG_FUNCTION_ARGS, Oid db_oid)
+{
+	char	   *provider_name;
+	GenericKeyring *provider;
+	int			provider_id;
+	bool		provider_used;
+
+	if (!superuser())
+		ereport(ERROR,
+				errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
+				errmsg("must be superuser to modify key providers"));
+
+	provider_name = required_text_argument(fcinfo->args[0], "provider_name");
+
+	provider = GetKeyProviderByName(provider_name, db_oid);
+	if (provider == NULL)
+	{
+		ereport(ERROR, errmsg("Keyring provider not found"));
+	}
+
+	provider_id = provider->keyring_id;
+	provider_used = pg_tde_is_provider_used(db_oid, provider_id);
+
+	pfree(provider);
+
+	if (provider_used)
+	{
+		ereport(ERROR,
+				errmsg("Can't delete a provider which is currently in use"));
+	}
+
+	delete_key_provider_info(provider_name, db_oid, true);
+
+	PG_RETURN_VOID();
+}
+
+Datum
 pg_tde_list_all_database_key_providers(PG_FUNCTION_ARGS)
 {
-	return pg_tde_list_all_key_providers_internal("pg_tde_list_all_database_key_providers_database", false, fcinfo);
+	return pg_tde_list_all_key_providers_internal(fcinfo, "pg_tde_list_all_database_key_providers_database", MyDatabaseId);
 }
 
 Datum
 pg_tde_list_all_global_key_providers(PG_FUNCTION_ARGS)
 {
-	return pg_tde_list_all_key_providers_internal("pg_tde_list_all_database_key_providers_global", true, fcinfo);
+	return pg_tde_list_all_key_providers_internal(fcinfo, "pg_tde_list_all_database_key_providers_global", GLOBAL_DATA_TDE_OID);
 }
 
 static Datum
-pg_tde_list_all_key_providers_internal(const char *fname, bool global, PG_FUNCTION_ARGS)
+pg_tde_list_all_key_providers_internal(PG_FUNCTION_ARGS, const char *fname, Oid dbOid)
 {
-	Oid			database = (global ? GLOBAL_DATA_TDE_OID : MyDatabaseId);
-	List	   *all_providers = GetAllKeyringProviders(database);
+	List	   *all_providers = GetAllKeyringProviders(dbOid);
 	ListCell   *lc;
 	Tuplestorestate *tupstore;
 	TupleDesc	tupdesc;
@@ -391,6 +426,7 @@ GetKeyProviderByID(int provider_id, Oid dbOid)
 		keyring = (GenericKeyring *) linitial(providers);
 		list_free(providers);
 	}
+
 	return keyring;
 }
 
@@ -399,9 +435,9 @@ GetKeyProviderByID(int provider_id, Oid dbOid)
 static void
 write_key_provider_info(KeyringProviderRecordInFile *record, bool write_xlog)
 {
-	off_t		bytes_written = 0;
+	off_t		bytes_written;
 	int			fd;
-	char		kp_info_path[MAXPGPATH] = {0};
+	char		kp_info_path[MAXPGPATH];
 
 	Assert(record != NULL);
 	Assert(record->offset_in_file >= 0);
@@ -653,15 +689,15 @@ GetKeyProviderByID(int provider_id, Oid dbOid)
 		keyring = (GenericKeyring *) providers->head->ptr;
 		simple_list_free(providers);
 	}
+
 	return keyring;
 }
 
 static void
 simple_list_free(SimplePtrList *list)
 {
-	SimplePtrListCell *cell;
+	SimplePtrListCell *cell = list->head;
 
-	cell = list->head;
 	while (cell != NULL)
 	{
 		SimplePtrListCell *next;
@@ -685,7 +721,7 @@ scan_key_provider_file(ProviderScanType scanType, void *scanKey, Oid dbOid)
 {
 	off_t		curr_pos = 0;
 	int			fd;
-	char		kp_info_path[MAXPGPATH] = {0};
+	char		kp_info_path[MAXPGPATH];
 	KeyringProviderRecord provider;
 #ifndef FRONTEND
 	List	   *providers_list = NIL;
@@ -759,9 +795,10 @@ scan_key_provider_file(ProviderScanType scanType, void *scanKey, Oid dbOid)
 static GenericKeyring *
 load_keyring_provider_from_record(KeyringProviderRecord *provider)
 {
-	GenericKeyring *keyring = NULL;
+	GenericKeyring *keyring;
 
 	keyring = load_keyring_provider_options(provider->provider_type, provider->options);
+
 	if (keyring)
 	{
 		keyring->keyring_id = provider->provider_id;
@@ -770,9 +807,9 @@ load_keyring_provider_from_record(KeyringProviderRecord *provider)
 		memcpy(keyring->options, provider->options, sizeof(keyring->options));
 		debug_print_kerying(keyring);
 	}
+
 	return keyring;
 }
-
 
 static GenericKeyring *
 load_keyring_provider_options(ProviderType provider_type, char *keyring_options)
@@ -781,31 +818,24 @@ load_keyring_provider_options(ProviderType provider_type, char *keyring_options)
 	{
 		case FILE_KEY_PROVIDER:
 			return (GenericKeyring *) load_file_keyring_provider_options(keyring_options);
-			break;
 		case VAULT_V2_KEY_PROVIDER:
 			return (GenericKeyring *) load_vaultV2_keyring_provider_options(keyring_options);
-			break;
 		case KMIP_KEY_PROVIDER:
 			return (GenericKeyring *) load_kmip_keyring_provider_options(keyring_options);
-			break;
 		default:
-			break;
+			return NULL;
 	}
-	return NULL;
 }
 
 static FileKeyring *
 load_file_keyring_provider_options(char *keyring_options)
 {
-	FileKeyring *file_keyring = palloc0(sizeof(FileKeyring));
+	FileKeyring *file_keyring = palloc0_object(FileKeyring);
 
 	file_keyring->keyring.type = FILE_KEY_PROVIDER;
 
-	if (!ParseKeyringJSONOptions(FILE_KEY_PROVIDER, file_keyring,
-								 keyring_options, strlen(keyring_options)))
-	{
-		return NULL;
-	}
+	ParseKeyringJSONOptions(FILE_KEY_PROVIDER, (GenericKeyring *) file_keyring,
+							keyring_options, strlen(keyring_options));
 
 	if (file_keyring->file_name == NULL || file_keyring->file_name[0] == '\0')
 	{
@@ -821,15 +851,13 @@ load_file_keyring_provider_options(char *keyring_options)
 static VaultV2Keyring *
 load_vaultV2_keyring_provider_options(char *keyring_options)
 {
-	VaultV2Keyring *vaultV2_keyring = palloc0(sizeof(VaultV2Keyring));
+	VaultV2Keyring *vaultV2_keyring = palloc0_object(VaultV2Keyring);
 
 	vaultV2_keyring->keyring.type = VAULT_V2_KEY_PROVIDER;
 
-	if (!ParseKeyringJSONOptions(VAULT_V2_KEY_PROVIDER, vaultV2_keyring,
-								 keyring_options, strlen(keyring_options)))
-	{
-		return NULL;
-	}
+	ParseKeyringJSONOptions(VAULT_V2_KEY_PROVIDER,
+							(GenericKeyring *) vaultV2_keyring,
+							keyring_options, strlen(keyring_options));
 
 	if (vaultV2_keyring->vault_token == NULL || vaultV2_keyring->vault_token[0] == '\0' ||
 		vaultV2_keyring->vault_url == NULL || vaultV2_keyring->vault_url[0] == '\0' ||
@@ -850,20 +878,17 @@ load_vaultV2_keyring_provider_options(char *keyring_options)
 static KmipKeyring *
 load_kmip_keyring_provider_options(char *keyring_options)
 {
-	KmipKeyring *kmip_keyring = palloc0(sizeof(KmipKeyring));
+	KmipKeyring *kmip_keyring = palloc0_object(KmipKeyring);
 
 	kmip_keyring->keyring.type = KMIP_KEY_PROVIDER;
 
-	if (!ParseKeyringJSONOptions(KMIP_KEY_PROVIDER, kmip_keyring,
-								 keyring_options, strlen(keyring_options)))
-	{
-		return NULL;
-	}
+	ParseKeyringJSONOptions(KMIP_KEY_PROVIDER, (GenericKeyring *) kmip_keyring,
+							keyring_options, strlen(keyring_options));
 
-	if (strlen(kmip_keyring->kmip_host) == 0 ||
-		strlen(kmip_keyring->kmip_port) == 0 ||
-		strlen(kmip_keyring->kmip_ca_path) == 0 ||
-		strlen(kmip_keyring->kmip_cert_path) == 0)
+	if (kmip_keyring->kmip_host == NULL || kmip_keyring->kmip_host[0] == '\0' ||
+		kmip_keyring->kmip_port == NULL || kmip_keyring->kmip_port[0] == '\0' ||
+		kmip_keyring->kmip_ca_path == NULL || kmip_keyring->kmip_ca_path[0] == '\0' ||
+		kmip_keyring->kmip_cert_path == NULL || kmip_keyring->kmip_cert_path[0] == '\0')
 	{
 		ereport(WARNING,
 				errcode(ERRCODE_INVALID_PARAMETER_VALUE),
@@ -881,30 +906,27 @@ load_kmip_keyring_provider_options(char *keyring_options)
 static void
 debug_print_kerying(GenericKeyring *keyring)
 {
-	int			debug_level = DEBUG2;
-
-	elog(debug_level, "Keyring type: %d", keyring->type);
-	elog(debug_level, "Keyring name: %s", keyring->provider_name);
-	elog(debug_level, "Keyring id: %d", keyring->keyring_id);
+	elog(DEBUG2, "Keyring type: %d", keyring->type);
+	elog(DEBUG2, "Keyring name: %s", keyring->provider_name);
+	elog(DEBUG2, "Keyring id: %d", keyring->keyring_id);
 	switch (keyring->type)
 	{
 		case FILE_KEY_PROVIDER:
-			elog(debug_level, "File Keyring Path: %s", ((FileKeyring *) keyring)->file_name);
+			elog(DEBUG2, "File Keyring Path: %s", ((FileKeyring *) keyring)->file_name);
 			break;
 		case VAULT_V2_KEY_PROVIDER:
-			elog(debug_level, "Vault Keyring Token: %s", ((VaultV2Keyring *) keyring)->vault_token);
-			elog(debug_level, "Vault Keyring URL: %s", ((VaultV2Keyring *) keyring)->vault_url);
-			elog(debug_level, "Vault Keyring Mount Path: %s", ((VaultV2Keyring *) keyring)->vault_mount_path);
-			elog(debug_level, "Vault Keyring CA Path: %s", ((VaultV2Keyring *) keyring)->vault_ca_path);
+			elog(DEBUG2, "Vault Keyring Token: %s", ((VaultV2Keyring *) keyring)->vault_token);
+			elog(DEBUG2, "Vault Keyring URL: %s", ((VaultV2Keyring *) keyring)->vault_url);
+			elog(DEBUG2, "Vault Keyring Mount Path: %s", ((VaultV2Keyring *) keyring)->vault_mount_path);
+			elog(DEBUG2, "Vault Keyring CA Path: %s", ((VaultV2Keyring *) keyring)->vault_ca_path);
 			break;
 		case KMIP_KEY_PROVIDER:
-			elog(debug_level, "KMIP Keyring Host: %s", ((KmipKeyring *) keyring)->kmip_host);
-			elog(debug_level, "KMIP Keyring Port: %s", ((KmipKeyring *) keyring)->kmip_port);
-			elog(debug_level, "KMIP Keyring CA Path: %s", ((KmipKeyring *) keyring)->kmip_ca_path);
-			elog(debug_level, "KMIP Keyring Cert Path: %s", ((KmipKeyring *) keyring)->kmip_cert_path);
+			elog(DEBUG2, "KMIP Keyring Host: %s", ((KmipKeyring *) keyring)->kmip_host);
+			elog(DEBUG2, "KMIP Keyring Port: %s", ((KmipKeyring *) keyring)->kmip_port);
+			elog(DEBUG2, "KMIP Keyring CA Path: %s", ((KmipKeyring *) keyring)->kmip_ca_path);
+			elog(DEBUG2, "KMIP Keyring Cert Path: %s", ((KmipKeyring *) keyring)->kmip_cert_path);
 			break;
 		case UNKNOWN_KEY_PROVIDER:
-			elog(debug_level, "Unknown Keyring ");
 			break;
 	}
 }
@@ -912,14 +934,14 @@ debug_print_kerying(GenericKeyring *keyring)
 static inline void
 get_keyring_infofile_path(char *resPath, Oid dbOid)
 {
-	join_path_components(resPath, pg_tde_get_tde_data_dir(), psprintf(PG_TDE_KEYRING_FILENAME, dbOid));
+	join_path_components(resPath, pg_tde_get_data_dir(), psprintf(PG_TDE_KEYRING_FILENAME, dbOid));
 }
 
 static int
 open_keyring_infofile(Oid database_id, int flags)
 {
 	int			fd;
-	char		kp_info_path[MAXPGPATH] = {0};
+	char		kp_info_path[MAXPGPATH];
 
 	get_keyring_infofile_path(kp_info_path, database_id);
 	fd = BasicOpenFile(kp_info_path, flags | PG_BINARY);
@@ -938,7 +960,7 @@ open_keyring_infofile(Oid database_id, int flags)
 static bool
 fetch_next_key_provider(int fd, off_t *curr_pos, KeyringProviderRecord *provider)
 {
-	off_t		bytes_read = 0;
+	off_t		bytes_read;
 
 	Assert(provider != NULL);
 	Assert(fd >= 0);
@@ -963,27 +985,24 @@ fetch_next_key_provider(int fd, off_t *curr_pos, KeyringProviderRecord *provider
 ProviderType
 get_keyring_provider_from_typename(char *provider_type)
 {
-	if (provider_type == NULL)
-		return UNKNOWN_KEY_PROVIDER;
-
 	if (strcmp(FILE_KEYRING_TYPE, provider_type) == 0)
 		return FILE_KEY_PROVIDER;
-	if (strcmp(VAULTV2_KEYRING_TYPE, provider_type) == 0)
+	else if (strcmp(VAULTV2_KEYRING_TYPE, provider_type) == 0)
 		return VAULT_V2_KEY_PROVIDER;
-	if (strcmp(KMIP_KEYRING_TYPE, provider_type) == 0)
+	else if (strcmp(KMIP_KEYRING_TYPE, provider_type) == 0)
 		return KMIP_KEY_PROVIDER;
-	return UNKNOWN_KEY_PROVIDER;
+	else
+		return UNKNOWN_KEY_PROVIDER;
 }
 
 GenericKeyring *
 GetKeyProviderByName(const char *provider_name, Oid dbOid)
 {
 	GenericKeyring *keyring = NULL;
-
 #ifndef FRONTEND
-	static List *providers;
+	List	   *providers;
 #else
-	static SimplePtrList *providers;
+	SimplePtrList *providers;
 #endif
 
 	providers = scan_key_provider_file(PROVIDER_SCAN_BY_NAME, (void *) provider_name, dbOid);
@@ -1002,8 +1021,7 @@ GetKeyProviderByName(const char *provider_name, Oid dbOid)
 	{
 		ereport(ERROR,
 				errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-				errmsg("key provider \"%s\" does not exists", provider_name),
-				errhint("Create the key provider"));
+				errmsg("key provider \"%s\" does not exists", provider_name));
 	}
 	return keyring;
 }
