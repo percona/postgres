@@ -1,4 +1,4 @@
-# Uninstall `pg_tde`
+# Uninstall pg_tde
 
 If you no longer wish to use TDE in your deployment, you can remove the `pg_tde` extension. To do so, your user must have the superuser privileges, or a database owner privileges in case you only want to remove it from a single database.
 

@@ -22,6 +22,6 @@ The following example is used for testing purposes only:
     );
 ```
 
-## Next Step
+## Next steps
 
 [Global Principal Key Configuration :material-arrow-right:](set-principal-key.md){.md-button}

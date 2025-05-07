@@ -6,17 +6,17 @@ Before turning WAL encryption on, you must follow the steps below to create your
 
 1. Create the `pg_tde` extension if it does not exist:
 
-```sql
+    ```sql
     CREATE EXTENSION IF NOT EXISTS pg_tde;
-```
+    ```
 
 2. Set up the key provider for WAL encryption
 
     === "With KMIP server"
 
         Make sure you have obtained the root certificate for the KMIP server and the keypair for the client. The client key needs permissions to create / read keys on the server. Find the [configuration guidelines for the HashiCorp Vault Enterprise KMIP Secrets Engine](https://developer.hashicorp.com/vault/tutorials/enterprise/kmip-engine).
-        
-        For testing purposes, you can use the PyKMIP server which enables you to set up required certificates. To use a real KMIP server, make sure to obtain the valid certificates issued by the key management appliance. 
+
+        For testing purposes, you can use the PyKMIP server which enables you to set up required certificates. To use a real KMIP server, make sure to obtain the valid certificates issued by the key management appliance.
 
         ```sql
         SELECT pg_tde_add_global_key_provider_kmip('provider-name','kmip-addr', 5696, '/path_to/server_certificate.pem', '/path_to/client_key.pem');
@@ -38,9 +38,9 @@ Before turning WAL encryption on, you must follow the steps below to create your
 
     === "With HashiCorp Vault"
 
-    ```sql
+        ```sql
         SELECT pg_tde_add_global_key_provider_vault_v2('provider-name', 'secret_token', 'url', 'mount', 'ca_path');
-    ```
+        ```
 
         where:
 
@@ -50,13 +50,13 @@ Before turning WAL encryption on, you must follow the steps below to create your
         * `secret_token` is an access token with read and write access to the above mount point
         * [optional] `ca_path` is the path of the CA file used for SSL verification
 
-    === "With keyring file (not recommended)"
+    === "With keyring file"
 
-        This setup is intended for development and stores the keys unencrypted in the specified data file.
+        This setup is **not recommended**, as it is intended for development. The keys are stored **unencrypted** in the specified data file.
 
-    ```sql
+        ```sql
         SELECT pg_tde_add_global_key_provider_file('provider-name','/path/to/the/keyring/data.file');
-    ```
+        ```
 
 3. Create principal key
 

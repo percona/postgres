@@ -8,5 +8,7 @@ To read encrypted WAL records, `pg_waldump` supports the following additional ar
   * `pg_tde.map`
   * `pg_tde.dat`
   * `pg_tde_keyrings`
+
 !!! note
-  `pg_waldump` will not decrypt WAL unless the `keyring_path` is set.
+
+    `pg_waldump` will not decrypt WAL unless the `keyring_path` is set.

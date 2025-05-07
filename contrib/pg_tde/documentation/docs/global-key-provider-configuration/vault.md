@@ -40,8 +40,8 @@ The following example is for testing purposes only. Use secure tokens and proper
 
 For more information on related functions, see the link below:
 
-[Percona TDE function reference](../functions.md){.md-button}
+[Percona pg_tde function reference](../functions.md){.md-button}
 
-## Next Step
+## Next steps
 
-[Validate Encryption with pg_tde :material-arrow-right:](../test.md){.md-button}
+[Global Principal Key Configuration :material-arrow-right:](set-principal-key.md){.md-button}

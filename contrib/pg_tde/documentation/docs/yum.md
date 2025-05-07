@@ -4,7 +4,7 @@ This tutorial shows how to install `pg_tde` with [Percona Distribution for Postg
 
 Make sure you check the [list of supported platforms](install.md#__tabbed_1_1) before continuing.
 
-## Memory limits for `pg_tde` keys
+## Memory limits for pg_tde keys
 
 The `pg_tde` uses memory locks (mlocks) to keep internal encryption keys in RAM, both for WAL and for user data.  
 
@@ -27,7 +27,7 @@ To prevent this, you can change the `mlock` limit to be at least twice bigger th
 
 Adjust the limits with caution since it affects other processes running in your system.
 
-## Install `percona-release` {.power-number}
+## Install percona-release {.power-number}
 
 You need the `percona-release` repository management tool that enables the desired Percona repository for you.
 
@@ -43,7 +43,7 @@ You need the `percona-release` repository management tool that enables the desir
         $ sudo percona-release enable-only ppg-{{pgversion17}} 
     ```
 
-## Install `pg_tde` {.power-number}
+## Install pg_tde {.power-number}
 
 !!! important
 

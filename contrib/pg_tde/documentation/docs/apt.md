@@ -9,7 +9,7 @@ Check the [list of supported platforms](install.md#__tabbed_1_1) before continui
 1. Debian and other systems that use the `apt` package manager include the upstream PostgreSQL server package (`postgresql-{{pgversion17}}`) by default. You need to uninstall this package before you install Percona Server for PostgreSQL and `pg_tde` to avoid conflicts.
 2. You need the `percona-release` repository management tool that enables the desired Percona repository for you.
 
-### Install `percona-release` {.power-number}
+### Install percona-release {.power-number}
 
 1. You need the following dependencies to install `percona-release`:
 
@@ -48,7 +48,7 @@ Check the [list of supported platforms](install.md#__tabbed_1_1) before continui
         sudo apt-get update
     ```
 
-## Install `pg_tde` {.power-number}
+## Install pg_tde {.power-number}
 
 !!! important
 
@@ -70,6 +70,6 @@ After all [preconditions](#preconditions) are met, run the following command to 
     $ sudo apt-get install -y percona-postgresql-17 
 ```
 
-## Next step
+## Next steps
 
 [Configure pg_tde :material-arrow-right:](setup.md){.md-button}

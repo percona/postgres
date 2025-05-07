@@ -155,6 +155,7 @@ extra:
 
 nav:
   - "Home": index.md
+  - get-help.md
   - "Features": features.md 
   - "Overview":
     - "What is Transparent Data Encryption (TDE)?":
@@ -189,7 +190,7 @@ nav:
       - "pg_tde_change_key_provider": command-line-tools/pg-tde-change-key-provider.md
       - "pg_waldump": command-line-tools/pg-waldump.md
       - "pg_checksums": command-line-tools/pg-tde-checksums.md 
-    - "Uninstall TDE": how-to/uninstall.md
+    - "Uninstall pg_tde": how-to/uninstall.md
     - "Configure multi-tenancy": how-to/multi-tenant-setup.md
     - "Use reference to external parameters": how-to/external-parameters.md
     - "Decrypt an encrypted table": how-to/decrypt.md
@@ -201,7 +202,6 @@ nav:
     - release-notes/beta.md
     - release-notes/alpha1.md
     - release-notes/mvp.md
-  - get-help.md
   - contribute.md
 
 

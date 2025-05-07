@@ -33,7 +33,7 @@ After enabling the `pg_tde` extension for a database, you can begin encrypting d
 
 3. (Optional) Rotate the principal key.
 
-To re-encrypt the data using a new key, see [Principal key management](functions.md#principal-key-management)
+To re-encrypt the data using a new key, see [Principal key management](functions.md#principal-key-management).
 
 ## Encrypt existing table
 
@@ -46,6 +46,7 @@ Run the following command:
 ```
 
 !!! important
+
     Using `SET ACCESS METHOD` drops hint bits which can impact query performance. To restore performance, run:
 
     ```sql
@@ -55,6 +56,9 @@ Run the following command:
     This forces PostgreSQL to check every tuple for visibility and reset the hint bits.
 
 !!! hint
+
     Want to remove encryption later? See how to [decrypt your data](how-to/decrypt.md).
+
+## Next steps
 
 [Configure WAL encryption (tech preview) :material-arrow-right:](wal-encryption.md){.md-button}

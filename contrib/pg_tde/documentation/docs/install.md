@@ -35,4 +35,4 @@ Follow the configuration steps below to continue:
 
 If you’ve already completed these steps, feel free to skip ahead to a later section:
 
- [Configure Key Management (KMS) :material-arrow-right:](global-key-provider-configuration/index.md){.md-button} [Validate Encryption with pg_tde :material-arrow-right:](test.md){.md-button} [Configure WAL encryption :material-arrow-right:](wal-encryption.md){.md-button}
+ [Configure Key Management (KMS)](global-key-provider-configuration/index.md){.md-button} [Validate Encryption with pg_tde](test.md){.md-button} [Configure WAL encryption](wal-encryption.md){.md-button}

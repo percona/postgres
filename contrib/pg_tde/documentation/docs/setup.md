@@ -8,7 +8,7 @@ Before you can use `pg_tde` for data encryption, you must enable the extension a
 
 The `pg_tde` extension requires additional shared memory. You need to configure PostgreSQL to prelaod it at startup.
 
-## 1. Configure `shared_preload_libraries`
+## 1. Configure shared_preload_libraries
 
 You can configure the `shared_preload_libraries` parameter in two ways:
 
@@ -24,7 +24,7 @@ You can configure the `shared_preload_libraries` parameter in two ways:
     ALTER SYSTEM SET shared_preload_libraries = 'pg_tde';
     ```
 
-## 2. Restart the PostgreSQL Cluster
+## 2. Restart the PostgreSQL cluster
 
 Restart the `postgresql` cluster to apply the configuration.
 
@@ -42,16 +42,19 @@ Restart the `postgresql` cluster to apply the configuration.
 
 ## 3. Create the extension
 
-To do this after restarting PostgreSQL, create the extension in your database by running the [CREATE EXTENSION :octicons-link-external-16:](https://www.postgresql.org/docs/current/sql-createextension.html) command as a **superuser** or **database owner**. Connect to `psql` and type:
+After restarting PostgreSQL, connect to `psql` as a **superuser** or **database owner** and run:
 
 ```sql
     CREATE EXTENSION pg_tde;
 ```
 
+See [CREATE EXTENSION :octicons-link-external-16:](https://www.postgresql.org/docs/current/sql-createextension.html) for more details.
+
 !!! note
+
     The `pg_tde` extension is created only for the current database. To enable it for other databases, you must run the command in each individual database.
 
-## 4. (Optional) Enable `pg_tde` by default for new databases
+## 4. (Optional) Enable pg_tde by default
 
 To automatically have `pg_tde` enabled for all new databases, modify the `template1` database:
 
@@ -60,8 +63,9 @@ To automatically have `pg_tde` enabled for all new databases, modify the `templa
 ```
 
 !!! note
+
     You can use external key providers to manage encryption keys. The recommended approach is to use the Key Management Store (KMS). See the next step on how to configure the KMS.
 
-## Next step
+## Next steps
 
 [Configure Key Management (KMS) :material-arrow-right:](global-key-provider-configuration/index.md){.md-button}

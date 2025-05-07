@@ -2,7 +2,7 @@
 
 You can configure a default principal key using a global key provider. This key will be used by all databases that do not have their own encryption keys configured.
 
-## Create a Default Principal Key
+## Create a default principal key
 
 Run the following command:
 
@@ -34,5 +34,7 @@ This example is for testing purposes only. Replace the key name and provider nam
     The key is auto-generated.
 
 After this, all databases that do not have something else configured will use this newly generated principal key.
+
+## Next steps
 
 [Validate Encryption with pg_tde :material-arrow-right:](../test.md){.md-button}

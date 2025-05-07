@@ -6,6 +6,7 @@ To encrypt the data, two types of keys are used:
 * The **principal key** to encrypt database keys. It is kept separately from the database keys and is managed externally in the key management store.
 
 !!! note
+
     For more information on managing and storing principal keys externally, see [Configure Global Key Provider](../global-key-provider-configuration/index.md).
 
 You have the following options to store and manage principal keys externally:

@@ -21,4 +21,4 @@ The following features are available for the extension:
 * Multiple Key management options
 * Logical replication of encrypted tables
 
-You can continue learning about `pg_tde` in the [Overview](index/index.md), or get started with the installation by following the [Get started](install.md) guide.
+[Overview](index/index.md){.md-button} [Get started](install.md){.md-button}
