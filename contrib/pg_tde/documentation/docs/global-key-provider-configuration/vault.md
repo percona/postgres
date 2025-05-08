@@ -40,7 +40,7 @@ The following example is for testing purposes only. Use secure tokens and proper
 
 For more information on related functions, see the link below:
 
-[Percona pg_tde function reference](../functions.md){.md-button}
+[Percona pg_tde Function Reference](../functions.md){.md-button}
 
 ## Next steps
 

@@ -45,7 +45,7 @@ Restart the `postgresql` cluster to apply the configuration.
 After restarting PostgreSQL, connect to `psql` as a **superuser** or **database owner** and run:
 
 ```sql
-    CREATE EXTENSION pg_tde;
+CREATE EXTENSION pg_tde;
 ```
 
 See [CREATE EXTENSION :octicons-link-external-16:](https://www.postgresql.org/docs/current/sql-createextension.html) for more details.
@@ -59,7 +59,7 @@ See [CREATE EXTENSION :octicons-link-external-16:](https://www.postgresql.org/do
 To automatically have `pg_tde` enabled for all new databases, modify the `template1` database:
 
 ```
-    psql -d template1 -c 'CREATE EXTENSION pg_tde;'
+psql -d template1 -c 'CREATE EXTENSION pg_tde;'
 ```
 
 !!! note

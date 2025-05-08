@@ -12,16 +12,16 @@ For testing purposes, you can use a lightweight PyKMIP server, which enables eas
 
 ## Example usage
 
-    ```sql
-    SELECT pg_tde_add_global_key_provider_kmip(
-        'provider-name',
-        'kmip-IP', 
-        5696,
-        '/path_to/server_certificate.pem', 
-        '/path_to/client_cert.pem',
-        '/path_to/client_key.pem'
-    );
-    ```
+```sql
+SELECT pg_tde_add_global_key_provider_kmip(
+    'provider-name',
+    'kmip-IP', 
+    5696,
+    '/path_to/server_certificate.pem', 
+    '/path_to/client_cert.pem',
+    '/path_to/client_key.pem'
+);
+```
 
 ## Parameter descriptions
 
@@ -36,19 +36,19 @@ For testing purposes, you can use a lightweight PyKMIP server, which enables eas
 
 The following example is for testing purposes only.
 
-    ```sql
-    SELECT pg_tde_add_global_key_provider_kmip(
-        'kmip','127.0.0.1', 
-        5696, 
-        '/tmp/server_certificate.pem', 
-        '/tmp/client_cert_jane_doe.pem',
-        '/tmp/client_key_jane_doe.pem'
-    );
-    ```
+```sql
+SELECT pg_tde_add_global_key_provider_kmip(
+    'kmip','127.0.0.1', 
+    5696, 
+    '/tmp/server_certificate.pem', 
+    '/tmp/client_cert_jane_doe.pem',
+    '/tmp/client_key_jane_doe.pem'
+);
+```
 
 For more information on related functions, see the link below:
 
-[Percona pg_tde function reference](../functions.md){.md-button}
+[Percona pg_tde Function Reference](../functions.md){.md-button}
 
 ## Next steps
 
