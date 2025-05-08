@@ -13,16 +13,16 @@
 This section outlines how to set up PostgreSQL streaming replication when Percona's `pg_tde` extension (specifically the `heap_tde` access method) is enabled on the primary server.
 
 !!! note
-    Physical streaming replication copies data blocks directly from the primary to the standby. If these blocks are encrypted on the primary, they arrive encrypted on the standby. Therefore, the standby **must** have access to the **exact same encryption keys** as the primary to decrypt and read this data.
+    Physical streaming replication copies data blocks directly from the primary to the standby. If these blocks are encrypted on the primary, they arrive **encrypted** on the standby. Therefore, the standby **must** have access to the **exact same encryption keys** as the primary to decrypt and read this data.
 
-## Key Concepts
+## Concepts
 
 * **`pg_tde`:** Percona's extension for Transparent Data Encryption in PostgreSQL.
 * **`heap_tde`:** The table access method provided by `pg_tde` that encrypts entire tables using a master key.
 * **Master Key:** The central key used by `pg_tde` to encrypt/decrypt data. Identified by a `pg_tde_master_key_name`.
 * **Key Provider:** The mechanism `pg_tde` uses to fetch the master key (e.g., local files, HashiCorp Vault). Configured via `pg_tde_key_provider`.
 
-## How to Set Up Key Provider and Master Key for Replication
+## Set Up Key Provider and Master Key for Replication
 
 The standby server(s) **must** be configured to use the **same key provider settings** and access the **same master key (by name and content)** as the primary server.
 
