@@ -1,4 +1,4 @@
-# Configure multi-tenancy
+# Configure Multi-tenancy
 
 The steps below describe how to set up multi-tenancy with `pg_tde`. Multi-tenancy allows you to encrypt different databases with different keys. This provides granular control over data and enables you to introduce different security policies and access controls for each database so that only authorized users of specific databases have access to the data.
 

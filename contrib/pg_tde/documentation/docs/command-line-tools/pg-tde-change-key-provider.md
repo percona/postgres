@@ -8,8 +8,7 @@ Its only intended use is to fix servers that can't start up because of inaccessi
 
 For example, you restore from an old backup and the address of the key provider changed in the meantime. You can use this tool to correct the configuration, allowing the server to start up.
 
-!!! warning
-      Use this tool **only when the server is offline.** To modify the key provider configuration when the server is up and running, use the [`pg_tde_change_(global/database)_key_provider_<type>`](../functions.md#change-an-existing-provider) SQL functions.
+<i warning>:material-information: Warning:</i> Use this tool **only when the server is offline.** To modify the key provider configuration when the server is up and running, use the [`pg_tde_change_(global/database)_key_provider_<type>`](../functions.md#change-an-existing-provider) SQL functions.
 
 ## Example usage
 

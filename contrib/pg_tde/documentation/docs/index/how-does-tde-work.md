@@ -1,4 +1,4 @@
-# How TDE works
+# How TDE Works
 
 To encrypt the data, two types of keys are used:
 

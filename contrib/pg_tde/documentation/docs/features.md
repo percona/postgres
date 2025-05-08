@@ -12,7 +12,8 @@ The following features are available for the extension:
   * Temporary tables created during database operations
 
     !!! note
-        Metadata of those tables is not encrypted
+
+      Metadata of those tables is not encrypted
 
 * Global Write-Ahead Log (WAL) encryption for data in both encrypted and non-encrypted tables
 * Single-tenancy support via a global keyring provider

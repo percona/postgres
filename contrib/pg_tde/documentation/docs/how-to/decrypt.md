@@ -1,4 +1,4 @@
-# Remove encryption from an encrypted table
+# Remove Encryption from an Encrypted Table
 
 ## Method 1. Change the access method
 

@@ -1,4 +1,4 @@
-# Install pg_tde on Red Hat Enterprise Linux and derivatives
+# Install pg_tde on Red Hat Enterprise Linux and Derivatives
 
 This tutorial shows how to install `pg_tde` with [Percona Distribution for PostgreSQL](https://docs.percona.com/postgresql/latest/index.html).
 

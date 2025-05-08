@@ -1,4 +1,4 @@
-# Use external reference to parameters
+# Use External Reference to Parameters
 
 To allow storing secrets or any other parameters in a more secure, external location, `pg_tde`
 allows users to specify an external reference instead of hardcoded parameters.

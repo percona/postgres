@@ -1,4 +1,4 @@
-# Configure WAL encryption (tech preview)
+# Configure WAL Encryption (tech preview)
 
 Before turning WAL encryption on, you must follow the steps below to create your first principal key.
 
