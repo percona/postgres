@@ -124,8 +124,8 @@ plugins:
   #        cover_logo: docs/_images/Percona_Logo_Color.png
   #        debug_html: false
 #          two_columns_level: 3
-          custom_template_path: _resource/templates
-          enabled_if_env: ENABLE_PDF_EXPORT
+#          custom_template_path: _resource/templates
+#          enabled_if_env: ENABLE_PDF_EXPORT
 
 extra:
   version:
