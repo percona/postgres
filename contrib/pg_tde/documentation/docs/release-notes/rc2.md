@@ -28,7 +28,7 @@ This release provides the following features and improvements:
 
 * **Restricted key provider configuration to superusers**
 
-    The database owners can no longer configure key providers directly. Instead, they must refer to the superuser who manages the provider setup. This security improvement clearly separates the responsibilities between users and administrators.
+    The database owners can no longer configure key providers directly. Instead, they must refer to the superuser who manages the provider setup. This security improvement clearly separates the responsibilities between users and administrators
 
 * **`tde_heap_basic` access method deprecation**
 
