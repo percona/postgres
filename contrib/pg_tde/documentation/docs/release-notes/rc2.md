@@ -1,6 +1,4 @@
-<!-- robots: noindex, nofollow -->
-
-# pg_tde Release Candidate ({{date.RC2}})
+# pg_tde Release Candidate 2 ({{date.RC2}})
 
 `pg_tde` extension brings in [Transparent Data Encryption (TDE)](../index/index.md) to PostgreSQL and enables you to keep sensitive data safe and secure.
 
@@ -14,21 +12,23 @@ This release provides the following features and improvements:
 
     The approach to WAL encryption has been redesigned. Now, `pg_tde` encrypts entire WAL files starting from the first WAL write after the server was started with the encryption turned on. The information about what is encrypted is stored in the internal key metadata. This change improves WAL encryption flow with native replication and increases performance for large scale databases.
 
-* **Default encryption key for single-tenancy**.
+    It now supports the Vault keyring for secure key storage.
 
-    The new functionality allows you to set a default principal key for the entire database cluster. This key is used to encrypt all databases and tables that do not have a custom principal key set. This feature simplifies encryption configuration and management in single-tenant environments where each user has their own database instance.
+* **Automatic WAL key rotation**.
 
-* **Ability to change key provider configuration**
+    A new automatic WAL key rotation occurs on server start. This ensures each server instance uses a fresh internal key for WAL encryption, improving cryptographic hygiene and reducing the risk of key reuse.
 
-    You no longer need to configure a new key provider and set a new principal key if the provider's configuration changed. Now can change the key provider configuration both for the current database and the entire PostgreSQL cluster using [functions](../functions.md#key-provider-management). This enhancement lifts existing limitations and is a native and common way to operate in PostgreSQL.
+* **Fixed external tablespace data loss with encrypted partitions**
 
-* **Key management permissions**
+    An issue was fixed where data could be lost when the encrypted partitioned tables were moved to external tablespaces.  
 
-    The new functions allow you to manage permissions for global and database key management separately. This feature provides more granular control over key management operations and allows you to delegate key management tasks to different roles.
+* **New visibility and verification functions for default principal keys**
 
-* **Additional information about principal keys and providers**
+    Added additional functions to help you verify and inspect the state of default principal keys more easily.
 
-    The new functions allow you to display additional information about principal keys and providers. This feature helps you to understand the current key configuration and troubleshoot issues related to key management.
+* **Restricted key provider configuration to superusers**
+
+    The database owners can no longer configure key providers directly. Instead, they must refer to the superuser who manages the provider setup. This security improvement clearly separates the responsibilities between users and administrators.
 
 * **`tde_heap_basic` access method deprecation**
 
@@ -36,7 +36,7 @@ This release provides the following features and improvements:
 
 ## Upgrade considerations
 
-`pg_tde` Release Candidate is not backward compatible with `pg_tde` Beta2 due to significant changes in code. This means you cannot directly upgrade from one version to another. You must [uninstall](../how-to/uninstall.md) `pg_tde` Beta2 first and then [install](../install.md) and configure the new Release Candidate version.
+`pg_tde` Release Candidate 2 is not backward compatible with `pg_tde` Beta2 due to significant changes in code. This means you cannot directly upgrade from one version to another. You must [uninstall](../how-to/uninstall.md) `pg_tde` Beta2 first and then [install](../install.md) and configure the new Release Candidate version.
 
 ## Known issues
 
@@ -55,17 +55,17 @@ This release provides the following features and improvements:
 
 ### New Features
 
-* [PG-1234](https://perconadev.atlassian.net/browse/PG-1234) - Added functions for separate global and database key management permissions.
+[PG-830]() – Added support for full WAL encryption using Vault keyring, significantly improving data security in transit.
 
-* [PG-1255](https://perconadev.atlassian.net/browse/PG-1255) - Added functionality to delete key providers.
+[PG-1460] – Enabled automatic rotation of WAL internal keys on server startup for improved cryptographic hygiene.
 
-* [PG-1256](https://perconadev.atlassian.net/browse/PG-1256) - Added single-tenant support via the default principal key functionality.
+[PG-1455] – Introduced random base numbers to encryption IVs to enhance uniqueness and security.
 
-* [PG-1258](https://perconadev.atlassian.net/browse/PG-1258) - Added functions to display additional information  about principal keys / providers.
+[PG-1506] – Added a new parameter for passing client certificates while registering a KMIP provider.
 
-* [PG-1294](https://perconadev.atlassian.net/browse/PG-1294) - Redesigned WAL encryption.
+[PG-1458] – Added missing information and verification functions for default principal keys.
 
-* [PG-1303](https://perconadev.atlassian.net/browse/PG-1303) - Deprecated tde_heap_basic access method.
+[PG-1304] – Removed the deprecated tde_heap_basic access method in preparation for GA.
 
 ## Improvements
 
