@@ -24,8 +24,6 @@ This release provides the following features and improvements:
 
     Previously, encrypted relation keys persisted even after dropping the associated tables, potentially leaving orphaned entries in the map file. This is now corrected, when an encrypted table is dropped, its corresponding key is also removed from the key map.
 
-    You can verify the cleanup by running `hexdump -C` on the map file and confirming the related entries are zeroed out.
-
 * **Fixed external tablespace data loss with encrypted partitions**
 
     An issue was fixed where data could be lost when the encrypted partitioned tables were moved to external tablespaces.  
