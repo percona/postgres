@@ -16,9 +16,9 @@ This release provides the following features and improvements:
 
     `pg_tde` now supports using the Vault keyring for secure storage and management of WAL encryption keys.
 
-* **Automatic WAL key rotation**.
+* **Automatic WAL internal key generation at server startup**.
 
-    A new automatic WAL key rotation occurs on server start. This ensures each server instance uses a fresh internal key for WAL encryption, improving cryptographic hygiene and reducing the risk of key reuse.
+    On each server start, a new internal key is generated for encrypting subsequent WAL records (assuming WAL encryption is enabled). The existing WAL records and their keys remain unchanged, this ensures continuity and secure key management without affecting historical data.
 
 * **Proper removal of relation-level encryption keys on table drop**
 
