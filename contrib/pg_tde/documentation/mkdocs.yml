@@ -169,7 +169,9 @@ nav:
     - "2. Configure pg_tde": setup.md
     - "2.1 Configure Key Management (KMS)": 
       - "2.1 Configure Key Management (KMS)": global-key-provider-configuration/index.md
-      - "KMIP Configuration": global-key-provider-configuration/kmip-server.md
+      - "KMIP Configuration": 
+        - global-key-provider-configuration/kmip-server.md
+        - "Fortanix Configuration": global-key-provider-configuration/kmip-server-fortanix.md
       - "Vault Configuration": global-key-provider-configuration/vault.md
       - "Keyring File Configuration": global-key-provider-configuration/keyring.md
     - "2.2 Global Principal Key Configuration": global-key-provider-configuration/set-principal-key.md

@@ -1,5 +1,6 @@
 # MkDocs configuration for PDF builds
-# Usage: ENABLE_PDF_EXPORT=1 mkdocs build -f mkdocs-pdf.yml
+# Usage in MAC/Linux: ENABLE_PDF_EXPORT=1 mkdocs build -f mkdocs-pdf.yml
+# Usage in Windows (Powershell - admin): $env:ENABLE_PDF_EXPORT = '1' then mkdocs build -f mkdocs-pdf.yml
 
 INHERIT: mkdocs.yml
 
