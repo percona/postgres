@@ -12,6 +12,7 @@ For testing purposes, you can use a lightweight PyKMIP server, which enables eas
 ## Example usage
 
 ```sql
+
 SELECT pg_tde_add_global_key_provider_kmip(
     'provider-name',
     'kmip-IP', 
@@ -20,6 +21,7 @@ SELECT pg_tde_add_global_key_provider_kmip(
     '/path_to/client_cert.pem',
     '/path_to/client_key.pem'
 );
+
 ```
 
 ## Parameter descriptions
