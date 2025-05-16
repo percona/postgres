@@ -139,13 +139,12 @@ SELECT pg_tde_add_database_key_provider_kmip(
   '/path_to/client_cert.pem', 
   '/path_to/client_key.pem'
 );
-
 SELECT pg_tde_add_global_key_provider_kmip(
   'provider-name',
   'kmip-addr', 
   `port`, 
   '/path_to/server_certificate.pem', 
-  '/path_to/client_cert.pem', 
+  '/path_to/client_certificate.pem', 
   '/path_to/client_key.pem'
 );
 ```
@@ -155,19 +154,18 @@ These functions change the KMIP provider:
 ```sql
 SELECT pg_tde_change_database_key_provider_kmip(
   'provider-name',
-  'kmip-addr',
+  'kmip-addr', 
   `port`, 
   '/path_to/server_certificate.pem', 
   '/path_to/client_cert.pem', 
   '/path_to/client_key.pem'
 );
-
 SELECT pg_tde_change_global_key_provider_kmip(
   'provider-name',
   'kmip-addr', 
   `port`, 
   '/path_to/server_certificate.pem', 
-  '/path_to/client_cert.pem', 
+  '/path_to/client_certificate.pem', 
   '/path_to/client_key.pem'
 );
 ```
@@ -179,7 +177,7 @@ where:
 * `port` is the port to communicate with the KMIP server.
   Most KMIP servers use port 5696.
 * `server-certificate` is the path to the certificate file for the KMIP server.
-* `client-cert` is the path to the client certificate.
+* `client-certificate` is the path to the client certificate.
 * `client-key` is the path to the client key.
 
 !!! note
