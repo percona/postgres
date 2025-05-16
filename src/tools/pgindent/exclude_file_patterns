@@ -4,7 +4,7 @@
 src/include/storage/s_lock\.h$
 src/include/port/atomics/
 #
-# These contains C++ constructs that confuse pgindent.
+# These contain C++ constructs that confuse pgindent.
 src/include/jit/llvmjit\.h$
 src/include/jit/SectionMemoryManager\.h$
 #
@@ -64,7 +64,4 @@ src/tools/pg_bsd_indent/.*
 # ... and for paranoia's sake, don't touch git stuff.
 /\.git/
 # Percona excludes
-contrib/pg_tde/src16/.*
-contrib/pg_tde/src17.*
 contrib/pg_tde/src/libkmip/.*
-src/backend/nodes/nodetags.h

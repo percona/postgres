@@ -1573,7 +1573,9 @@ WALRead(XLogReaderState *state,
 
 		/* Reset errno first; eases reporting non-errno-affecting errors */
 		errno = 0;
-		readbytes = xlog_smgr->seg_read(state->seg.ws_file, p, segbytes, (off_t) startoff);
+		readbytes = xlog_smgr->seg_read(state->seg.ws_file, p, segbytes,
+										(off_t) startoff, state->seg.ws_tli,
+										state->seg.ws_segno, state->segcxt.ws_segsize);
 
 #ifndef FRONTEND
 		pgstat_report_wait_end();
@@ -2182,28 +2184,14 @@ RestoreBlockImage(XLogReaderState *record, uint8 block_id, char *page)
 FullTransactionId
 XLogRecGetFullXid(XLogReaderState *record)
 {
-	TransactionId xid,
-				next_xid;
-	uint32		epoch;
-
 	/*
 	 * This function is only safe during replay, because it depends on the
 	 * replay state.  See AdvanceNextFullTransactionIdPastXid() for more.
 	 */
 	Assert(AmStartupProcess() || !IsUnderPostmaster);
 
-	xid = XLogRecGetXid(record);
-	next_xid = XidFromFullTransactionId(TransamVariables->nextXid);
-	epoch = EpochFromFullTransactionId(TransamVariables->nextXid);
-
-	/*
-	 * If xid is numerically greater than next_xid, it has to be from the last
-	 * epoch.
-	 */
-	if (unlikely(xid > next_xid))
-		--epoch;
-
-	return FullTransactionIdFromEpochAndXid(epoch, xid);
+	return FullTransactionIdFromAllowableAt(TransamVariables->nextXid,
+											XLogRecGetXid(record));
 }
 
 #endif

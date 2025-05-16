@@ -1,6 +1,6 @@
 /*-------------------------------------------------------------------------
  *
- * keyring_vault.h
+ * keyring_kmip.h
  *      KMIP based keyring provider
  *
  * IDENTIFICATION
@@ -12,8 +12,6 @@
 #ifndef KEYRING_KMIP_H
 #define KEYRING_KMIP_H
 
-extern bool InstallKmipKeyring(void);
-
-void		kmip_ereport(bool throw_error, const char *msg, int errCode);
+extern void InstallKmipKeyring(void);
 
 #endif							/* // KEYRING_KMIP_H */

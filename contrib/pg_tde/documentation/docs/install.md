@@ -1,37 +1,8 @@
-# Installation
+# Install pg_tde
 
-## Considerations
+To install `pg_tde`, use one of the following methods:
 
-You can use the following options to manage encryption keys:
-
-* Use the Key Management Store (KMS). This is the recommended approach. `pg_tde` supports the following KMS:
-
-    * HashiCorp Vault as the key/value secrets engine version 2 with secret versioning
-    * HashiCorp Vault as the KMIP server. The KMIP server is part of Vault Enterprise and requires a license
-    * OpenBao as the open-source alternative to HashiCorp Vault KMIP 
-    * A KMIP-compatible server. For testing and development purposes you can use PyKMIP.
-
-    The KMS configuration is out of scope of this document. We assume that you have the KMS up and running. For the `pg_tde` configuration, you need the following information:  
-
-    === "Vault secrets engine"  
-
-        * The secret access token to the Vault server
-        * The URL to access the Vault server
-        * (Optional) The CA file used for SSL verification  
-    
-    === "KMIP server"
-
-        * The hostname or IP address of the KMIP server.
-        * The valid certificates issued by the key management appliance.
-
-* Use the local keyfile. Use the keyfile only development and testing purposes since the keys are stored unencrypted.
-
-## Procedure 
-
-Install `pg_tde` using one of available installation methods:
-
-
-=== "Package manager" 
+=== ":octicons-terminal-16: Package manager"
 
     The packages are available for the following operating systems:
     
@@ -43,67 +14,25 @@ Install `pg_tde` using one of available installation methods:
     - Debian 11 (Bullseye) 
     - Debian 12 (Bookworm)
 
-    [Install on Debian or Ubuntu](apt.md){.md-button}
-    [Install on RHEL or derivatives](yum.md){.md-button}
+    [Install on Debian or Ubuntu :material-arrow-right:](apt.md){.md-button}
+    [Install on RHEL or derivatives :material-arrow-right:](yum.md){.md-button}
 
-=== "Build from source"
+=== ":simple-docker: Docker"
 
-    To build `pg_tde` from source code, do the following:
+    `pg_tde` is a part of the Percona Distribution for PostgreSQL Docker image. Use this image to enjoy full encryption capabilities. Check below to get access to a detailed step-by-step guide. 
 
-    1. On Ubuntu/Debian: Install the following dependencies required for the build:
+    [Run in Docker :material-arrow-right:](https://docs.percona.com/postgresql/latest/docker.html){.md-button}
 
-        ```sh
-        sudo apt install make gcc postgresql-server-dev-17 libcurl4-openssl-dev
-        ```
+=== ":octicons-download-16: Tar download"
 
-    2. [Install Percona Distribution for PostgreSQL 17 :octicons-link-external-16:](https://docs.percona.com/postgresql/17/installing.html) or [upstream PostgreSQL 17 :octicons-link-external-16:](https://www.postgresql.org/download/)
+    `pg_tde` is included in the Percona Distribution for PostgreSQL tarball. Select the below link to access the step-by-step guide. 
 
-    3. If PostgreSQL is installed in a non standard directory, set the `PG_CONFIG` environment variable to point to the `pg_config` executable.
+    [Install from tarballs :material-arrow-right:](https://docs.percona.com/postgresql/17/tarball.html){.md-button}
 
-    4. Clone the repository:  
+Follow the configuration steps below to continue:
 
-        ```
-        git clone git://github.com/percona/pg_tde
-        ```
+[Configure pg_tde :material-arrow-right:](setup.md){.md-button}
 
-    5. Compile and install the extension
+If you’ve already completed these steps, feel free to skip ahead to a later section:
 
-        ```
-        cd pg_tde
-        make USE_PGXS=1
-        sudo make USE_PGXS=1 install
-        ```
-
-=== "Run in Docker"
-
-    !!! note
-
-        The steps below are for the PostgreSQL Community version of `pg_tde`. It provides the `tde_heap_basic` access method for data encryption. 
-
-        To run the `pg_tde` version for Percona Server for PostgreSQL, [use the Percona Distribution for PostgreSQL Docker image :octicons-link-external-16:](https://docs.percona.com/postgresql/17/docker.html). 
-
-    You can find Docker images on [Docker Hub](https://hub.docker.com/r/perconalab/pg_tde). Images are built on top of [postgres:16](https://hub.docker.com/_/postgres) official image.     
-
-    To run `pg_tde` in Docker, use the following command:    
-
-    ```
-    docker run --name pg-tde -e POSTGRES_PASSWORD=mysecretpassword -d perconalab/pg_tde
-    ```    
-
-    It builds and adds the `pg_tde` extension to PostgreSQL 16. The `postgresql.conf` contains the required modifications. The `pg_tde` extension is added to `template1` so that all new databases automatically have the `pg_tde` extension loaded. 
-
-    Keys are not created automatically. You must configure a key provider and a principal key for each database  where you wish to use encrypted tables. 
-
-    Connect to the container and establish the `psql` session there. Then, see the instructions in the [Setup](setup.md) section, starting with the 4th point, as the first 3 steps are already completed in the Docker image.
-
-    See [Docker Docs](https://hub.docker.com/_/postgres) on usage.    
-
-    You can also build a Docker image manually with:    
-
-    ```
-    docker build . -f ./docker/Dockerfile -t your-image-name
-    ```
-
-## Next steps
-
-[Setup](setup.md){.md-button}
+ [Configure Key Management (KMS)](global-key-provider-configuration/index.md){.md-button} [Validate Encryption with pg_tde](test.md){.md-button} [Configure WAL encryption](wal-encryption.md){.md-button}

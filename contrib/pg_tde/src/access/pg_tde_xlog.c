@@ -26,69 +26,57 @@
 #include "access/pg_tde_xlog.h"
 #include "encryption/enc_tde.h"
 
-/*
- * TDE fork XLog
- */
+static void tdeheap_rmgr_redo(XLogReaderState *record);
+static void tdeheap_rmgr_desc(StringInfo buf, XLogReaderState *record);
+static const char *tdeheap_rmgr_identify(uint8 info);
+
+static const RmgrData tdeheap_rmgr = {
+	.rm_name = "pg_tde",
+	.rm_redo = tdeheap_rmgr_redo,
+	.rm_desc = tdeheap_rmgr_desc,
+	.rm_identify = tdeheap_rmgr_identify,
+};
+
 void
+RegisterTdeRmgr(void)
+{
+	RegisterCustomRmgr(RM_TDERMGR_ID, &tdeheap_rmgr);
+}
+
+static void
 tdeheap_rmgr_redo(XLogReaderState *record)
 {
 	uint8		info = XLogRecGetInfo(record) & ~XLR_INFO_MASK;
 
 	if (info == XLOG_TDE_ADD_RELATION_KEY)
 	{
-		TDEPrincipalKeyInfo *pk = NULL;
 		XLogRelKey *xlrec = (XLogRelKey *) XLogRecGetData(record);
 
-		if (xlrec->pkInfo.databaseId != 0)
-			pk = &xlrec->pkInfo;
-
-		LWLockAcquire(tde_lwlock_enc_keys(), LW_EXCLUSIVE);
-		pg_tde_write_key_map_entry(&xlrec->rlocator, &xlrec->relKey, pk);
-		LWLockRelease(tde_lwlock_enc_keys());
+		pg_tde_create_smgr_key_perm_redo(&xlrec->rlocator);
 	}
-	else if (info == XLOG_TDE_ADD_PRINCIPAL_KEY || info == XLOG_TDE_UPDATE_PRINCIPAL_KEY)
+	else if (info == XLOG_TDE_ADD_PRINCIPAL_KEY)
 	{
-		TDEPrincipalKeyInfo *mkey = (TDEPrincipalKeyInfo *) XLogRecGetData(record);
+		TDESignedPrincipalKeyInfo *mkey = (TDESignedPrincipalKeyInfo *) XLogRecGetData(record);
 
-		LWLockAcquire(tde_lwlock_enc_keys(), LW_EXCLUSIVE);
-		if (info == XLOG_TDE_ADD_PRINCIPAL_KEY)
-			create_principal_key_info(mkey);
-		else
-			update_principal_key_info(mkey);
-
-		LWLockRelease(tde_lwlock_enc_keys());
+		pg_tde_save_principal_key_redo(mkey);
 	}
-	else if (info == XLOG_TDE_EXTENSION_INSTALL_KEY)
+	else if (info == XLOG_TDE_ROTATE_PRINCIPAL_KEY)
+	{
+		XLogPrincipalKeyRotate *xlrec = (XLogPrincipalKeyRotate *) XLogRecGetData(record);
+
+		xl_tde_perform_rotate_key(xlrec);
+	}
+	else if (info == XLOG_TDE_WRITE_KEY_PROVIDER)
+	{
+		KeyringProviderRecordInFile *xlrec = (KeyringProviderRecordInFile *) XLogRecGetData(record);
+
+		redo_key_provider_info(xlrec);
+	}
+	else if (info == XLOG_TDE_INSTALL_EXTENSION)
 	{
 		XLogExtensionInstall *xlrec = (XLogExtensionInstall *) XLogRecGetData(record);
 
 		extension_install_redo(xlrec);
-	}
-
-	else if (info == XLOG_TDE_ADD_KEY_PROVIDER_KEY)
-	{
-		KeyringProviderXLRecord *xlrec = (KeyringProviderXLRecord *) XLogRecGetData(record);
-
-		redo_key_provider_info(xlrec);
-	}
-
-	else if (info == XLOG_TDE_ROTATE_KEY)
-	{
-		XLogPrincipalKeyRotate *xlrec = (XLogPrincipalKeyRotate *) XLogRecGetData(record);
-
-		LWLockAcquire(tde_lwlock_enc_keys(), LW_EXCLUSIVE);
-		xl_tde_perform_rotate_key(xlrec);
-		LWLockRelease(tde_lwlock_enc_keys());
-	}
-
-	else if (info == XLOG_TDE_FREE_MAP_ENTRY)
-	{
-		off_t		offset = 0;
-		RelFileLocator *xlrec = (RelFileLocator *) XLogRecGetData(record);
-
-		LWLockAcquire(tde_lwlock_enc_keys(), LW_EXCLUSIVE);
-		pg_tde_free_key_map_entry(xlrec, MAP_ENTRY_VALID, offset);
-		LWLockRelease(tde_lwlock_enc_keys());
 	}
 	else
 	{
@@ -96,7 +84,7 @@ tdeheap_rmgr_redo(XLogReaderState *record)
 	}
 }
 
-void
+static void
 tdeheap_rmgr_desc(StringInfo buf, XLogReaderState *record)
 {
 	uint8		info = XLogRecGetInfo(record) & ~XLR_INFO_MASK;
@@ -105,54 +93,50 @@ tdeheap_rmgr_desc(StringInfo buf, XLogReaderState *record)
 	{
 		XLogRelKey *xlrec = (XLogRelKey *) XLogRecGetData(record);
 
-		appendStringInfo(buf, "add tde internal key for relation %u/%u", xlrec->rlocator.dbOid, xlrec->rlocator.relNumber);
+		appendStringInfo(buf, "rel: %u/%u/%u", xlrec->rlocator.spcOid, xlrec->rlocator.dbOid, xlrec->rlocator.relNumber);
 	}
-	if (info == XLOG_TDE_ADD_PRINCIPAL_KEY)
+	else if (info == XLOG_TDE_ADD_PRINCIPAL_KEY)
 	{
 		TDEPrincipalKeyInfo *xlrec = (TDEPrincipalKeyInfo *) XLogRecGetData(record);
 
-		appendStringInfo(buf, "add tde principal key for db %u", xlrec->databaseId);
+		appendStringInfo(buf, "db: %u", xlrec->databaseId);
 	}
-	if (info == XLOG_TDE_UPDATE_PRINCIPAL_KEY)
-	{
-		TDEPrincipalKeyInfo *xlrec = (TDEPrincipalKeyInfo *) XLogRecGetData(record);
-
-		appendStringInfo(buf, "Alter key provider to:%d for tde principal key for db %u", xlrec->keyringId, xlrec->databaseId);
-	}
-	if (info == XLOG_TDE_EXTENSION_INSTALL_KEY)
-	{
-		XLogExtensionInstall *xlrec = (XLogExtensionInstall *) XLogRecGetData(record);
-
-		appendStringInfo(buf, "tde extension install for db %u", xlrec->database_id);
-	}
-	if (info == XLOG_TDE_ROTATE_KEY)
+	else if (info == XLOG_TDE_ROTATE_PRINCIPAL_KEY)
 	{
 		XLogPrincipalKeyRotate *xlrec = (XLogPrincipalKeyRotate *) XLogRecGetData(record);
 
-		appendStringInfo(buf, "rotate principal key for %u", xlrec->databaseId);
+		appendStringInfo(buf, "db: %u", xlrec->databaseId);
 	}
-	if (info == XLOG_TDE_ADD_KEY_PROVIDER_KEY)
+	else if (info == XLOG_TDE_WRITE_KEY_PROVIDER)
 	{
-		KeyringProviderXLRecord *xlrec = (KeyringProviderXLRecord *) XLogRecGetData(record);
+		KeyringProviderRecordInFile *xlrec = (KeyringProviderRecordInFile *) XLogRecGetData(record);
 
-		appendStringInfo(buf, "add key provider %s for %u", xlrec->provider.provider_name, xlrec->database_id);
+		appendStringInfo(buf, "db: %u, provider id: %d", xlrec->database_id, xlrec->provider.provider_id);
+	}
+	else if (info == XLOG_TDE_INSTALL_EXTENSION)
+	{
+		XLogExtensionInstall *xlrec = (XLogExtensionInstall *) XLogRecGetData(record);
+
+		appendStringInfo(buf, "db: %u", xlrec->database_id);
 	}
 }
 
-const char *
+static const char *
 tdeheap_rmgr_identify(uint8 info)
 {
-	if ((info & ~XLR_INFO_MASK) == XLOG_TDE_ADD_RELATION_KEY)
-		return "XLOG_TDE_ADD_RELATION_KEY";
-
-	if ((info & ~XLR_INFO_MASK) == XLOG_TDE_ADD_PRINCIPAL_KEY)
-		return "XLOG_TDE_ADD_PRINCIPAL_KEY";
-
-	if ((info & ~XLR_INFO_MASK) == XLOG_TDE_UPDATE_PRINCIPAL_KEY)
-		return "XLOG_TDE_UPDATE_PRINCIPAL_KEY";
-
-	if ((info & ~XLR_INFO_MASK) == XLOG_TDE_EXTENSION_INSTALL_KEY)
-		return "XLOG_TDE_EXTENSION_INSTALL_KEY";
-
-	return NULL;
+	switch (info & ~XLR_INFO_MASK)
+	{
+		case XLOG_TDE_ADD_RELATION_KEY:
+			return "ADD_RELATION_KEY";
+		case XLOG_TDE_ADD_PRINCIPAL_KEY:
+			return "ADD_PRINCIPAL_KEY";
+		case XLOG_TDE_ROTATE_PRINCIPAL_KEY:
+			return "ROTATE_PRINCIPAL_KEY";
+		case XLOG_TDE_WRITE_KEY_PROVIDER:
+			return "WRITE_KEY_PROVIDER";
+		case XLOG_TDE_INSTALL_EXTENSION:
+			return "INSTALL_EXTENSION";
+		default:
+			return NULL;
+	}
 }

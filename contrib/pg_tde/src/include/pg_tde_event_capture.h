@@ -9,25 +9,16 @@
 
 #include "postgres.h"
 #include "nodes/parsenodes.h"
+#include "access/transam.h"
 
-typedef enum TdeCreateEventType
+typedef enum
 {
-	TDE_UNKNOWN_CREATE_EVENT,
-	TDE_TABLE_CREATE_EVENT,
-	TDE_INDEX_CREATE_EVENT
-} TdeCreateEventType;
+	TDE_ENCRYPT_MODE_RETAIN = 0,
+	TDE_ENCRYPT_MODE_ENCRYPT,
+	TDE_ENCRYPT_MODE_PLAIN,
+} TDEEncryptMode;
 
-typedef struct TdeCreateEvent
-{
-	TdeCreateEventType eventType;	/* DDL statement type */
-	bool		encryptMode;	/* true when the table uses encryption */
-	Oid			baseTableOid;	/* Oid of table on which index is being
-								 * created on. For create table statement this
-								 * contains InvalidOid */
-	RangeVar   *relation;		/* Reference to the parsed relation from
-								 * create statement */
-} TdeCreateEvent;
-
-extern TdeCreateEvent *GetCurrentTdeCreateEvent(void);
+extern void TdeEventCaptureInit(void);
+extern TDEEncryptMode currentTdeEncryptModeValidated(void);
 
 #endif

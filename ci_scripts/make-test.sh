@@ -1,10 +1,25 @@
 #!/bin/bash
 
-export TDE_MODE=1
+set -e
+TDE_ONLY=0
 
-SCRIPT_DIR="$(cd -- "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P)"
-INSTALL_DIR="$SCRIPT_DIR/../../pginst"
+for arg in "$@"
+do
+    case "$arg" in
+        --tde-only)
+            TDE_ONLY=1
+            shift;;
+    esac
+done
 
-cd "$SCRIPT_DIR/.."
+SCRIPT_DIR="$(cd -- "$(dirname "$0")" >/dev/null 2>&1; pwd -P)"
+source "$SCRIPT_DIR/env.sh"
 
-make check-world
+if [ "$TDE_ONLY" -eq 1 ];
+then
+    cd "$SCRIPT_DIR/../contrib/pg_tde"
+    make -s check
+else
+    cd "$SCRIPT_DIR/.."
+    make -s check-world
+fi

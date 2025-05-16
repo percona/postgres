@@ -6,7 +6,6 @@ site_author: Percona LLC
 copyright: >
   <a href="https://www.percona.com/about">Percona LLC</a> and/or its affiliates © 2025 — <a href="#__consent">Cookie Consent</a>
 
- 
 repo_name: percona/postgres
 repo_url: https://github.com/percona/postgres
 edit_uri: edit/TDE_REL_17_STABLE/contrib/pg_tde/documentation/docs
@@ -52,8 +51,7 @@ theme:
     - content.tabs.link
     - navigation.top
     - navigation.tracking
-
-
+    - navigation.indexes
 
 extra_css:
   - https://unicons.iconscout.com/release/v3.0.3/css/line.css
@@ -92,15 +90,12 @@ markdown_extensions:
       linenums: false
   - pymdownx.snippets:
       base_path: ["snippets"]
-#      auto_append:
-#        - services-banner.md
   - pymdownx.emoji:
       emoji_index: !!python/name:material.extensions.emoji.twemoji
       emoji_generator: !!python/name:material.extensions.emoji.to_svg
       options:
         custom_icons:
          - _resource/.icons
-
 
 plugins:
   - search:
@@ -121,16 +116,16 @@ plugins:
   - macros:
       include_yaml:
         - 'variables.yml' # Use in markdown as '{{ VAR }}'
-  - with-pdf: # https://github.com/orzih/mkdocs-with-pdf
-          output_path: '_pdf/PerconaTDE.pdf'
-          cover_title: 'Percona Transparent Data Encryption'
-          cover_subtitle: Alpha 1 (2024-03-28)
-          author: 'Percona Technical Documentation Team'
-          cover_logo: docs/_images/Percona_Logo_Color.png
-          debug_html: false
+  #- with-pdf: # https://github.com/orzih/mkdocs-with-pdf
+  #        output_path: '_pdf/PerconaTDE.pdf'
+  #        cover_title: 'Percona Transparent Data Encryption'
+  #        cover_subtitle: Release Candidate (2025-03-27)
+  #        author: 'Percona Technical Documentation Team'
+  #        cover_logo: docs/_images/Percona_Logo_Color.png
+  #        debug_html: false
 #          two_columns_level: 3
-          custom_template_path: _resource/templates
-          enabled_if_env: ENABLE_PDF_EXPORT   
+#          custom_template_path: _resource/templates
+#          enabled_if_env: ENABLE_PDF_EXPORT
 
 extra:
   version:
@@ -149,32 +144,58 @@ extra:
         - icon: material/emoticon-sad-outline
           name: This page could be improved
           data: 0
-          note: >- 
-            Thank you for your feedback! Help us improve by using our 
+          note: >-
+            Thank you for your feedback! Help us improve by using our
             <a href="https://docs.google.com/forms/d/1bkWACehjqlwA0AKf-qTJcXvYbOSYgze8iTPXjntqmNo/edit" target="_blank" rel="noopener">
             feedback form</a>.
 
 nav:
-  - Home: index.md
+  - "Home": index.md
   - get-help.md
-  - features.md
-  - Get started:
-    - "Install": "install.md"
-    - "Via apt": apt.md
-    - "Via yum": yum.md   
-    - "Set up": "setup.md"
-    - "Test TDE": "test.md"
-  - functions.md
-  - Concepts:
-    - "What is TDE": tde.md
-    - table-access-method.md
-  - How to:
-    - Use reference to external parameters: external-parameters.md
-    - Decrypt an encrypted table: decrypt.md
+  - "Features": features.md 
+  - "Overview":
+    - "What is Transparent Data Encryption (TDE)?":
+      - "TDE Overview": index/index.md
+      - "TDE Benefits": index/how-tde-helps.md
+      - "How TDE Works": index/how-does-tde-work.md
+      - "Encrypted Data Scope": index/tde-encrypts.md
+      - "Table Access Methods and TDE": index/table-access-method.md
+    - "Limitations of TDE": index/tde-limitations.md
+    - "Versions and Supported PostgreSQL Deployments": index/supported-versions.md
+  - "Get Started":
+    - "1. Install pg_tde": install.md
+    - "1.1 Via apt": apt.md
+    - "1.2 Via yum": yum.md   
+    - "2. Configure pg_tde": setup.md
+    - "2.1 Configure Key Management (KMS)": 
+      - "2.1 Configure Key Management (KMS)": global-key-provider-configuration/index.md
+      - "KMIP Configuration": global-key-provider-configuration/kmip-server.md
+      - "Vault Configuration": global-key-provider-configuration/vault.md
+      - "Keyring File Configuration": global-key-provider-configuration/keyring.md
+    - "2.2 Global Principal Key Configuration": global-key-provider-configuration/set-principal-key.md
+    - "3. Validate Encryption with pg_tde": test.md
+    - "4. Configure WAL Encryption (tech preview)": wal-encryption.md
+  - "Technical Reference":
+    - "Technical Reference": advanced-topics/index.md
+    - "Architecture": architecture/index.md
+    - "GUC Variables": variables.md
+    - "Functions": functions.md
+  - "TDE Operations":
+    - "pg_tde CLI Tools":
+      - "CLI Overview": command-line-tools/index.md
+      - "pg_tde_change_key_provider": command-line-tools/pg-tde-change-key-provider.md
+      - "pg_waldump": command-line-tools/pg-waldump.md
+      - "pg_checksums": command-line-tools/pg-tde-checksums.md 
+    - "Uninstall pg_tde": how-to/uninstall.md
+    - "Configure Multi-tenancy": how-to/multi-tenant-setup.md
+    - "Use Reference to External Parameters": how-to/external-parameters.md
+    - "Decrypt an Encrypted Table": how-to/decrypt.md
   - faq.md
-  - Release notes:
+  - "Release Notes":
     - "pg_tde release notes": release-notes/release-notes.md
-  - uninstall.md
+    - release-notes/rc.md
+    - release-notes/beta2.md
+    - release-notes/beta.md
+    - release-notes/alpha1.md
+    - release-notes/mvp.md
   - contribute.md
-
-

@@ -14,29 +14,23 @@
 #include "postgres.h"
 #include "catalog/pg_tablespace_d.h"
 
-#include "access/pg_tde_tdemap.h"
-#include "catalog/tde_principal_key.h"
+/*
+ * We pick magical database oids from the tablespace oid which avoids
+ * collissions with any real database oid.
+ */
+#define GLOBAL_DATA_TDE_OID		GLOBALTABLESPACE_OID
+#define DEFAULT_DATA_TDE_OID	DEFAULTTABLESPACE_OID
 
 /*
- * Needed for global data (WAL etc) keys identification in caches and storage.
- * We take Oids of the sql operators, so there is no overlap with the "real"
- * catalog objects possible.
+ * This oid can be anything since the database oid is gauranteed to not be a
+ * real database.
  */
-#define GLOBAL_DATA_TDE_OID	607 // TODO: why not repeat GLOBALTABLESPACE_OID ?
-#define XLOG_TDE_OID        608
+#define XLOG_TDE_OID 1
 
 #define GLOBAL_SPACE_RLOCATOR(_obj_oid) (RelFileLocator) { \
 	GLOBALTABLESPACE_OID, \
 	GLOBAL_DATA_TDE_OID, \
 	_obj_oid \
 }
-
-
-/*  Needed for using the same default key for multiple databases */
-#define DEFAULT_DATA_TDE_OID	DEFAULTTABLESPACE_OID
-
-#define TDEisInGlobalSpace(dbOid) 	(dbOid == GLOBAL_DATA_TDE_OID)
-
-extern void TDEInitGlobalKeys(const char *dir);
 
 #endif							/* TDE_GLOBAL_CATALOG_H */

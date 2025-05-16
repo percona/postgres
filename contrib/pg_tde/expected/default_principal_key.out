@@ -1,14 +1,36 @@
 CREATE EXTENSION IF NOT EXISTS pg_tde;
-SELECT pg_tde_add_global_key_provider_file('file-provider','/tmp/pg_tde_regression_default_principal_key.per');
+CREATE EXTENSION IF NOT EXISTS pg_buffercache;
+SELECT pg_tde_add_global_key_provider_file('file-provider','/tmp/pg_tde_regression_default_key.per');
  pg_tde_add_global_key_provider_file 
 -------------------------------------
-                                  -4
+                                  -3
 (1 row)
 
-SELECT pg_tde_set_default_principal_key('default-principal-key', 'file-provider', false);
- pg_tde_set_default_principal_key 
-----------------------------------
- t
+-- Should fail: no default principal key for the server yet
+SELECT pg_tde_verify_default_key();
+ERROR:  principal key not configured for current database
+-- Should fail: no default principal key for the server yet
+SELECT key_provider_id, key_provider_name, key_name
+		FROM pg_tde_default_key_info();
+ERROR:  Principal key does not exists for the database
+HINT:  Use set_key interface to set the principal key
+SELECT pg_tde_set_default_key_using_global_key_provider('default-key', 'file-provider', false);
+ pg_tde_set_default_key_using_global_key_provider 
+--------------------------------------------------
+ 
+(1 row)
+
+SELECT pg_tde_verify_default_key();
+ pg_tde_verify_default_key 
+---------------------------
+ 
+(1 row)
+
+SELECT key_provider_id, key_provider_name, key_name
+		FROM pg_tde_default_key_info();
+ key_provider_id | key_provider_name |  key_name   
+-----------------+-------------------+-------------
+              -3 | file-provider     | default-key
 (1 row)
 
 -- fails
@@ -17,17 +39,15 @@ ERROR:  Can't delete a provider which is currently in use
 SELECT id, provider_name FROM pg_tde_list_all_global_key_providers();
  id | provider_name 
 ----+---------------
- -2 | file-keyring2
- -3 | file-keyring
- -4 | file-provider
-(3 rows)
+ -1 | file-keyring
+ -3 | file-provider
+(2 rows)
 
 -- Should fail: no principal key for the database yet
-SELECT  key_provider_id, key_provider_name, principal_key_name
-		FROM pg_tde_principal_key_info();
+SELECT  key_provider_id, key_provider_name, key_name
+		FROM pg_tde_key_info();
 ERROR:  Principal key does not exists for the database
-HINT:  Use set_principal_key interface to set the principal key
- 
+HINT:  Use set_key interface to set the principal key
 -- Should succeed: "localizes" the default principal key for the database
 CREATE TABLE test_enc(
 	id SERIAL,
@@ -36,21 +56,24 @@ CREATE TABLE test_enc(
 ) USING tde_heap;
 INSERT INTO test_enc (k) VALUES (1), (2), (3);
 -- Should succeed: create table localized the principal key
-SELECT  key_provider_id, key_provider_name, principal_key_name
-		FROM pg_tde_principal_key_info();
- key_provider_id | key_provider_name |  principal_key_name   
------------------+-------------------+-----------------------
-              -4 | file-provider     | default-principal-key
+SELECT  key_provider_id, key_provider_name, key_name
+		FROM pg_tde_key_info();
+ key_provider_id | key_provider_name |  key_name   
+-----------------+-------------------+-------------
+              -3 | file-provider     | default-key
 (1 row)
 
+SELECT current_database() AS regress_database
+\gset
 CREATE DATABASE regress_pg_tde_other;
 \c regress_pg_tde_other
 CREATE EXTENSION pg_tde;
+CREATE EXTENSION pg_buffercache;
 -- Should fail: no principal key for the database yet
-SELECT  key_provider_id, key_provider_name, principal_key_name
-		FROM pg_tde_principal_key_info();
+SELECT  key_provider_id, key_provider_name, key_name
+		FROM pg_tde_key_info();
 ERROR:  Principal key does not exists for the database
-HINT:  Use set_principal_key interface to set the principal key
+HINT:  Use set_key interface to set the principal key
 -- Should succeed: "localizes" the default principal key for the database
 CREATE TABLE test_enc(
 	id SERIAL,
@@ -59,39 +82,68 @@ CREATE TABLE test_enc(
 ) USING tde_heap;
 INSERT INTO test_enc (k) VALUES (1), (2), (3);
 -- Should succeed: create table localized the principal key
-SELECT  key_provider_id, key_provider_name, principal_key_name
-		FROM pg_tde_principal_key_info();
- key_provider_id | key_provider_name |  principal_key_name   
------------------+-------------------+-----------------------
-              -4 | file-provider     | default-principal-key
+SELECT  key_provider_id, key_provider_name, key_name
+		FROM pg_tde_key_info();
+ key_provider_id | key_provider_name |  key_name   
+-----------------+-------------------+-------------
+              -3 | file-provider     | default-key
 (1 row)
 
-\c regression_pg_tde
-SELECT pg_tde_set_default_principal_key('new-default-principal-key', 'file-provider', false);
-WARNING:  you don't own a lock of type AccessExclusiveLock
- pg_tde_set_default_principal_key 
-----------------------------------
- t
+\c :regress_database
+CHECKPOINT;
+SELECT pg_tde_set_default_key_using_global_key_provider('new-default-key', 'file-provider', false);
+ pg_tde_set_default_key_using_global_key_provider 
+--------------------------------------------------
+ 
 (1 row)
 
-SELECT  key_provider_id, key_provider_name, principal_key_name
-		FROM pg_tde_principal_key_info();
- key_provider_id | key_provider_name |    principal_key_name     
------------------+-------------------+---------------------------
-              -4 | file-provider     | new-default-principal-key
+SELECT  key_provider_id, key_provider_name, key_name
+		FROM pg_tde_key_info();
+ key_provider_id | key_provider_name |    key_name     
+-----------------+-------------------+-----------------
+              -3 | file-provider     | new-default-key
 (1 row)
 
 \c regress_pg_tde_other
-SELECT  key_provider_id, key_provider_name, principal_key_name
-		FROM pg_tde_principal_key_info();
- key_provider_id | key_provider_name |    principal_key_name     
------------------+-------------------+---------------------------
-              -4 | file-provider     | new-default-principal-key
+SELECT  key_provider_id, key_provider_name, key_name
+		FROM pg_tde_key_info();
+ key_provider_id | key_provider_name |    key_name     
+-----------------+-------------------+-----------------
+              -3 | file-provider     | new-default-key
 (1 row)
+
+SELECT pg_buffercache_evict(bufferid) FROM pg_buffercache WHERE relfilenode = (SELECT relfilenode FROM pg_class WHERE oid = 'test_enc'::regclass);
+ pg_buffercache_evict 
+----------------------
+ t
+(1 row)
+
+SELECT * FROM test_enc;
+ id | k 
+----+---
+  1 | 1
+  2 | 2
+  3 | 3
+(3 rows)
 
 DROP TABLE test_enc;
 DROP EXTENSION pg_tde CASCADE;
-\c regression_pg_tde
+\c :regress_database
+SELECT pg_buffercache_evict(bufferid) FROM pg_buffercache WHERE relfilenode = (SELECT relfilenode FROM pg_class WHERE oid = 'test_enc'::regclass);
+ pg_buffercache_evict 
+----------------------
+ t
+(1 row)
+
+SELECT * FROM test_enc;
+ id | k 
+----+---
+  1 | 1
+  2 | 2
+  3 | 3
+(3 rows)
+
 DROP TABLE test_enc;
 DROP EXTENSION pg_tde CASCADE;
+DROP EXTENSION pg_buffercache;
 DROP DATABASE regress_pg_tde_other;

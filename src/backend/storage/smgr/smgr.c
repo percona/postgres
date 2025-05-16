@@ -230,12 +230,12 @@ smgropen(RelFileLocator rlocator, ProcNumber backend)
 
 		reln->smgr_which = storage_manager_id;
 
-		/* implementation-specific initialization */
-		smgrsw[reln->smgr_which].smgr_open(reln);
-
 		/* it is not pinned yet */
 		reln->pincount = 0;
 		dlist_push_tail(&unpinned_relns, &reln->node);
+
+		/* implementation-specific initialization */
+		smgrsw[reln->smgr_which].smgr_open(reln);
 	}
 
 	return reln;
@@ -692,14 +692,39 @@ smgrnblocks_cached(SMgrRelation reln, ForkNumber forknum)
  * smgrtruncate() -- Truncate the given forks of supplied relation to
  *					 each specified numbers of blocks
  *
+ * Backward-compatible version of smgrtruncate2() for the benefit of external
+ * callers.  This version isn't used in PostgreSQL core code, and can't be
+ * used in a critical section.
+ */
+void
+smgrtruncate(SMgrRelation reln, ForkNumber *forknum, int nforks,
+			 BlockNumber *nblocks)
+{
+	BlockNumber old_nblocks[MAX_FORKNUM + 1];
+
+	for (int i = 0; i < nforks; ++i)
+		old_nblocks[i] = smgrnblocks(reln, forknum[i]);
+
+	smgrtruncate2(reln, forknum, nforks, old_nblocks, nblocks);
+}
+
+/*
+ * smgrtruncate2() -- Truncate the given forks of supplied relation to
+ *					  each specified numbers of blocks
+ *
  * The truncation is done immediately, so this can't be rolled back.
  *
  * The caller must hold AccessExclusiveLock on the relation, to ensure that
  * other backends receive the smgr invalidation event that this function sends
- * before they access any forks of the relation again.
+ * before they access any forks of the relation again.  The current size of
+ * the forks should be provided in old_nblocks.  This function should normally
+ * be called in a critical section, but the current size must be checked
+ * outside the critical section, and no interrupts or smgr functions relating
+ * to this relation should be called in between.
  */
 void
-smgrtruncate(SMgrRelation reln, ForkNumber *forknum, int nforks, BlockNumber *nblocks)
+smgrtruncate2(SMgrRelation reln, ForkNumber *forknum, int nforks,
+			  BlockNumber *old_nblocks, BlockNumber *nblocks)
 {
 	int			i;
 
@@ -727,7 +752,8 @@ smgrtruncate(SMgrRelation reln, ForkNumber *forknum, int nforks, BlockNumber *nb
 		/* Make the cached size is invalid if we encounter an error. */
 		reln->smgr_cached_nblocks[forknum[i]] = InvalidBlockNumber;
 
-		smgrsw[reln->smgr_which].smgr_truncate(reln, forknum[i], nblocks[i]);
+		smgrsw[reln->smgr_which].smgr_truncate(reln, forknum[i],
+											   old_nblocks[i], nblocks[i]);
 
 		/*
 		 * We might as well update the local smgr_cached_nblocks values. The

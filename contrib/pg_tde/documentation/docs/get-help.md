@@ -1,4 +1,4 @@
-# Get help from Percona
+# Get Help from Percona
 
 Our documentation guides are packed with information, but they can't cover everything you need to know about `pg_tde`. They also won't cover every scenario you might come across. Don't be afraid to try things out and ask questions when you get stuck.
 
@@ -12,7 +12,10 @@ If you have thoughts, feedback, or ideas, the community team would like to hear 
 
 ## Percona experts
 
-[Percona experts](https://www.percona.com/services/consulting){:target="_blank"} bring years of experience in tackling tough database performance issues and design challenges. We understand your challenges when managing complex database environments. That's why we offer various services to help you simplify your operations and achieve your goals.
+Percona experts bring years of experience in tackling tough database performance issues and design challenges.
+
+<div data-tf-live="01JKGYHB4DKYX1CC6KNF0VHP1A"></div><script src="//embed.typeform.com/next/embed.js"></script>
+We understand your challenges when managing complex database environments. That's why we offer various services to help you simplify your operations and achieve your goals.
 
 | Service                    | Description                                                                                                                                                           |
 |----------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|

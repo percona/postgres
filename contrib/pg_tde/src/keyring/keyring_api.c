@@ -1,11 +1,6 @@
-
 #include "keyring/keyring_api.h"
-#include "keyring/keyring_file.h"
-#include "keyring/keyring_vault.h"
 
 #include "postgres.h"
-#include "access/xlog.h"
-#include "storage/shmem.h"
 #include "nodes/pg_list.h"
 #include "utils/memutils.h"
 #ifdef FRONTEND
@@ -16,28 +11,31 @@
 #include <assert.h>
 #include <openssl/rand.h>
 
-typedef struct KeyProviders
+typedef struct RegisteredKeyProviderType
 {
 	TDEKeyringRoutine *routine;
 	ProviderType type;
-} KeyProviders;
+} RegisteredKeyProviderType;
 
 #ifndef FRONTEND
-List	   *registeredKeyProviders = NIL;
+static List *registeredKeyProviderTypes = NIL;
 #else
-SimplePtrList registeredKeyProviders = {NULL, NULL};
+static SimplePtrList registeredKeyProviderTypes = {NULL, NULL};
 #endif
-static KeyProviders *find_key_provider(ProviderType type);
+
+static RegisteredKeyProviderType *find_key_provider_type(ProviderType type);
+static void KeyringStoreKey(GenericKeyring *keyring, KeyInfo *key);
+static KeyInfo *KeyringGenerateNewKey(const char *key_name, unsigned key_len);
 
 #ifndef FRONTEND
-static KeyProviders *
-find_key_provider(ProviderType type)
+static RegisteredKeyProviderType *
+find_key_provider_type(ProviderType type)
 {
 	ListCell   *lc;
 
-	foreach(lc, registeredKeyProviders)
+	foreach(lc, registeredKeyProviderTypes)
 	{
-		KeyProviders *kp = (KeyProviders *) lfirst(lc);
+		RegisteredKeyProviderType *kp = (RegisteredKeyProviderType *) lfirst(lc);
 
 		if (kp->type == type)
 		{
@@ -47,14 +45,14 @@ find_key_provider(ProviderType type)
 	return NULL;
 }
 #else
-static KeyProviders *
-find_key_provider(ProviderType type)
+static RegisteredKeyProviderType *
+find_key_provider_type(ProviderType type)
 {
 	SimplePtrListCell *lc;
 
-	for (lc = registeredKeyProviders.head; lc; lc = lc->next)
+	for (lc = registeredKeyProviderTypes.head; lc; lc = lc->next)
 	{
-		KeyProviders *kp = (KeyProviders *) lc->ptr;
+		RegisteredKeyProviderType *kp = (RegisteredKeyProviderType *) lc->ptr;
 
 		if (kp->type == type)
 		{
@@ -65,10 +63,10 @@ find_key_provider(ProviderType type)
 }
 #endif							/* !FRONTEND */
 
-bool
-RegisterKeyProvider(const TDEKeyringRoutine *routine, ProviderType type)
+void
+RegisterKeyProviderType(const TDEKeyringRoutine *routine, ProviderType type)
 {
-	KeyProviders *kp;
+	RegisteredKeyProviderType *kp;
 #ifndef FRONTEND
 	MemoryContext oldcontext;
 #endif
@@ -76,97 +74,90 @@ RegisterKeyProvider(const TDEKeyringRoutine *routine, ProviderType type)
 	Assert(routine != NULL);
 	Assert(routine->keyring_get_key != NULL);
 	Assert(routine->keyring_store_key != NULL);
+	Assert(routine->keyring_validate != NULL);
 
-	kp = find_key_provider(type);
+	kp = find_key_provider_type(type);
 	if (kp)
-	{
 		ereport(ERROR,
-				(errmsg("Key provider of type %d already registered", type)));
-		return false;
-	}
+				errmsg("Key provider of type %d already registered", type));
 
 #ifndef FRONTEND
 	oldcontext = MemoryContextSwitchTo(TopMemoryContext);
 #endif
-	kp = palloc(sizeof(KeyProviders));
+	kp = palloc_object(RegisteredKeyProviderType);
 	kp->routine = (TDEKeyringRoutine *) routine;
 	kp->type = type;
 #ifndef FRONTEND
-	registeredKeyProviders = lappend(registeredKeyProviders, kp);
+	registeredKeyProviderTypes = lappend(registeredKeyProviderTypes, kp);
 	MemoryContextSwitchTo(oldcontext);
 #else
-	simple_ptr_list_append(&registeredKeyProviders, kp);
+	simple_ptr_list_append(&registeredKeyProviderTypes, kp);
 #endif
-
-	return true;
 }
 
-keyInfo *
-KeyringGetKey(GenericKeyring *keyring, const char *key_name, bool throw_error, KeyringReturnCodes *returnCode)
+KeyInfo *
+KeyringGetKey(GenericKeyring *keyring, const char *key_name, KeyringReturnCodes *returnCode)
 {
-	KeyProviders *kp = find_key_provider(keyring->type);
-	int			ereport_level = throw_error ? ERROR : WARNING;
+	RegisteredKeyProviderType *kp = find_key_provider_type(keyring->type);
 
 	if (kp == NULL)
 	{
-		ereport(ereport_level,
-				(errmsg("Key provider of type %d not registered", keyring->type)));
+		ereport(WARNING,
+				errmsg("Key provider of type %d not registered", keyring->type));
 		*returnCode = KEYRING_CODE_INVALID_PROVIDER;
 		return NULL;
 	}
-	return kp->routine->keyring_get_key(keyring, key_name, throw_error, returnCode);
+	return kp->routine->keyring_get_key(keyring, key_name, returnCode);
 }
 
-KeyringReturnCodes
-KeyringStoreKey(GenericKeyring *keyring, keyInfo *key, bool throw_error)
+static void
+KeyringStoreKey(GenericKeyring *keyring, KeyInfo *key)
 {
-	KeyProviders *kp = find_key_provider(keyring->type);
-	int			ereport_level = throw_error ? ERROR : WARNING;
+	RegisteredKeyProviderType *kp = find_key_provider_type(keyring->type);
 
 	if (kp == NULL)
-	{
-		ereport(ereport_level,
-				(errmsg("Key provider of type %d not registered", keyring->type)));
-		return KEYRING_CODE_INVALID_PROVIDER;
-	}
-	return kp->routine->keyring_store_key(keyring, key, throw_error);
+		ereport(ERROR,
+				errmsg("Key provider of type %d not registered", keyring->type));
+
+	kp->routine->keyring_store_key(keyring, key);
 }
 
-keyInfo *
+static KeyInfo *
 KeyringGenerateNewKey(const char *key_name, unsigned key_len)
 {
-	keyInfo    *key;
+	KeyInfo    *key;
 
 	Assert(key_len <= 32);
-	key = palloc(sizeof(keyInfo));
+	/* Struct will be saved to disk so keep clean */
+	key = palloc0_object(KeyInfo);
 	key->data.len = key_len;
 	if (!RAND_bytes(key->data.data, key_len))
 	{
 		pfree(key);
 		return NULL;			/* openssl error */
 	}
-	strncpy(key->name.name, key_name, sizeof(key->name.name));
+	strlcpy(key->name, key_name, sizeof(key->name));
 	return key;
 }
 
-keyInfo *
-KeyringGenerateNewKeyAndStore(GenericKeyring *keyring, const char *key_name, unsigned key_len, bool throw_error)
+KeyInfo *
+KeyringGenerateNewKeyAndStore(GenericKeyring *keyring, const char *key_name, unsigned key_len)
 {
-	keyInfo    *key = KeyringGenerateNewKey(key_name, key_len);
-	int			ereport_level = throw_error ? ERROR : WARNING;
+	KeyInfo    *key = KeyringGenerateNewKey(key_name, key_len);
 
-	if (key == NULL)
-	{
-		ereport(ereport_level,
-				(errmsg("Failed to generate key")));
-		return NULL;
-	}
-	if (KeyringStoreKey(keyring, key, throw_error) != KEYRING_CODE_SUCCESS)
-	{
-		pfree(key);
-		ereport(ereport_level,
-				(errmsg("Failed to store key on keyring. Please check the keyring configuration.")));
-		return NULL;
-	}
+	KeyringStoreKey(keyring, key);
+
 	return key;
+}
+
+void
+KeyringValidate(GenericKeyring *keyring)
+{
+	RegisteredKeyProviderType *kp = find_key_provider_type(keyring->type);
+
+	if (kp == NULL)
+		ereport(ERROR,
+				errmsg("Key provider of type %d not registered", keyring->type));
+
+	kp->routine->keyring_validate(keyring);
 }

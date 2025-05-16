@@ -25,6 +25,7 @@
 #include "access/tableam.h"
 #include "access/xact.h"
 #include "commands/defrem.h"
+#include "optimizer/optimizer.h"
 #include "optimizer/plancat.h"
 #include "port/pg_bitutils.h"
 #include "storage/bufmgr.h"
@@ -741,6 +742,8 @@ table_block_relation_estimate_size(Relation rel, int32 *attr_widths,
 		tuple_width += overhead_bytes_per_tuple;
 		/* note: integer division is intentional here */
 		density = (usable_bytes_per_page * fillfactor / 100) / tuple_width;
+		/* There's at least one row on the page, even with low fillfactor. */
+		density = clamp_row_est(density);
 	}
 	*tuples = rint(density * (double) curpages);
 
@@ -756,11 +759,4 @@ table_block_relation_estimate_size(Relation rel, int32 *attr_widths,
 		*allvisfrac = 1;
 	else
 		*allvisfrac = (double) relallvisible / curpages;
-}
-
-
-Oid
-get_tde_table_am_oid(void)
-{
-	return get_table_am_oid("tde_heap", false);
 }

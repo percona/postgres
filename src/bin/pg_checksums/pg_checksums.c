@@ -20,6 +20,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include "catalog/pg_tablespace_d.h"
 #include "common/controldata_utils.h"
 #include "common/file_perm.h"
 #include "common/file_utils.h"
@@ -31,6 +32,12 @@
 #include "storage/bufpage.h"
 #include "storage/checksum.h"
 #include "storage/checksum_impl.h"
+
+#ifdef PERCONA_EXT
+#include "pg_tde.h"
+#include "access/pg_tde_fe_init.h"
+#include "access/pg_tde_tdemap.h"
+#endif
 
 
 static int64 files_scanned = 0;
@@ -110,12 +117,33 @@ static const struct exclude_list_item skip[] = {
 	{"pg_filenode.map", false},
 	{"pg_internal.init", true},
 	{"PG_VERSION", false},
-	{"pg_tde", true},
 #ifdef EXEC_BACKEND
 	{"config_exec_params", true},
 #endif
 	{NULL, false}
 };
+
+/* Support for skipping encrypted files */
+#ifdef PERCONA_EXT
+static void
+pg_tde_init(const char *datadir)
+{
+	char		tdedir[MAXPGPATH];
+
+	snprintf(tdedir, sizeof(tdedir), "%s/%s", datadir, PG_TDE_DATA_DIR);
+
+	pg_tde_fe_init(tdedir);
+}
+
+static bool
+is_pg_tde_encypted(Oid spcOid, Oid dbOid, RelFileNumber relNumber)
+{
+	RelFileLocator locator = {.spcOid = spcOid, .dbOid = dbOid,.relNumber = relNumber};
+	RelFileLocatorBackend rlocator = {.locator = locator,.backend = INVALID_PROC_NUMBER};
+
+	return IsSMGRRelationEncrypted(rlocator);
+}
+#endif
 
 /*
  * Report current progress status.  Parts borrowed from
@@ -298,7 +326,7 @@ scan_file(const char *fn, int segmentno)
  * the total size of the data directory for progress reports.
  */
 static int64
-scan_directory(const char *basedir, const char *subdir, bool sizeonly)
+scan_directory(const char *basedir, const char *subdir, Oid tablespace, bool sizeonly)
 {
 	int64		dirsize = 0;
 	char		path[MAXPGPATH];
@@ -347,6 +375,8 @@ scan_directory(const char *basedir, const char *subdir, bool sizeonly)
 			if (skipfile(de->d_name))
 				continue;
 
+			Assert(tablespace != InvalidOid);
+
 			/*
 			 * Cut off at the segment boundary (".") to get the segment number
 			 * in order to mix it into the checksum. Then also cut off at the
@@ -373,6 +403,15 @@ scan_directory(const char *basedir, const char *subdir, bool sizeonly)
 				continue;
 
 			dirsize += st.st_size;
+
+#ifdef PERCONA_EXT
+			if (is_pg_tde_encypted(tablespace, atooid(subdir), atooid(fnonly)))
+			{
+				if (!sizeonly)
+					pg_log_info("skipped pg_tde encrypted file \"%s\"", fn);
+				continue;
+			}
+#endif
 
 			/*
 			 * No need to work on the file when calculating only the size of
@@ -418,11 +457,12 @@ scan_directory(const char *basedir, const char *subdir, bool sizeonly)
 				/* Looks like a valid tablespace location */
 				dirsize += scan_directory(tblspc_path,
 										  TABLESPACE_VERSION_DIRECTORY,
+										  atooid(de->d_name),
 										  sizeonly);
 			}
 			else
 			{
-				dirsize += scan_directory(path, de->d_name, sizeonly);
+				dirsize += scan_directory(path, de->d_name, tablespace, sizeonly);
 			}
 		}
 	}
@@ -582,6 +622,10 @@ main(int argc, char *argv[])
 		mode == PG_MODE_ENABLE)
 		pg_fatal("data checksums are already enabled in cluster");
 
+#ifdef PERCONA_EXT
+	pg_tde_init(DataDir);
+#endif
+
 	/* Operate on all files if checking or enabling checksums */
 	if (mode == PG_MODE_CHECK || mode == PG_MODE_ENABLE)
 	{
@@ -592,14 +636,14 @@ main(int argc, char *argv[])
 		 */
 		if (showprogress)
 		{
-			total_size = scan_directory(DataDir, "global", true);
-			total_size += scan_directory(DataDir, "base", true);
-			total_size += scan_directory(DataDir, "pg_tblspc", true);
+			total_size = scan_directory(DataDir, "global", GLOBALTABLESPACE_OID, true);
+			total_size += scan_directory(DataDir, "base", DEFAULTTABLESPACE_OID, true);
+			total_size += scan_directory(DataDir, "pg_tblspc", InvalidOid, true);
 		}
 
-		(void) scan_directory(DataDir, "global", false);
-		(void) scan_directory(DataDir, "base", false);
-		(void) scan_directory(DataDir, "pg_tblspc", false);
+		(void) scan_directory(DataDir, "global", GLOBALTABLESPACE_OID, false);
+		(void) scan_directory(DataDir, "base", DEFAULTTABLESPACE_OID, false);
+		(void) scan_directory(DataDir, "pg_tblspc", InvalidOid, false);
 
 		if (showprogress)
 			progress_report(true);

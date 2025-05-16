@@ -246,7 +246,7 @@
   </para>
 
   <para>
-   Checksums are normally enabled when the cluster is initialized using <link
+   Checksums can be enabled when the cluster is initialized using <link
    linkend="app-initdb-data-checksums"><application>initdb</application></link>.
    They can also be enabled or disabled at a later time as an offline
    operation. Data checksums are enabled or disabled at the full cluster
@@ -643,6 +643,9 @@
    until the situation is resolved. A slow or failed standby server that
    uses a replication slot will have the same effect (see
    <xref linkend="streaming-replication-slots"/>).
+   Similarly, if <link linkend="runtime-config-wal-summarization">
+   WAL summarization</link> is enabled, old segments are kept
+   until they are summarized.
   </para>
 
   <para>

@@ -9,37 +9,35 @@
  *-------------------------------------------------------------------------
  */
 
+#include "postgres.h"
+
 #include <openssl/err.h>
 #include <openssl/ssl.h>
-#include <string.h>
-#include <kmip.h>
-#include <kmip_bio.h>
-#include <kmip_locate.h>
-
-/* The KMIP headers and Postgres headers conflict.
-   We can't include most postgres headers here, instead just copy required declarations.
-*/
-
-#define bool int
-#define true 1
-#define false 0
 
 #include "keyring/keyring_kmip.h"
-#include "catalog/keyring_min.h"
+#include "keyring/keyring_kmip_impl.h"
+#include "keyring/keyring_api.h"
 
-extern bool RegisterKeyProvider(const TDEKeyringRoutine *routine, ProviderType type);
+#ifdef FRONTEND
+#include "pg_tde_fe.h"
+#endif
 
-static KeyringReturnCodes set_key_by_name(GenericKeyring *keyring, keyInfo *key, bool throw_error);
-static keyInfo *get_key_by_name(GenericKeyring *keyring, const char *key_name, bool throw_error, KeyringReturnCodes *return_code);
+#define MAX_LOCATE_LEN 128
+
+static void set_key_by_name(GenericKeyring *keyring, KeyInfo *key);
+static KeyInfo *get_key_by_name(GenericKeyring *keyring, const char *key_name, KeyringReturnCodes *return_code);
+static void validate(GenericKeyring *keyring);
 
 const TDEKeyringRoutine keyringKmipRoutine = {
 	.keyring_get_key = get_key_by_name,
-.keyring_store_key = set_key_by_name};
+	.keyring_store_key = set_key_by_name,
+	.keyring_validate = validate,
+};
 
-bool
+void
 InstallKmipKeyring(void)
 {
-	return RegisterKeyProvider(&keyringKmipRoutine, KMIP_KEY_PROVIDER);
+	RegisterKeyProviderType(&keyringKmipRoutine, KMIP_KEY_PROVIDER);
 }
 
 typedef struct KmipCtx
@@ -52,27 +50,28 @@ static bool
 kmipSslConnect(KmipCtx *ctx, KmipKeyring *kmip_keyring, bool throw_error)
 {
 	SSL		   *ssl = NULL;
+	int			level = throw_error ? ERROR : WARNING;
 
 	ctx->ssl = SSL_CTX_new(SSLv23_method());
 
 	if (SSL_CTX_use_certificate_file(ctx->ssl, kmip_keyring->kmip_cert_path, SSL_FILETYPE_PEM) != 1)
 	{
-		kmip_ereport(throw_error, "SSL error: Loading the client certificate failed", 0);
 		SSL_CTX_free(ctx->ssl);
+		ereport(level, errmsg("SSL error: Loading the client certificate failed"));
 		return false;
 	}
 
-	if (SSL_CTX_use_PrivateKey_file(ctx->ssl, kmip_keyring->kmip_cert_path, SSL_FILETYPE_PEM) != 1)
+	if (SSL_CTX_use_PrivateKey_file(ctx->ssl, kmip_keyring->kmip_key_path, SSL_FILETYPE_PEM) != 1)
 	{
 		SSL_CTX_free(ctx->ssl);
-		kmip_ereport(throw_error, "SSL error: Loading the client key failed", 0);
+		ereport(level, errmsg("SSL error: Loading the client key failed"));
 		return false;
 	}
 
 	if (SSL_CTX_load_verify_locations(ctx->ssl, kmip_keyring->kmip_ca_path, NULL) != 1)
 	{
 		SSL_CTX_free(ctx->ssl);
-		kmip_ereport(throw_error, "SSL error: Loading the CA certificate failed", 0);
+		ereport(level, errmsg("SSL error: Loading the CA certificate failed"));
 		return false;
 	}
 
@@ -80,7 +79,7 @@ kmipSslConnect(KmipCtx *ctx, KmipKeyring *kmip_keyring, bool throw_error)
 	if (ctx->bio == NULL)
 	{
 		SSL_CTX_free(ctx->ssl);
-		kmip_ereport(throw_error, "SSL error: BIO_new_ssl_connect failed", 0);
+		ereport(level, errmsg("SSL error: BIO_new_ssl_connect failed"));
 		return false;
 	}
 
@@ -92,88 +91,44 @@ kmipSslConnect(KmipCtx *ctx, KmipKeyring *kmip_keyring, bool throw_error)
 	{
 		BIO_free_all(ctx->bio);
 		SSL_CTX_free(ctx->ssl);
-		kmip_ereport(throw_error, "SSL error: BIO_do_connect failed", 0);
+		ereport(level, errmsg("SSL error: BIO_do_connect failed"));
 		return false;
 	}
 
 	return true;
 }
 
-static KeyringReturnCodes
-set_key_by_name(GenericKeyring *keyring, keyInfo *key, bool throw_error)
+static void
+set_key_by_name(GenericKeyring *keyring, KeyInfo *key)
 {
 	KmipCtx		ctx;
 	KmipKeyring *kmip_keyring = (KmipKeyring *) keyring;
+	bool		sslresult;
 	int			result;
-	int			id_max_len = 64;
-	char	   *idp = NULL;
 
-	Attribute	a[4];
-	enum cryptographic_algorithm algorithm = KMIP_CRYPTOALG_AES;
-	int32		length = key->data.len * 8;
-	int32		mask = KMIP_CRYPTOMASK_ENCRYPT | KMIP_CRYPTOMASK_DECRYPT;
-	Name		ts;
-	TextString	ts2 = {0, 0};
-	TemplateAttribute ta = {0};
+	sslresult = kmipSslConnect(&ctx, kmip_keyring, true);
+	Assert(sslresult);
 
-	if (!kmipSslConnect(&ctx, kmip_keyring, throw_error))
-	{
-		return KEYRING_CODE_INVALID_RESPONSE;
-	}
-
-	for (int i = 0; i < 4; i++)
-	{
-		kmip_init_attribute(&a[i]);
-	}
-
-	a[0].type = KMIP_ATTR_CRYPTOGRAPHIC_ALGORITHM;
-	a[0].value = &algorithm;
-
-	a[1].type = KMIP_ATTR_CRYPTOGRAPHIC_LENGTH;
-	a[1].value = &length;
-
-	a[2].type = KMIP_ATTR_CRYPTOGRAPHIC_USAGE_MASK;
-	a[2].value = &mask;
-
-	ts2.value = key->name.name;
-	ts2.size = kmip_strnlen_s(key->name.name, 250);
-	ts.value = &ts2;
-	ts.type = KMIP_NAME_UNINTERPRETED_TEXT_STRING;
-	a[3].type = KMIP_ATTR_NAME;
-	a[3].value = &ts;
-
-	ta.attributes = a;
-	ta.attribute_count = ARRAY_LENGTH(a);
-
-	result = kmip_bio_register_symmetric_key(ctx.bio, &ta, (char *) key->data.data, key->data.len, &idp, &id_max_len);
+	result = pg_tde_kmip_set_by_name(ctx.bio, key->name, key->data.data, key->data.len);
 
 	BIO_free_all(ctx.bio);
 	SSL_CTX_free(ctx.ssl);
 
 	if (result != 0)
-	{
-		kmip_ereport(throw_error, "KMIP server reported error on register symmetric key: %i", result);
-		return KEYRING_CODE_INVALID_RESPONSE;
-	}
-
-	return KEYRING_CODE_SUCCESS;
+		ereport(ERROR, errmsg("KMIP server reported error on register symmetric key: %i", result));
 }
 
-void	   *palloc(size_t);
-
-void		pfree(void *);
-
-static keyInfo *
-get_key_by_name(GenericKeyring *keyring, const char *key_name, bool throw_error, KeyringReturnCodes *return_code)
+static KeyInfo *
+get_key_by_name(GenericKeyring *keyring, const char *key_name, KeyringReturnCodes *return_code)
 {
-	keyInfo    *key = NULL;
+	KeyInfo    *key = NULL;
 	KmipKeyring *kmip_keyring = (KmipKeyring *) keyring;
-	char	   *id = 0;
+	char		id[MAX_LOCATE_LEN];
 	KmipCtx		ctx;
 
 	*return_code = KEYRING_CODE_SUCCESS;
 
-	if (!kmipSslConnect(&ctx, kmip_keyring, throw_error))
+	if (!kmipSslConnect(&ctx, kmip_keyring, false))
 	{
 		return NULL;
 	}
@@ -181,31 +136,10 @@ get_key_by_name(GenericKeyring *keyring, const char *key_name, bool throw_error,
 	/* 1. locate key */
 
 	{
-		int			upto = 0;
 		int			result;
-		LocateResponse locate_result;
-		Name		ts;
-		TextString	ts2 = {0, 0};
-		Attribute	a[3];
-		enum object_type loctype = KMIP_OBJTYPE_SYMMETRIC_KEY;
+		size_t		ids_found;
 
-		for (int i = 0; i < 3; i++)
-		{
-			kmip_init_attribute(&a[i]);
-		}
-
-		a[0].type = KMIP_ATTR_OBJECT_TYPE;
-		a[0].value = &loctype;
-
-		ts2.value = (char *) key_name;
-		ts2.size = kmip_strnlen_s(key_name, 250);
-		ts.value = &ts2;
-		ts.type = KMIP_NAME_UNINTERPRETED_TEXT_STRING;
-		a[1].type = KMIP_ATTR_NAME;
-		a[1].value = &ts;
-
-		/* 16 is hard coded: seems like the most vault supports? */
-		result = kmip_bio_locate(ctx.bio, a, 2, &locate_result, 16, upto);
+		result = pg_tde_kmip_locate_key(ctx.bio, key_name, &ids_found, id);
 
 		if (result != 0)
 		{
@@ -215,38 +149,34 @@ get_key_by_name(GenericKeyring *keyring, const char *key_name, bool throw_error,
 			return NULL;
 		}
 
-		if (locate_result.ids_size == 0)
+		if (ids_found == 0)
 		{
 			BIO_free_all(ctx.bio);
 			SSL_CTX_free(ctx.ssl);
 			return NULL;
 		}
 
-		if (locate_result.ids_size > 1)
+		if (ids_found > 1)
 		{
-			fprintf(stderr, "KMIP ERR: %li\n", locate_result.ids_size);
-			kmip_ereport(throw_error, "KMIP server contains multiple results for key, ignoring", 0);
+			ereport(WARNING, errmsg("KMIP server contains multiple results for key, ignoring"));
 			*return_code = KEYRING_CODE_RESOURCE_NOT_AVAILABLE;
 			BIO_free_all(ctx.bio);
 			SSL_CTX_free(ctx.ssl);
 			return NULL;
 		}
-
-		id = locate_result.ids[0];
 	}
 
 	/* 2. get key */
 
-	key = palloc(sizeof(keyInfo));
+	key = palloc_object(KeyInfo);
 
 	{
-
 		char	   *keyp = NULL;
-		int			result = kmip_bio_get_symmetric_key(ctx.bio, id, strlen(id), &keyp, (int *) &key->data.len);
+		int			result = pg_tde_kmip_get_key(ctx.bio, id, &keyp, (int *) &key->data.len);
 
 		if (result != 0)
 		{
-			kmip_ereport(throw_error, "KMIP server LOCATEd key, but GET failed with %i", result);
+			ereport(WARNING, errmsg("KMIP server LOCATEd key, but GET failed with %i", result));
 			*return_code = KEYRING_CODE_RESOURCE_NOT_AVAILABLE;
 			pfree(key);
 			BIO_free_all(ctx.bio);
@@ -254,7 +184,20 @@ get_key_by_name(GenericKeyring *keyring, const char *key_name, bool throw_error,
 			return NULL;
 		}
 
-		strncpy((char *) key->data.data, keyp, MAX_KEY_DATA_SIZE);
+		if (key->data.len > sizeof(key->data.data))
+		{
+			ereport(WARNING, errmsg("keyring provider returned invalid key size: %d", key->data.len));
+			*return_code = KEYRING_CODE_INVALID_KEY_SIZE;
+			pfree(key);
+			BIO_free_all(ctx.bio);
+			SSL_CTX_free(ctx.ssl);
+			free(keyp);
+			return NULL;
+		}
+
+		memset(key->name, 0, sizeof(key->name));
+		memcpy(key->name, key_name, strnlen(key_name, sizeof(key->name) - 1));
+		memcpy(key->data.data, keyp, key->data.len);
 		free(keyp);
 	}
 
@@ -262,4 +205,16 @@ get_key_by_name(GenericKeyring *keyring, const char *key_name, bool throw_error,
 	SSL_CTX_free(ctx.ssl);
 
 	return key;
+}
+
+static void
+validate(GenericKeyring *keyring)
+{
+	KmipKeyring *kmip_keyring = (KmipKeyring *) keyring;
+	KmipCtx		ctx;
+
+	kmipSslConnect(&ctx, kmip_keyring, true);
+
+	BIO_free_all(ctx.bio);
+	SSL_CTX_free(ctx.ssl);
 }

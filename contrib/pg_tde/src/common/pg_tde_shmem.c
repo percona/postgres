@@ -12,24 +12,10 @@
 #include "postgres.h"
 #include "storage/ipc.h"
 #include "common/pg_tde_shmem.h"
+#include "lib/dshash.h"
 #include "nodes/pg_list.h"
 #include "storage/lwlock.h"
-
-typedef struct TdeSharedState
-{
-	LWLock	   *principalKeyLock;
-	int			principalKeyHashTrancheId;
-	void	   *rawDsaArea;		/* DSA area pointer to store cache hashes */
-	dshash_table_handle principalKeyHashHandle;
-} TdeSharedState;
-
-typedef struct TDELocalState
-{
-	TdeSharedState *sharedTdeState;
-	dsa_area  **dsa;			/* local dsa area for backend attached to the
-								 * dsa area created by postmaster at startup. */
-	dshash_table *principalKeySharedHash;
-}			TDELocalState;
+#include "storage/shmem.h"
 
 static void tde_shmem_shutdown(int code, Datum arg);
 
@@ -56,7 +42,6 @@ TdeRequiredSharedMemorySize(void)
 		if (routine->required_shared_mem_size)
 			sz = add_size(sz, routine->required_shared_mem_size());
 	}
-	sz = add_size(sz, sizeof(TdeSharedState));
 	return MAXALIGN(sz);
 }
 
@@ -70,25 +55,22 @@ void
 TdeShmemInit(void)
 {
 	bool		found;
-	TdeSharedState *tdeState;
+	char	   *free_start;
 	Size		required_shmem_size = TdeRequiredSharedMemorySize();
 
 	LWLockAcquire(AddinShmemInitLock, LW_EXCLUSIVE);
 	/* Create or attach to the shared memory state */
-	ereport(NOTICE, (errmsg("TdeShmemInit: requested %ld bytes", required_shmem_size)));
-	tdeState = ShmemInitStruct("pg_tde", required_shmem_size, &found);
+	ereport(NOTICE, errmsg("TdeShmemInit: requested %ld bytes", required_shmem_size));
+	free_start = ShmemInitStruct("pg_tde", required_shmem_size, &found);
 
 	if (!found)
 	{
 		/* First time through ... */
-		char	   *p = (char *) tdeState;
 		dsa_area   *dsa;
 		ListCell   *lc;
 		Size		used_size = 0;
 		Size		dsa_area_size;
 
-		p += MAXALIGN(sizeof(TdeSharedState));
-		used_size += MAXALIGN(sizeof(TdeSharedState));
 		/* Now place all shared state structures */
 		foreach(lc, registeredShmemRequests)
 		{
@@ -97,19 +79,18 @@ TdeShmemInit(void)
 
 			if (routine->init_shared_state)
 			{
-				sz = routine->init_shared_state(p);
+				sz = routine->init_shared_state(free_start);
 				used_size += MAXALIGN(sz);
-				p += MAXALIGN(sz);
+				free_start += MAXALIGN(sz);
 				Assert(used_size <= required_shmem_size);
 			}
 		}
 		/* Create DSA area */
 		dsa_area_size = required_shmem_size - used_size;
 		Assert(dsa_area_size > 0);
-		tdeState->rawDsaArea = p;
 
-		ereport(LOG, (errmsg("creating DSA area of size %lu", dsa_area_size)));
-		dsa = dsa_create_in_place(tdeState->rawDsaArea,
+		ereport(LOG, errmsg("creating DSA area of size %lu", dsa_area_size));
+		dsa = dsa_create_in_place(free_start,
 								  dsa_area_size,
 								  LWLockNewTrancheId(), 0);
 		dsa_pin(dsa);
@@ -121,9 +102,9 @@ TdeShmemInit(void)
 			TDEShmemSetupRoutine *routine = (TDEShmemSetupRoutine *) lfirst(lc);
 
 			if (routine->init_dsa_area_objects)
-				routine->init_dsa_area_objects(dsa, tdeState->rawDsaArea);
+				routine->init_dsa_area_objects(dsa, free_start);
 		}
-		ereport(LOG, (errmsg("setting no limit to DSA area of size %lu", dsa_area_size)));
+		ereport(LOG, errmsg("setting no limit to DSA area of size %lu", dsa_area_size));
 
 		dsa_set_size_limit(dsa, -1);	/* Let it grow outside the shared
 										 * memory */

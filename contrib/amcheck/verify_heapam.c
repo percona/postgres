@@ -305,7 +305,7 @@ verify_heapam(PG_FUNCTION_ARGS)
 	 * Other relkinds might be using a different AM, so check.
 	 */
 	if (ctx.rel->rd_rel->relkind != RELKIND_SEQUENCE &&
-		ctx.rel->rd_rel->relam != HEAP_TABLE_AM_OID && ctx.rel->rd_rel->relam != get_tde_table_am_oid())
+		ctx.rel->rd_tableam != GetHeapamTableAmRoutine())
 		ereport(ERROR,
 				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
 				 errmsg("only heap AM is supported")));
@@ -1875,7 +1875,9 @@ check_tuple(HeapCheckContext *ctx, bool *xmin_commit_status_ok,
 /*
  * Convert a TransactionId into a FullTransactionId using our cached values of
  * the valid transaction ID range.  It is the caller's responsibility to have
- * already updated the cached values, if necessary.
+ * already updated the cached values, if necessary.  This is akin to
+ * FullTransactionIdFromAllowableAt(), but it tolerates corruption in the form
+ * of an xid before epoch 0.
  */
 static FullTransactionId
 FullTransactionIdFromXidAndCtx(TransactionId xid, const HeapCheckContext *ctx)

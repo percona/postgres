@@ -26,30 +26,30 @@
 #include <stdio.h>
 #include <unistd.h>
 
-static keyInfo *get_key_by_name(GenericKeyring *keyring, const char *key_name, bool throw_error, KeyringReturnCodes *return_code);
-static KeyringReturnCodes set_key_by_name(GenericKeyring *keyring, keyInfo *key, bool throw_error);
+static KeyInfo *get_key_by_name(GenericKeyring *keyring, const char *key_name, KeyringReturnCodes *return_code);
+static void set_key_by_name(GenericKeyring *keyring, KeyInfo *key);
+static void validate(GenericKeyring *keyring);
 
 const TDEKeyringRoutine keyringFileRoutine = {
 	.keyring_get_key = get_key_by_name,
-	.keyring_store_key = set_key_by_name
+	.keyring_store_key = set_key_by_name,
+	.keyring_validate = validate,
 };
 
-bool
+void
 InstallFileKeyring(void)
 {
-	return RegisterKeyProvider(&keyringFileRoutine, FILE_KEY_PROVIDER);
+	RegisterKeyProviderType(&keyringFileRoutine, FILE_KEY_PROVIDER);
 }
 
-
-static keyInfo *
-get_key_by_name(GenericKeyring *keyring, const char *key_name, bool throw_error, KeyringReturnCodes *return_code)
+static KeyInfo *
+get_key_by_name(GenericKeyring *keyring, const char *key_name, KeyringReturnCodes *return_code)
 {
-	keyInfo    *key = NULL;
+	KeyInfo    *key = NULL;
 	int			fd = -1;
 	FileKeyring *file_keyring = (FileKeyring *) keyring;
 	off_t		bytes_read = 0;
 	off_t		curr_pos = 0;
-	int			ereport_level = throw_error ? ERROR : WARNING;
 
 	*return_code = KEYRING_CODE_SUCCESS;
 
@@ -57,10 +57,10 @@ get_key_by_name(GenericKeyring *keyring, const char *key_name, bool throw_error,
 	if (fd < 0)
 		return NULL;
 
-	key = palloc(sizeof(keyInfo));
+	key = palloc_object(KeyInfo);
 	while (true)
 	{
-		bytes_read = pg_pread(fd, key, sizeof(keyInfo), curr_pos);
+		bytes_read = pg_pread(fd, key, sizeof(KeyInfo), curr_pos);
 		curr_pos += bytes_read;
 
 		if (bytes_read == 0)
@@ -73,20 +73,20 @@ get_key_by_name(GenericKeyring *keyring, const char *key_name, bool throw_error,
 			pfree(key);
 			return NULL;
 		}
-		if (bytes_read != sizeof(keyInfo))
+		if (bytes_read != sizeof(KeyInfo))
 		{
 			close(fd);
 			pfree(key);
 			/* Corrupt file */
 			*return_code = KEYRING_CODE_DATA_CORRUPTED;
-			ereport(ereport_level,
-					(errcode_for_file_access(),
-					 errmsg("keyring file \"%s\" is corrupted: %m",
-							file_keyring->file_name),
-					 errdetail("invalid key size %lu expected %lu", bytes_read, sizeof(keyInfo))));
+			ereport(WARNING,
+					errcode_for_file_access(),
+					errmsg("keyring file \"%s\" is corrupted: %m",
+						   file_keyring->file_name),
+					errdetail("invalid key size %lu expected %lu", bytes_read, sizeof(KeyInfo)));
 			return NULL;
 		}
-		if (strncasecmp(key->name.name, key_name, sizeof(key->name.name)) == 0)
+		if (strncasecmp(key->name, key_name, sizeof(key->name)) == 0)
 		{
 			close(fd);
 			return key;
@@ -97,58 +97,67 @@ get_key_by_name(GenericKeyring *keyring, const char *key_name, bool throw_error,
 	return NULL;
 }
 
-static KeyringReturnCodes
-set_key_by_name(GenericKeyring *keyring, keyInfo *key, bool throw_error)
+static void
+set_key_by_name(GenericKeyring *keyring, KeyInfo *key)
 {
 	off_t		bytes_written = 0;
 	off_t		curr_pos = 0;
 	int			fd;
 	FileKeyring *file_keyring = (FileKeyring *) keyring;
-	keyInfo    *existing_key;
+	KeyInfo    *existing_key;
 	KeyringReturnCodes return_code = KEYRING_CODE_SUCCESS;
-	int			ereport_level = throw_error ? ERROR : WARNING;
 
 	Assert(key != NULL);
 	/* See if the key with same name already exists */
-	existing_key = get_key_by_name(keyring, key->name.name, false, &return_code);
+	existing_key = get_key_by_name(keyring, key->name, &return_code);
 	if (existing_key)
 	{
-		pfree(existing_key);
-		ereport(ereport_level,
-				(errmsg("Key with name %s already exists in keyring", key->name.name)));
-		return KEYRING_CODE_INVALID_OPERATION;
+		ereport(ERROR,
+				errmsg("Key with name %s already exists in keyring", key->name));
 	}
 
 	fd = BasicOpenFile(file_keyring->file_name, O_CREAT | O_RDWR | PG_BINARY);
 	if (fd < 0)
 	{
-		ereport(ereport_level,
-				(errcode_for_file_access(),
-				 errmsg("Failed to open keyring file %s :%m", file_keyring->file_name)));
-		return KEYRING_CODE_RESOURCE_NOT_ACCESSABLE;
+		ereport(ERROR,
+				errcode_for_file_access(),
+				errmsg("Failed to open keyring file %s: %m", file_keyring->file_name));
 	}
 	/* Write key to the end of file */
 	curr_pos = lseek(fd, 0, SEEK_END);
-	bytes_written = pg_pwrite(fd, key, sizeof(keyInfo), curr_pos);
-	if (bytes_written != sizeof(keyInfo))
+	bytes_written = pg_pwrite(fd, key, sizeof(KeyInfo), curr_pos);
+	if (bytes_written != sizeof(KeyInfo))
 	{
 		close(fd);
-		ereport(ereport_level,
-				(errcode_for_file_access(),
-				 errmsg("keyring file \"%s\" can't be written: %m",
-						file_keyring->file_name)));
-		return KEYRING_CODE_RESOURCE_NOT_ACCESSABLE;
+		ereport(ERROR,
+				errcode_for_file_access(),
+				errmsg("keyring file \"%s\" can't be written: %m",
+					   file_keyring->file_name));
 	}
 
 	if (pg_fsync(fd) != 0)
 	{
 		close(fd);
-		ereport(ereport_level,
-				(errcode_for_file_access(),
-				 errmsg("could not fsync file \"%s\": %m",
-						file_keyring->file_name)));
-		return KEYRING_CODE_RESOURCE_NOT_ACCESSABLE;
+		ereport(ERROR,
+				errcode_for_file_access(),
+				errmsg("could not fsync file \"%s\": %m",
+					   file_keyring->file_name));
 	}
 	close(fd);
-	return KEYRING_CODE_SUCCESS;
+}
+
+static void
+validate(GenericKeyring *keyring)
+{
+	FileKeyring *file_keyring = (FileKeyring *) keyring;
+	int			fd = BasicOpenFile(file_keyring->file_name, O_CREAT | O_RDWR | PG_BINARY);
+
+	if (fd < 0)
+	{
+		ereport(ERROR,
+				errcode_for_file_access(),
+				errmsg("Failed to open keyring file %s: %m", file_keyring->file_name));
+	}
+
+	close(fd);
 }

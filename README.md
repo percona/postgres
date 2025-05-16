@@ -1,3 +1,5 @@
+### Code coverage for [pg_tde](https://github.com/percona/postgres/tree/TDE_REL_17_STABLE/contrib/pg_tde): [![codecov](https://codecov.io/github/percona/postgres/graph/badge.svg?token=Wow78BMYdP)](https://codecov.io/github/percona/postgres)
+
 Percona Server for PostgreSQL
 =============================
 
@@ -33,4 +35,3 @@ Specific - include as much detail as possible, such as which version, which envi
 Unique - do not duplicate existing tickets
 
 Scoped to a single issue - only one issue per report
-

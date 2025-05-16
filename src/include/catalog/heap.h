@@ -17,6 +17,7 @@
 #include "catalog/indexing.h"
 #include "catalog/objectaddress.h"
 #include "parser/parse_node.h"
+#include "storage/relfilelocator.h"
 
 
 /* flag bits for CheckAttributeType/CheckAttributeNamesTypes */
@@ -28,7 +29,7 @@ typedef struct RawColumnDefault
 {
 	AttrNumber	attnum;			/* attribute to attach default to */
 	Node	   *raw_default;	/* default value (untransformed parse tree) */
-	bool		missingMode;	/* true if part of add column processing */
+	bool		missingMode;	/* obsolete, no longer used */
 	char		generated;		/* attgenerated setting */
 } RawColumnDefault;
 
@@ -60,7 +61,8 @@ extern Relation heap_create(const char *relname,
 							bool allow_system_table_mods,
 							TransactionId *relfrozenxid,
 							MultiXactId *relminmxid,
-							bool create_storage);
+							bool create_storage,
+							RelFileLocator *old_rlocator);
 
 extern Oid	heap_create_with_catalog(const char *relname,
 									 Oid relnamespace,
@@ -115,6 +117,9 @@ extern List *AddRelationNewConstraints(Relation rel,
 									   const char *queryString);
 
 extern void RelationClearMissing(Relation rel);
+
+extern void StoreAttrMissingVal(Relation rel, AttrNumber attnum,
+								Datum missingval);
 extern void SetAttrMissing(Oid relid, char *attname, char *value);
 
 extern Node *cookDefault(ParseState *pstate,

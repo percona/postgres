@@ -5,6 +5,9 @@ on:
       os:
         type: string
         required: true
+      compiler:
+        type: string
+        required: true
       build_type:
         type: string
         required: true
@@ -13,7 +16,8 @@ on:
         required: true
 
 env:
-  artifact_name: build-${{ inputs.os }}-${{ inputs.build_script }}-${{ inputs.build_type }}
+  artifact_name: build-${{ inputs.os }}-${{ inputs.compiler }}-${{ inputs.build_script }}-${{ inputs.build_type }}
+  CC: ${{ inputs.compiler }}
 
 jobs:
   build:
@@ -33,7 +37,7 @@ jobs:
       - name: Build postgres
         run: src/ci_scripts/${{ inputs.build_script }}-build.sh ${{ inputs.build_type }}
 
-      - name: 'Tar files'
+      - name: Archive pginst to artifact tar file
         run: tar -czf artifacts.tar src pginst
 
       - name: Upload build artifacts
@@ -57,7 +61,7 @@ jobs:
           name: ${{ env.artifact_name }}
           path: .
 
-      - name: 'Untar files'
+      - name: Extract artifact file
         run: tar -xzf artifacts.tar
 
       - name: Install dependencies
@@ -73,13 +77,20 @@ jobs:
         uses: actions/upload-artifact@v4
         if: ${{ failure() }}
         with:
-          name: testlog-ubuntu-${{ inputs.ubuntu_version }}.04-meson-${{ inputs.build_type }}
+          name: log-test-${{ inputs.os }}-${{ inputs.compiler }}-${{ inputs.build_script }}-${{ inputs.build_type }}
           path: |
-            src/build/testrun/
-            src/contrib/*/t/
-            src/contrib/*/results
+            src/build/testrun
+            src/contrib/*/log
             src/contrib/*/regression.diffs
             src/contrib/*/regression.out
+            src/contrib/*/results
+            src/contrib/*/tmp_check
+            src/contrib/*/t/results
+            src/src/test/*/log
+            src/src/test/*/regression.diffs
+            src/src/test/*/regression.out
+            src/src/test/*/results
+            src/src/test/*/tmp_check
           retention-days: 3
 
   test_tde:
@@ -95,27 +106,34 @@ jobs:
           name: ${{ env.artifact_name }}
           path: .
 
-      - name: 'Untar files'
+      - name: Extract artifact file
         run: tar -xzf artifacts.tar
 
       - name: Install dependencies
-        run: src/ci_scripts/ubuntu-deps.sh 
-  
+        run: src/ci_scripts/ubuntu-deps.sh
+
       - name: Setup kmip and vault
         run: src/ci_scripts/setup-keyring-servers.sh
-  
-      - name: Test postgres with TDE
-        run: src/ci_scripts/${{ inputs.build_script }}-test-tde.sh --continue
+
+      - name: Test postgres with TDE as default access method
+        run: src/ci_scripts/${{ inputs.build_script }}-test-global-tde.sh --continue
 
       - name: Report on test fail
         uses: actions/upload-artifact@v4
         if: ${{ failure() }}
         with:
-          name: testlog-tde-${{ inputs.os }}-${{  inputs.build_script }}-${{ inputs.build_type }}
+          name: log-test-global-tde-${{ inputs.os }}-${{ inputs.compiler }}-${{ inputs.build_script }}-${{ inputs.build_type }}
           path: |
-            src/build/testrun/
-            src/contrib/*/t/
-            src/contrib/*/results
+            src/build/testrun
+            src/contrib/*/log
             src/contrib/*/regression.diffs
             src/contrib/*/regression.out
+            src/contrib/*/results
+            src/contrib/*/tmp_check
+            src/contrib/*/t/results
+            src/src/test/*/log
+            src/src/test/*/regression.diffs
+            src/src/test/*/regression.out
+            src/src/test/*/results
+            src/src/test/*/tmp_check
           retention-days: 3

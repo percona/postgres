@@ -1,4 +1,5 @@
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/percona/pg_tde/badge)](https://scorecard.dev/viewer/?uri=github.com/percona/pg_tde)
+[![codecov](https://codecov.io/github/percona/postgres/graph/badge.svg?token=Wow78BMYdP)](https://codecov.io/github/percona/postgres)
 [![Forum](https://img.shields.io/badge/Forum-join-brightgreen)](https://forums.percona.com/)
 
 # pg_tde: Transparent Database Encryption for PostgreSQL
@@ -17,28 +18,21 @@ The PostgreSQL extension provides data at rest encryption. It is currently in an
 ## Overview
 Transparent Data Encryption offers encryption at the file level and solves the problem of protecting data at rest. The encryption is transparent for users allowing them to access and manipulate the data and not to worry about the encryption process. As a key provider, the extension supports the keyringfile and  [Hashicorp Vault](https://www.vaultproject.io/).
 
-### This extension provides two `access methods` with different options:
-
-#### `tde_heap_basic` access method
-- Works with community PostgreSQL 16 and 17 or with [Percona Server for PosgreSQL 17](https://docs.percona.com/postgresql/17/postgresql-server.html)
-- Encrypts tuples and WAL
-- **Doesn't** encrypt indexes, temporary files, statistics
-- CPU expensive as it decrypts pages each time they are read from bufferpool
+### This extension provides one `access method`:
 
 #### `tde_heap` access method
 - Works only with [Percona Server for PostgreSQL 17](https://docs.percona.com/postgresql/17/postgresql-server.html)
 - Uses extended Storage Manager and WAL APIs
 - Encrypts tuples, WAL and indexes
 - **Doesn't** encrypt temporary files and statistics **yet**
-- Faster and cheaper than `tde_heap_basic`
 
 ## Documentation
 
-Full and comprehensive documentation about `pg_tde` is available at https://percona.github.io/pg_tde/.
+Full and comprehensive documentation about `pg_tde` is available at https://docs.percona.com/pg-tde/index.html.
 
 ## Percona Server for PostgreSQL
 
-Percona provides binary packages of `pg_tde` extension only for Percona Server for PostgreSQL. Learn how to install them or build `pg_tde` from sources for PSPG in the [documentation](https://percona.github.io/pg_tde/main/install.html).
+Percona provides binary packages of `pg_tde` extension only for Percona Server for PostgreSQL. Learn how to install them or build `pg_tde` from sources for PSPG in the [documentation](https://docs.percona.com/pg-tde/install.html).
 
 ## Building from sources for community PostgreSQL
   1. Install required dependencies (replace XX with 16 or 17)
@@ -98,11 +92,11 @@ _See [Make Builds for Developers](https://github.com/percona/pg_tde/wiki/Make-bu
             ```sql
             ALTER SYSTEM SET shared_preload_libraries = 'pg_tde';
             ```
-   2. Start or restart the `postgresql` instance to apply the changes.
+   2. Start or restart the `postgresql` cluster to apply the changes.
       * On Debian and Ubuntu:
 
         ```sh
-        sudo systemctl restart postgresql.service
+        sudo systemctl restart postgresql-17
         ```
 
       * On RHEL 8 compatible OS (replace XX with your version):
@@ -119,39 +113,39 @@ _See [Make Builds for Developers](https://github.com/percona/pg_tde/wiki/Make-bu
 
         ```sql
         -- For Vault-V2 key provider
-        -- pg_tde_add_key_provider_vault_v2(provider_name, vault_token, vault_url, vault_mount_path, vault_ca_path)
-        SELECT pg_tde_add_key_provider_vault_v2(
+        -- pg_tde_add_database_key_provider_vault_v2(provider_name, vault_token, vault_url, vault_mount_path, vault_ca_path)
+        SELECT pg_tde_add_database_key_provider_vault_v2(
             'vault-provider',
             json_object( 'type' VALUE 'remote', 'url' VALUE 'http://localhost:8888/token' ),
             json_object( 'type' VALUE 'remote', 'url' VALUE 'http://localhost:8888/url' ),
             to_json('secret'::text), NULL);
 
         -- For File key provider
-        -- pg_tde_add_key_provider_file(provider_name, file_path);
-        SELECT pg_tde_add_key_provider_file('file','/tmp/pgkeyring');
+        -- pg_tde_add_database_key_provider_file(provider_name, file_path);
+        SELECT pg_tde_add_database_key_provider_file('file','/tmp/pgkeyring');
         ```
 
         **Note: The `File` provided is intended for development and stores the keys unencrypted in the specified data file.**
 
-   5. Set the principal key for the database using the `pg_tde_set_principal_key` function.
+   5. Set the principal key for the database using the `pg_tde_set_key` function.
 
         ```sql
-        -- pg_tde_set_principal_key(principal_key_name, provider_name);
-        SELECT pg_tde_set_principal_key('my-principal-key','file');
+        -- pg_tde_set_key_using_database_key_provider(key_name, provider_name);
+        SELECT pg_tde_set_key_using_database_key_provider('my-key','file');
         ```
    
-   6. Specify `tde_heap_basic` access method during table creation
+   6. Specify `tde_heap` access method during table creation
         ```sql
         CREATE TABLE albums (
             album_id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
             artist_id INTEGER,
             title TEXT NOT NULL,
             released DATE NOT NULL
-        ) USING tde_heap_basic;
+        ) USING tde_heap;
         ```
    7. You can encrypt existing table. It requires rewriting the table, so for large tables, it might take a considerable amount of time. 
         ```sql
-        ALTER TABLE table_name SET ACCESS METHOD tde_heap_basic;
+        ALTER TABLE table_name SET ACCESS METHOD tde_heap;
         ```
 
 
@@ -169,4 +163,6 @@ The extension provides the following helper functions:
 
 ### pg_tde_is_encrypted(tablename)
 
-Returns `t` if the table is encrypted (uses the tde_heap_basic access method), or `f` otherwise.
+Returns `t` if the relation is encrypted, if unencrypted `f` or `NULL` if the
+relation lacks storage, i.e. views, foreign tables, and partitioning tables and
+indexes.

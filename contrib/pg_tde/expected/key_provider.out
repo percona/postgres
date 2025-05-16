@@ -1,83 +1,84 @@
 CREATE EXTENSION IF NOT EXISTS pg_tde;
-SELECT  * FROM pg_tde_principal_key_info();
+SELECT  * FROM pg_tde_key_info();
 ERROR:  Principal key does not exists for the database
-HINT:  Use set_principal_key interface to set the principal key
-SELECT pg_tde_add_key_provider_file('incorrect-file-provider',  json_object('foo' VALUE '/tmp/pg_tde_test_keyring.per'));
+HINT:  Use set_key interface to set the principal key
+SELECT pg_tde_add_database_key_provider_file('incorrect-file-provider',  json_object('foo' VALUE '/tmp/pg_tde_test_keyring.per'));
 ERROR:  parse json keyring config: unexpected field foo
-SELECT * FROM pg_tde_list_all_key_providers();
+SELECT * FROM pg_tde_list_all_database_key_providers();
  id | provider_name | provider_type | options 
 ----+---------------+---------------+---------
 (0 rows)
 
-SELECT pg_tde_add_key_provider_file('file-provider','/tmp/pg_tde_test_keyring.per');
- pg_tde_add_key_provider_file 
-------------------------------
-                            1
+SELECT pg_tde_add_database_key_provider_file('file-provider','/tmp/pg_tde_test_keyring.per');
+ pg_tde_add_database_key_provider_file 
+---------------------------------------
+                                     1
 (1 row)
 
-SELECT * FROM pg_tde_list_all_key_providers();
- id | provider_name | provider_type |                          options                           
-----+---------------+---------------+------------------------------------------------------------
-  1 | file-provider | file          | {"type" : "file", "path" : "/tmp/pg_tde_test_keyring.per"}
+SELECT * FROM pg_tde_list_all_database_key_providers();
+ id | provider_name | provider_type |                  options                  
+----+---------------+---------------+-------------------------------------------
+  1 | file-provider | file          | {"path" : "/tmp/pg_tde_test_keyring.per"}
 (1 row)
 
-SELECT pg_tde_add_key_provider_file('file-provider2','/tmp/pg_tde_test_keyring2.per');
- pg_tde_add_key_provider_file 
-------------------------------
-                            2
+SELECT pg_tde_add_database_key_provider_file('file-provider2','/tmp/pg_tde_test_keyring2.per');
+ pg_tde_add_database_key_provider_file 
+---------------------------------------
+                                     2
 (1 row)
 
-SELECT * FROM pg_tde_list_all_key_providers();
- id | provider_name  | provider_type |                           options                           
-----+----------------+---------------+-------------------------------------------------------------
-  1 | file-provider  | file          | {"type" : "file", "path" : "/tmp/pg_tde_test_keyring.per"}
-  2 | file-provider2 | file          | {"type" : "file", "path" : "/tmp/pg_tde_test_keyring2.per"}
+SELECT * FROM pg_tde_list_all_database_key_providers();
+ id | provider_name  | provider_type |                  options                   
+----+----------------+---------------+--------------------------------------------
+  1 | file-provider  | file          | {"path" : "/tmp/pg_tde_test_keyring.per"}
+  2 | file-provider2 | file          | {"path" : "/tmp/pg_tde_test_keyring2.per"}
 (2 rows)
 
-SELECT pg_tde_set_principal_key('test-db-principal-key','file-provider');
- pg_tde_set_principal_key 
---------------------------
- t
-(1 row)
-
-SELECT pg_tde_verify_principal_key();
- pg_tde_verify_principal_key 
------------------------------
+SELECT pg_tde_verify_key();
+ERROR:  principal key not configured for current database
+SELECT pg_tde_set_key_using_database_key_provider('test-db-key','file-provider');
+ pg_tde_set_key_using_database_key_provider 
+--------------------------------------------
  
 (1 row)
 
-SELECT pg_tde_change_key_provider_file('not-existent-provider','/tmp/pg_tde_test_keyring.per');
-ERROR:  key provider "not-existent-provider" does not exists
-HINT:  Use pg_tde_add_key_provider interface to create the key provider
-SELECT * FROM pg_tde_list_all_key_providers();
- id | provider_name  | provider_type |                           options                           
-----+----------------+---------------+-------------------------------------------------------------
-  1 | file-provider  | file          | {"type" : "file", "path" : "/tmp/pg_tde_test_keyring.per"}
-  2 | file-provider2 | file          | {"type" : "file", "path" : "/tmp/pg_tde_test_keyring2.per"}
-(2 rows)
-
-SELECT pg_tde_change_key_provider_file('file-provider','/tmp/pg_tde_test_keyring_other.per');
- pg_tde_change_key_provider_file 
----------------------------------
-                               1
+SELECT pg_tde_verify_key();
+ pg_tde_verify_key 
+-------------------
+ 
 (1 row)
 
-SELECT * FROM pg_tde_list_all_key_providers();
- id | provider_name  | provider_type |                             options                              
-----+----------------+---------------+------------------------------------------------------------------
-  1 | file-provider  | file          | {"type" : "file", "path" : "/tmp/pg_tde_test_keyring_other.per"}
-  2 | file-provider2 | file          | {"type" : "file", "path" : "/tmp/pg_tde_test_keyring2.per"}
+SELECT pg_tde_change_database_key_provider_file('not-existent-provider','/tmp/pg_tde_test_keyring.per');
+ERROR:  key provider "not-existent-provider" does not exists
+SELECT * FROM pg_tde_list_all_database_key_providers();
+ id | provider_name  | provider_type |                  options                   
+----+----------------+---------------+--------------------------------------------
+  1 | file-provider  | file          | {"path" : "/tmp/pg_tde_test_keyring.per"}
+  2 | file-provider2 | file          | {"path" : "/tmp/pg_tde_test_keyring2.per"}
 (2 rows)
 
-SELECT pg_tde_verify_principal_key();
-ERROR:  Failed to retrieve key from keyring
-SELECT pg_tde_change_key_provider_file('file-provider',  json_object('foo' VALUE '/tmp/pg_tde_test_keyring.per'));
+SELECT pg_tde_change_database_key_provider_file('file-provider','/tmp/pg_tde_test_keyring_other.per');
+ pg_tde_change_database_key_provider_file 
+------------------------------------------
+                                        1
+(1 row)
+
+SELECT * FROM pg_tde_list_all_database_key_providers();
+ id | provider_name  | provider_type |                     options                     
+----+----------------+---------------+-------------------------------------------------
+  1 | file-provider  | file          | {"path" : "/tmp/pg_tde_test_keyring_other.per"}
+  2 | file-provider2 | file          | {"path" : "/tmp/pg_tde_test_keyring2.per"}
+(2 rows)
+
+SELECT pg_tde_verify_key();
+ERROR:  failed to retrieve principal key test-db-key from keyring with ID 1
+SELECT pg_tde_change_database_key_provider_file('file-provider',  json_object('foo' VALUE '/tmp/pg_tde_test_keyring.per'));
 ERROR:  parse json keyring config: unexpected field foo
-SELECT * FROM pg_tde_list_all_key_providers();
- id | provider_name  | provider_type |                             options                              
-----+----------------+---------------+------------------------------------------------------------------
-  1 | file-provider  | file          | {"type" : "file", "path" : "/tmp/pg_tde_test_keyring_other.per"}
-  2 | file-provider2 | file          | {"type" : "file", "path" : "/tmp/pg_tde_test_keyring2.per"}
+SELECT * FROM pg_tde_list_all_database_key_providers();
+ id | provider_name  | provider_type |                     options                     
+----+----------------+---------------+-------------------------------------------------
+  1 | file-provider  | file          | {"path" : "/tmp/pg_tde_test_keyring_other.per"}
+  2 | file-provider2 | file          | {"path" : "/tmp/pg_tde_test_keyring2.per"}
 (2 rows)
 
 SELECT pg_tde_add_global_key_provider_file('file-keyring','/tmp/pg_tde_test_keyring.per');
@@ -99,11 +100,10 @@ SELECT id, provider_name FROM pg_tde_list_all_global_key_providers();
  -2 | file-keyring2
 (2 rows)
 
--- TODO: verify that we can also can change the type of it
 -- fails
-SELECT pg_tde_delete_key_provider('file-provider');
+SELECT pg_tde_delete_database_key_provider('file-provider');
 ERROR:  Can't delete a provider which is currently in use
-SELECT id, provider_name FROM pg_tde_list_all_key_providers();
+SELECT id, provider_name FROM pg_tde_list_all_database_key_providers();
  id | provider_name  
 ----+----------------
   1 | file-provider
@@ -111,13 +111,13 @@ SELECT id, provider_name FROM pg_tde_list_all_key_providers();
 (2 rows)
 
 -- works
-SELECT pg_tde_delete_key_provider('file-provider2');
- pg_tde_delete_key_provider 
-----------------------------
+SELECT pg_tde_delete_database_key_provider('file-provider2');
+ pg_tde_delete_database_key_provider 
+-------------------------------------
  
 (1 row)
 
-SELECT id, provider_name FROM pg_tde_list_all_key_providers();
+SELECT id, provider_name FROM pg_tde_list_all_database_key_providers();
  id | provider_name 
 ----+---------------
   1 | file-provider
@@ -130,24 +130,21 @@ SELECT id, provider_name FROM pg_tde_list_all_global_key_providers();
  -2 | file-keyring2
 (2 rows)
 
-SELECT pg_tde_set_global_principal_key('test-db-principal-key', 'file-keyring', false);
- pg_tde_set_global_principal_key 
----------------------------------
- t
+SELECT pg_tde_set_key_using_global_key_provider('test-db-key', 'file-keyring', false);
+ pg_tde_set_key_using_global_key_provider 
+------------------------------------------
+ 
 (1 row)
 
 -- fails
 SELECT pg_tde_delete_global_key_provider('file-keyring');
- pg_tde_delete_global_key_provider 
------------------------------------
- 
-(1 row)
-
+ERROR:  Can't delete a provider which is currently in use
 SELECT id, provider_name FROM pg_tde_list_all_global_key_providers();
  id | provider_name 
 ----+---------------
+ -1 | file-keyring
  -2 | file-keyring2
-(1 row)
+(2 rows)
 
 -- works
 SELECT pg_tde_delete_global_key_provider('file-keyring2');
@@ -159,7 +156,162 @@ SELECT pg_tde_delete_global_key_provider('file-keyring2');
 SELECT id, provider_name FROM pg_tde_list_all_global_key_providers();
  id | provider_name 
 ----+---------------
- -2 | file-keyring2
+ -1 | file-keyring
 (1 row)
 
+-- Creating a file key provider fails if we can't open or create the file
+SELECT pg_tde_add_database_key_provider_file('will-not-work','/cant-create-file-in-root.per');
+ERROR:  Failed to open keyring file /cant-create-file-in-root.per: Permission denied
+-- Creating key providers fails if any required parameter is NULL
+SELECT pg_tde_add_database_key_provider(NULL, 'name', '{}');
+ERROR:  provider type cannot be null
+SELECT pg_tde_add_database_key_provider('file', NULL, '{}');
+ERROR:  provider name cannot be null
+SELECT pg_tde_add_database_key_provider('file', 'name', NULL);
+ERROR:  provider options cannot be null
+SELECT pg_tde_add_global_key_provider(NULL, 'name', '{}');
+ERROR:  provider type cannot be null
+SELECT pg_tde_add_global_key_provider('file', NULL, '{}');
+ERROR:  provider name cannot be null
+SELECT pg_tde_add_global_key_provider('file', 'name', NULL);
+ERROR:  provider options cannot be null
+-- Empty string is not allowed for a key provider name
+SELECT pg_tde_add_database_key_provider('file', '', '{}');
+ERROR:  provider name "" is too short
+SELECT pg_tde_add_global_key_provider('file', '', '{}');
+ERROR:  provider name "" is too short
+-- Creating key providers fails if the name is too long
+SELECT pg_tde_add_database_key_provider('file', repeat('K', 128), '{}');
+ERROR:  provider name "KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK" is too long
+HINT:  Maximum length is 127 bytes.
+SELECT pg_tde_add_global_key_provider('file', repeat('K', 128), '{}');
+ERROR:  provider name "KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK" is too long
+HINT:  Maximum length is 127 bytes.
+-- Creating key providers fails if options is too long
+SELECT pg_tde_add_database_key_provider('file', 'name', json_build_object('key', repeat('K', 1024)));
+ERROR:  too large provider options, maximum size is 1023 bytes
+SELECT pg_tde_add_global_key_provider('file', 'name', json_build_object('key', repeat('K', 1024)));
+ERROR:  too large provider options, maximum size is 1023 bytes
+-- Creating key providers fails if configuration is not a JSON object
+SELECT pg_tde_add_database_key_provider('file', 'provider', '"bare string"');
+ERROR:  key provider options must be an object
+SELECT pg_tde_add_database_key_provider('file', 'provider', '["array"]');
+ERROR:  key provider options must be an object
+SELECT pg_tde_add_database_key_provider('file', 'provider', 'true');
+ERROR:  key provider options must be an object
+SELECT pg_tde_add_database_key_provider('file', 'provider', 'null');
+ERROR:  key provider options must be an object
+-- Creating key providers fails if an external value object doesn't have all required keys
+SELECT pg_tde_add_database_key_provider('file', 'provider', '{"path": {}}');
+ERROR:  external value must contain "type" in field "path"
+SELECT pg_tde_add_database_key_provider('file', 'provider', '{"path": {"type": null}}');
+ERROR:  external value must contain "type" in field "path"
+SELECT pg_tde_add_database_key_provider('file', 'provider', '{"path": {"type": "remote"}}');
+ERROR:  external remote value must contain "url" in field "path"
+SELECT pg_tde_add_database_key_provider('file', 'provider', '{"path": {"type": "remote", "url": null}}');
+ERROR:  external remote value must contain "url" in field "path"
+SELECT pg_tde_add_database_key_provider('file', 'provider', '{"path": {"type": "file"}}');
+ERROR:  external file value must contain "path" in field "path"
+SELECT pg_tde_add_database_key_provider('file', 'provider', '{"path": {"type": "file", "path": null}}');
+ERROR:  external file value must contain "path" in field "path"
+-- Creating key providers fails if values are array instead of scalar
+SELECT pg_tde_add_database_key_provider('file', 'provider', '{"path": ["array"]}');
+ERROR:  unexpected array in field "path"
+SELECT pg_tde_add_database_key_provider('file', 'provider', '{"path": {"type": ["array"]}}');
+ERROR:  unexpected array in field "path"
+SELECT pg_tde_add_database_key_provider('file', 'provider', '{"path": {"type": "file", "path": ["array"]}}');
+ERROR:  unexpected array in field "path"
+-- Creating key providers fails if values are boolean
+SELECT pg_tde_add_database_key_provider('file', 'provider', '{"path": true}');
+ERROR:  unexpected boolean in field "path"
+SELECT pg_tde_add_database_key_provider('file', 'provider', '{"path": {"type": true}}');
+ERROR:  unexpected boolean in field "path"
+SELECT pg_tde_add_database_key_provider('file', 'provider', '{"path": {"type": "file", "path": true}}');
+ERROR:  unexpected boolean in field "path"
+-- Modifying key providers fails if any required parameter is NULL
+SELECT pg_tde_change_database_key_provider(NULL, 'file-keyring', '{}');
+ERROR:  provider type cannot be null
+SELECT pg_tde_change_database_key_provider('file', NULL, '{}');
+ERROR:  provider name cannot be null
+SELECT pg_tde_change_database_key_provider('file', 'file-keyring', NULL);
+ERROR:  provider options cannot be null
+SELECT pg_tde_change_global_key_provider(NULL, 'file-keyring', '{}');
+ERROR:  provider type cannot be null
+SELECT pg_tde_change_global_key_provider('file', NULL, '{}');
+ERROR:  provider name cannot be null
+SELECT pg_tde_change_global_key_provider('file', 'file-keyring', NULL);
+ERROR:  provider options cannot be null
+-- Modifying key providers fails if options is too long
+SELECT pg_tde_change_database_key_provider('file', 'file-provider', json_build_object('key', repeat('V', 1024)));
+ERROR:  too large provider options, maximum size is 1023 bytes
+SELECT pg_tde_change_global_key_provider('file', 'file-keyring', json_build_object('key', repeat('V', 1024)));
+ERROR:  too large provider options, maximum size is 1023 bytes
+-- Modifying key providers fails if configuration is not a JSON object
+SELECT pg_tde_change_database_key_provider('file', 'file-provider', '"bare string"');
+ERROR:  key provider options must be an object
+SELECT pg_tde_change_database_key_provider('file', 'file-provider', '["array"]');
+ERROR:  key provider options must be an object
+SELECT pg_tde_change_database_key_provider('file', 'file-provider', 'true');
+ERROR:  key provider options must be an object
+SELECT pg_tde_change_database_key_provider('file', 'file-provider', 'null');
+ERROR:  key provider options must be an object
+-- Modifying key providers fails if an external value object doesn't have all required keys
+SELECT pg_tde_change_database_key_provider('file', 'file-provider', '{"path": {}}');
+ERROR:  external value must contain "type" in field "path"
+SELECT pg_tde_change_database_key_provider('file', 'file-provider', '{"path": {"type": null}}');
+ERROR:  external value must contain "type" in field "path"
+SELECT pg_tde_change_database_key_provider('file', 'file-provider', '{"path": {"type": "remote"}}');
+ERROR:  external remote value must contain "url" in field "path"
+SELECT pg_tde_change_database_key_provider('file', 'file-provider', '{"path": {"type": "remote", "url": null}}');
+ERROR:  external remote value must contain "url" in field "path"
+SELECT pg_tde_change_database_key_provider('file', 'file-provider', '{"path": {"type": "file"}}');
+ERROR:  external file value must contain "path" in field "path"
+SELECT pg_tde_change_database_key_provider('file', 'file-provider', '{"path": {"type": "file", "path": null}}');
+ERROR:  external file value must contain "path" in field "path"
+-- Modifying key providers fails if values are array instead of scalar
+SELECT pg_tde_change_database_key_provider('file', 'file-provider', '{"path": ["array"]}');
+ERROR:  unexpected array in field "path"
+SELECT pg_tde_change_database_key_provider('file', 'file-provider', '{"path": {"type": ["array"]}}');
+ERROR:  unexpected array in field "path"
+SELECT pg_tde_change_database_key_provider('file', 'file-provider', '{"path": {"type": "file", "path": ["array"]}}');
+ERROR:  unexpected array in field "path"
+-- Modifying key providers fails if values are boolean
+SELECT pg_tde_change_database_key_provider('file', 'file-provider', '{"path": true}');
+ERROR:  unexpected boolean in field "path"
+SELECT pg_tde_change_database_key_provider('file', 'file-provider', '{"path": {"type": true}}');
+ERROR:  unexpected boolean in field "path"
+SELECT pg_tde_change_database_key_provider('file', 'file-provider', '{"path": {"type": "file", "path": true}}');
+ERROR:  unexpected boolean in field "path"
+-- Deleting key providers fails if key name is NULL
+SELECT pg_tde_delete_database_key_provider(NULL);
+ERROR:  provider_name cannot be null
+SELECT pg_tde_delete_global_key_provider(NULL);
+ERROR:  provider_name cannot be null
+-- Setting principal key fails if key name is NULL
+SELECT pg_tde_set_default_key_using_global_key_provider(NULL, 'file-keyring');
+ERROR:  key name cannot be null
+SELECT pg_tde_set_key_using_database_key_provider(NULL, 'file-keyring');
+ERROR:  key name cannot be null
+SELECT pg_tde_set_key_using_global_key_provider(NULL, 'file-keyring');
+ERROR:  key name cannot be null
+SELECT pg_tde_set_server_key_using_global_key_provider(NULL, 'file-keyring');
+ERROR:  key name cannot be null
+-- Empty string is not allowed for a principal key name
+SELECT pg_tde_set_default_key_using_global_key_provider('', 'file-keyring');
+ERROR:  key name "" is too short
+SELECT pg_tde_set_key_using_database_key_provider('', 'file-keyring');
+ERROR:  key name "" is too short
+SELECT pg_tde_set_key_using_global_key_provider('', 'file-keyring');
+ERROR:  key name "" is too short
+SELECT pg_tde_set_server_key_using_global_key_provider('', 'file-keyring');
+ERROR:  key name "" is too short
+-- Setting principal key fails if the key name is too long
+SELECT pg_tde_set_default_key_using_global_key_provider(repeat('K', 256), 'file-keyring');
+ERROR:  too long principal key name, maximum length is 255 bytes
+SELECT pg_tde_set_key_using_database_key_provider(repeat('K', 256), 'file-provider');
+ERROR:  too long principal key name, maximum length is 255 bytes
+SELECT pg_tde_set_key_using_global_key_provider(repeat('K', 256), 'file-keyring');
+ERROR:  too long principal key name, maximum length is 255 bytes
+SELECT pg_tde_set_server_key_using_global_key_provider(repeat('K', 256), 'file-keyring');
+ERROR:  too long principal key name, maximum length is 255 bytes
 DROP EXTENSION pg_tde;
