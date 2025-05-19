@@ -3,7 +3,6 @@
 To use a Key Management Interoperability Protocol (KMIP) server with `pg_tde`, you must configure it as a global key provider. This setup enables `pg_tde` to securely fetch and manage encryption keys from a centralized key management appliance.
 
 !!! note
-
     You need the root certificate of the KMIP server and a client key/certificate pair with permissions to create and read keys on the server.
 
 It is recommended to review the [configuration guidelines for the HashiCorp Vault Enterprise KMIP Secrets Engine](https://developer.hashicorp.com/vault/tutorials/enterprise/kmip-engine) if you're using Vault.
@@ -30,9 +29,7 @@ SELECT pg_tde_add_global_key_provider_kmip(
 * `port` is the port to communicate with the KMIP server. Typically used port is 5696
 * `server-certificate` is the path to the certificate file for the KMIP server
 * `client_cert` is the path to the client certificate.
-* `client_key` (optional) is the path to the client key. If not specified, the certificate key has to contain both the certifcate and the key.
-
-<i warning>:material-information: Warning:</i> `pg_tde_add_global_key_provider_kmip` currently accepts only a combined client key and a client certificate for its final parameter, reffered to as `client key`.
+* `client_key` is the path to the client key.
 
 The following example is for testing purposes only.
 

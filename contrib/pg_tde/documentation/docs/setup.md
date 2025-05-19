@@ -3,10 +3,9 @@
 Before you can use `pg_tde` for data encryption, you must enable the extension and configure PostgreSQL to load it at startup. This setup ensures that the necessary hooks and shared memory are available for encryption operations.
 
 !!! note
+    To learn how to configure multi-tenancy, refer to the [Configure multi-tenancy](how-to/multi-tenant-setup.md) guidelines.
 
-    To learn how to configure multi-tenancy, refer to the [Configure multi-tenancy](how-to/multi-tenant-setup.md) guidelines.    
-
-The `pg_tde` extension requires additional shared memory. You need to configure PostgreSQL to prelaod it at startup.
+The `pg_tde` extension requires additional shared memory. You need to configure PostgreSQL to preload it at startup.
 
 ## 1. Configure shared_preload_libraries
 
