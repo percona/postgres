@@ -75,6 +75,8 @@ PGTDE::psql($primary, 'postgres',
 PGTDE::psql($primary, 'postgres',
 	"ALTER SYSTEM SET pg_tde.wal_encrypt = 'on';");
 $primary->kill9;
+# Sleep to ensure we don't try to start the server again before it's been properly killed.
+sleep(1);
 
 PGTDE::append_to_result_file("-- primary start");
 $primary->start;
