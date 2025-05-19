@@ -46,6 +46,7 @@ PGTDE::psql($node, 'postgres', "INSERT INTO test_plain (x) VALUES (3), (4);");
 PGTDE::psql($node, 'postgres', "ALTER SYSTEM SET pg_tde.wal_encrypt = 'on';");
 
 PGTDE::append_to_result_file("-- kill -9");
+while (kill(9, $node->{_pid}) != 0) { sleep 0.1; }
 $node->kill9;
 
 PGTDE::append_to_result_file("-- server start");
@@ -60,6 +61,7 @@ PGTDE::psql($node, 'postgres',
 );
 PGTDE::psql($node, 'postgres', "INSERT INTO test_enc (x) VALUES (3), (4);");
 PGTDE::append_to_result_file("-- kill -9");
+while (kill(9, $node->{_pid}) != 0) { sleep 0.1; }
 $node->kill9;
 PGTDE::append_to_result_file("-- server start");
 PGTDE::append_to_result_file(
@@ -76,6 +78,7 @@ PGTDE::psql($node, 'postgres',
 );
 PGTDE::psql($node, 'postgres', "INSERT INTO test_enc (x) VALUES (5), (6);");
 PGTDE::append_to_result_file("-- kill -9");
+while (kill(9, $node->{_pid}) != 0) { sleep 0.1; }
 $node->kill9;
 PGTDE::append_to_result_file("-- server start");
 PGTDE::append_to_result_file(
@@ -88,6 +91,7 @@ PGTDE::psql($node, 'postgres', "TABLE test_enc;");
 PGTDE::psql($node, 'postgres',
 	"CREATE TABLE test_enc2 (x int PRIMARY KEY) USING tde_heap;");
 PGTDE::append_to_result_file("-- kill -9");
+while (kill(9, $node->{_pid}) != 0) { sleep 0.1; }
 $node->kill9;
 PGTDE::append_to_result_file("-- server start");
 PGTDE::append_to_result_file(
