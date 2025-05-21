@@ -4,7 +4,12 @@ The `pg_tde` extension provides functions for managing different aspects of its 
 
 ## Permission management
 
-By default, `pg_tde` is restrictive. It doesn't allow any operations until permissions are granted to the user. Only superusers can create or modify to key providers or modify objects in the global scope. Functions for viewing keys and for setting the principal key in a database local key provider can on the other hand be run by the database owner and be delegated to normal users using the `GRANT EXECUTE` and `REVOKE EXECUTE` commands.
+By default, `pg_tde` is locked down. No one is allowed to do any operations until you grant them permissions. Only superusers may add or alter global key providers.
+
+However, database owners can run the “view keys” and “set principal key” functions on their own databases. You can delegate these rights to other roles with the following commands:
+
+* `GRANT EXECUTE`
+* `REVOKE EXECUTE`
 
 The following functions are also provided for easier management of functionality groups:
 
@@ -76,15 +81,39 @@ The Vault provider connects to a HashiCorp Vault or an OpenBao server, and store
 Use the following functions to add the Vault provider:
 
 ```sql
-SELECT pg_tde_add_database_key_provider_vault_v2('provider-name','secret_token','url','mount','ca_path');
-SELECT pg_tde_add_global_key_provider_vault_v2('provider-name','secret_token','url','mount','ca_path');
+SELECT pg_tde_add_database_key_provider_vault_v2(
+  'provider-name',
+  'secret_token',
+  'url','mount',
+  'ca_path'
+);
+
+SELECT pg_tde_add_global_key_provider_vault_v2(
+  'provider-name',
+  'secret_token',
+  'url','mount',
+  'ca_path'
+);
 ```
 
 These functions change the Vault provider:
 
 ```sql
-SELECT pg_tde_change_database_key_provider_vault_v2('provider-name','secret_token','url','mount','ca_path');
-SELECT pg_tde_change_global_key_provider_vault_v2('provider-name','secret_token','url','mount','ca_path');
+SELECT pg_tde_change_database_key_provider_vault_v2(
+  'provider-name',
+  'secret_token',
+  'url',
+  'mount',
+  'ca_path'
+);
+
+SELECT pg_tde_change_global_key_provider_vault_v2(
+  'provider-name',
+  'secret_token',
+  'url',
+  'mount',
+  'ca_path'
+);
 ```
 
 where:
@@ -93,11 +122,12 @@ where:
 * `url` is the URL of the Vault server
 * `mount` is the mount point on the Vault server where the key provider should store the keys
 * `secret_token` is an access token with read and write access to the above mount point
-* [optional] `ca_path` is the path of the CA file used for SSL verification
+* **[optional]** `ca_path` is the path of the CA file used for SSL verification
 
 All parameters can be either strings, or JSON objects [referencing remote parameters](how-to/external-parameters.md).
 
-**Never specify the secret token directly, use a remote parameter instead.**
+!!! important
+    Never specify the secret token directly, use a remote parameter instead.
 
 #### Adding or modifying KMIP providers
 
@@ -106,15 +136,43 @@ The KMIP provider uses a remote KMIP server.
 Use these functions to add a KMIP provider:
 
 ```sql
-SELECT pg_tde_add_database_key_provider_kmip('provider-name','kmip-addr', `port`, '/path_to/server_certificate.pem', '/path_to/client_cert.pem', '/path_to/client_key.pem');
-SELECT pg_tde_add_global_key_provider_kmip('provider-name','kmip-addr', `port`, '/path_to/server_certificate.pem', '/path_to/client_cert.pem', '/path_to/client_key.pem');
+SELECT pg_tde_add_database_key_provider_kmip(
+  'provider-name',
+  'kmip-addr', 
+  `port`, 
+  '/path_to/server_certificate.pem', 
+  '/path_to/client_cert.pem', 
+  '/path_to/client_key.pem'
+);
+SELECT pg_tde_add_global_key_provider_kmip(
+  'provider-name',
+  'kmip-addr', 
+  `port`, 
+  '/path_to/server_certificate.pem', 
+  '/path_to/client_certificate.pem', 
+  '/path_to/client_key.pem'
+);
 ```
 
 These functions change the KMIP provider:
 
 ```sql
-SELECT pg_tde_change_database_key_provider_kmip('provider-name','kmip-addr', `port`, '/path_to/server_certificate.pem', '/path_to/client_cert.pem', '/path_to/client_key.pem');
-SELECT pg_tde_change_global_key_provider_kmip('provider-name','kmip-addr', `port`, '/path_to/server_certificate.pem', '/path_to/client_cert.pem', '/path_to/client_key.pem');
+SELECT pg_tde_change_database_key_provider_kmip(
+  'provider-name',
+  'kmip-addr', 
+  `port`, 
+  '/path_to/server_certificate.pem', 
+  '/path_to/client_cert.pem', 
+  '/path_to/client_key.pem'
+);
+SELECT pg_tde_change_global_key_provider_kmip(
+  'provider-name',
+  'kmip-addr', 
+  `port`, 
+  '/path_to/server_certificate.pem', 
+  '/path_to/client_certificate.pem', 
+  '/path_to/client_key.pem'
+);
 ```
 
 where:
@@ -124,10 +182,11 @@ where:
 * `port` is the port to communicate with the KMIP server.
   Most KMIP servers use port 5696.
 * `server-certificate` is the path to the certificate file for the KMIP server.
-* `client-cert` is the path to the client certificate.
+* `client-certificate` is the path to the client certificate.
 * `client-key` is the path to the client key.
 
-The specified access parameters require permission to read and write keys at the server.
+!!! note
+    The specified access parameters require permission to read and write keys at the server.
 
 All parameters can be either strings, or JSON objects [referencing remote parameters](how-to/external-parameters.md).
 
@@ -137,20 +196,35 @@ This provider manages database keys using a local keyfile.
 
 This function is intended for development or quick testing, and stores the keys unencrypted in the specified data file.
 
-**It is not recommended for production.**
+!!! important
+    Local keyfile providers are **not recommended** for production environments, they lack the security and manageability of external key management systems.
 
 Add a local keyfile provider:
 
 ```sql
-SELECT pg_tde_add_database_key_provider_file('provider-name','/path/to/the/key/provider/data.file');
-SELECT pg_tde_add_global_key_provider_file('provider-name','/path/to/the/key/provider/data.file');
+SELECT pg_tde_add_database_key_provider_file(
+  'provider-name',
+  '/path/to/the/key/provider/data.file'
+);
+
+SELECT pg_tde_add_global_key_provider_file(
+  'provider-name',
+  '/path/to/the/key/provider/data.file'
+);
 ```
 
 Change a local keyfile provider:
 
 ```sql
-SELECT pg_tde_change_database_key_provider_file('provider-name','/path/to/the/key/provider/data.file');
-SELECT pg_tde_change_global_key_provider_file('provider-name','/path/to/the/key/provider/data.file');
+SELECT pg_tde_change_database_key_provider_file(
+  'provider-name',
+  '/path/to/the/key/provider/data.file'
+);
+
+SELECT pg_tde_change_global_key_provider_file(
+  'provider-name',
+  '/path/to/the/key/provider/data.file'
+);
 ```
 
 where:
@@ -158,7 +232,8 @@ where:
 * `provider-name` is the name of the provider. You can specify any name, it's for you to identify the provider.
 * `/path/to/the/key/provider/data.file` is the path to the key provider file.
 
-All parameters can be either strings, or JSON objects [referencing remote parameters](how-to/external-parameters.md).
+!!! note
+    All parameters can be either strings, or JSON objects [referencing remote parameters](how-to/external-parameters.md).
 
 ### Delete a provider
 
@@ -178,7 +253,8 @@ These functions list the details of all key providers for the current database o
 * `pg_tde_list_all_database_key_providers()`
 * `pg_tde_list_all_global_key_providers()`
 
-**All configuration values include possibly sensitive values, such as passwords. Never specify these directly, use the remote configuration option instead.**
+!!! important
+    All configuration values include possibly sensitive values, such as passwords. **Never** specify these directly, use the remote configuration option instead.
 
 ## Principal key management
 
@@ -191,7 +267,11 @@ Princial keys are stored on key providers by the name specified in this function
 Creates or rotates the principal key for the current database using the specified database key provider and key name.
 
 ```sql
-SELECT pg_tde_set_key_using_database_key_provider('name-of-the-key','provider-name','ensure_new_key');
+SELECT pg_tde_set_key_using_database_key_provider(
+  'name-of-the-key',
+  'provider-name',
+  'ensure_new_key'
+);
 ```
 
  The `ensure_new_key` parameter instructs the function how to handle a principal key during key rotation:
@@ -205,7 +285,11 @@ SELECT pg_tde_set_key_using_database_key_provider('name-of-the-key','provider-na
 Creates or rotates the global principal key using the specified global key provider and the key name. This key is used for global settings like WAL encryption.
 
 ```sql
-  SELECT pg_tde_set_key_using_global_key_provider('name-of-the-key','provider-name','ensure_new_key');
+SELECT pg_tde_set_key_using_global_key_provider(
+  'name-of-the-key',
+  'provider-name',
+  'ensure_new_key'
+);
 ```
 
  The `ensure_new_key` parameter instructs the function how to handle a principal key during key rotation:
@@ -219,7 +303,11 @@ Creates or rotates the global principal key using the specified global key provi
 Creates or rotates the server principal key using the specified global key provider. Use this function to set a principal key for WAL encryption.
 
 ```sql
-SELECT pg_tde_set_server_key_using_global_key_provider('name-of-the-key','provider-name','ensure_new_key');
+SELECT pg_tde_set_server_key_using_global_key_provider(
+  'name-of-the-key',
+  'provider-name',
+  'ensure_new_key'
+);
 ```
 
 The `ensure_new_key` parameter instructs the function how to handle a principal key during key rotation:
@@ -235,7 +323,11 @@ Creates or rotates the default principal key for the server using the specified 
 The default key is automatically used as a principal key  by any database that doesn't have an individual key provider and key configuration.
 
 ```sql
-SELECT pg_tde_set_default_key_using_global_key_provider('name-of-the-key','provider-name','ensure_new_key');
+SELECT pg_tde_set_default_key_using_global_key_provider(
+  'name-of-the-key',
+  'provider-name',
+  'ensure_new_key'
+);
 ```
 
 The `ensure_new_key` parameter instructs the function how to handle a principal key during key rotation:
@@ -255,13 +347,17 @@ tables and indexes.
 To verify that a table is encrypted, run the following statement:
 
 ```sql
-SELECT pg_tde_is_encrypted('table_name');
+SELECT pg_tde_is_encrypted(
+  'table_name'
+);
 ```
 
 You can also verify if the table in a custom schema is encrypted. Pass the schema name for the function as follows:
 
 ```sql
-SELECT pg_tde_is_encrypted('schema.table_name');
+SELECT pg_tde_is_encrypted(
+  'schema.table_name'
+);
 ```
 
 This can additionally be used to verify that indexes and sequences are encrypted.
@@ -271,7 +367,7 @@ This can additionally be used to verify that indexes and sequences are encrypted
 Displays information about the principal key for the current database, if it exists.
 
 ```sql
-SELECT pg_tde_key_info()
+SELECT pg_tde_key_info();
 ```
 
 ### pg_tde_server_key_info
@@ -279,7 +375,7 @@ SELECT pg_tde_key_info()
 Displays information about the principal key for the server scope, if exists.
 
 ```sql
-SELECT pg_tde_server_key_info()
+SELECT pg_tde_server_key_info();
 ```
 
 ### pg_tde_default_key_info
@@ -287,7 +383,7 @@ SELECT pg_tde_server_key_info()
 Displays the information about the default principal key, if it exists.
 
 ```sql
-SELECT pg_tde_default_key_info()
+SELECT pg_tde_default_key_info();
 ```
 
 ### pg_tde_verify_key
@@ -303,7 +399,7 @@ This function checks that the current database has a properly functional encrypt
 If any of the above checks fail, the function reports an error.
 
 ```sql
-SELECT pg_tde_verify_key()
+SELECT pg_tde_verify_key();
 ```
 
 ### pg_tde_verify_server_key
@@ -319,7 +415,7 @@ This function checks that the server scope has a properly functional encryption 
 If any of the above checks fail, the function reports an error.
 
 ```sql
-SELECT pg_tde_verify_server_key()
+SELECT pg_tde_verify_server_key();
 ```
 
 ### pg_tde_verify_default_key
@@ -335,5 +431,5 @@ This function checks that the default key is properly configured, which means:
 If any of the above checks fail, the function reports an error.
 
 ```sql
-SELECT pg_tde_verify_default_key()
+SELECT pg_tde_verify_default_key();
 ```
