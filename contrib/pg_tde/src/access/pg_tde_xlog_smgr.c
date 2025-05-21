@@ -291,10 +291,6 @@ tdeheap_xlog_seg_read(int fd, void *buf, size_t count, off_t offset,
 					  TimeLineID tli, XLogSegNo segno, int segSize)
 {
 	ssize_t		readsz;
-	WALKeyCacheRec *keys = pg_tde_get_wal_cache_keys();
-	XLogRecPtr	write_key_lsn;
-	XLogRecPtr	data_start;
-	XLogRecPtr	data_end;
 
 #ifdef TDE_XLOG_DEBUG
 	elog(DEBUG1, "read from a WAL segment, size: %lu offset: %ld [%lX], seg: %X/%X",
@@ -305,6 +301,23 @@ tdeheap_xlog_seg_read(int fd, void *buf, size_t count, off_t offset,
 
 	if (readsz <= 0)
 		return readsz;
+
+	TDEXLogCryptBuffer(buf, count, offset, tli, segno, segSize);
+
+	return readsz;
+}
+
+/*
+ * [De]Crypt buffer if needed based on provided segment offset, number and TLI
+ */
+void
+TDEXLogCryptBuffer(void *buf, size_t count, off_t offset,
+					  TimeLineID tli, XLogSegNo segno, int segSize)
+{
+	WALKeyCacheRec *keys = pg_tde_get_wal_cache_keys();
+	XLogRecPtr	write_key_lsn;
+	XLogRecPtr	data_start;
+	XLogRecPtr	data_end;
 
 	if (!keys)
 	{
@@ -331,7 +344,7 @@ tdeheap_xlog_seg_read(int fd, void *buf, size_t count, off_t offset,
 	}
 
 	XLogSegNoOffsetToRecPtr(segno, offset, segSize, data_start);
-	XLogSegNoOffsetToRecPtr(segno, offset + readsz, segSize, data_end);
+	XLogSegNoOffsetToRecPtr(segno, offset + count, segSize, data_end);
 
 	/*
 	 * TODO: this is higly ineffective. We should get rid of linked list and
@@ -368,7 +381,7 @@ tdeheap_xlog_seg_read(int fd, void *buf, size_t count, off_t offset,
 				/* We have reached the end of the segment */
 				if (dec_end == 0)
 				{
-					dec_end = offset + readsz;
+					dec_end = offset + count;
 				}
 
 				dec_sz = dec_end - dec_off;
@@ -382,8 +395,6 @@ tdeheap_xlog_seg_read(int fd, void *buf, size_t count, off_t offset,
 			}
 		}
 	}
-
-	return readsz;
 }
 
 union u128cast

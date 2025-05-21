@@ -18,6 +18,10 @@
 #include "common/logging.h"
 #include "common/string.h"
 
+#ifdef PERCONA_EXT
+#include "pg_tde.h"
+#endif
+
 typedef struct bbstreamer_plain_writer
 {
 	bbstreamer	base;
@@ -226,7 +230,9 @@ bbstreamer_extractor_content(bbstreamer *streamer, bbstreamer_member *member,
 
 			/* Dispatch based on file type. */
 			if (member->is_directory)
+			{
 				extract_directory(mystreamer->filename, member->mode);
+			}
 			else if (member->is_link)
 			{
 				const char *linktarget = member->linktarget;
@@ -236,9 +242,19 @@ bbstreamer_extractor_content(bbstreamer *streamer, bbstreamer_member *member,
 				extract_link(mystreamer->filename, linktarget);
 			}
 			else
+			{
+#ifdef PERCONA_EXT
+				/* 
+				 * Don't rewrite WAL keys and providers. User may have different
+				 * one on source and target.
+				 */
+				if (strncmp(member->pathname, "pg_tde/1664_", 12) == 0)
+					break;
+#endif
 				mystreamer->file =
 					create_file_for_extract(mystreamer->filename,
 											member->mode);
+			}
 
 			/* Report output file change. */
 			if (mystreamer->report_output_file)
@@ -297,7 +313,8 @@ should_allow_existing_directory(const char *pathname)
 		strcmp(filename, "pg_xlog") == 0 ||
 		strcmp(filename, "archive_status") == 0 ||
 		strcmp(filename, "summaries") == 0 ||
-		strcmp(filename, "pg_tblspc") == 0)
+		strcmp(filename, "pg_tblspc") == 0 ||
+		strcmp(filename, PG_TDE_DATA_DIR) == 0) 
 		return true;
 
 	if (strspn(filename, "0123456789") == strlen(filename))

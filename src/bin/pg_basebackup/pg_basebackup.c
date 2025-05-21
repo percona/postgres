@@ -38,7 +38,14 @@
 #include "receivelog.h"
 #include "streamutil.h"
 
-#define ERRCODE_DATA_CORRUPTED	"XX001"
+#ifdef PERCONA_EXT
+#include "access/pg_tde_fe_init.h"
+#include "access/pg_tde_xlog_smgr.h"
+#include "access/xlog_smgr.h"
+#include "pg_tde.h"
+#endif
+
+#define ERRCODE_DATA_CORRUPTED_BCP	"XX001"
 
 typedef struct TablespaceListCell
 {
@@ -621,6 +628,9 @@ StartLogStreamer(char *startpos, uint32 timeline, char *sysidentifier,
 	uint32		hi,
 				lo;
 	char		statusdir[MAXPGPATH];
+#ifdef PERCONA_EXT
+	char		tdedir[MAXPGPATH];
+#endif
 
 	param = pg_malloc0(sizeof(logstreamer_param));
 	param->timeline = timeline;
@@ -653,6 +663,12 @@ StartLogStreamer(char *startpos, uint32 timeline, char *sysidentifier,
 			 basedir,
 			 PQserverVersion(conn) < MINIMUM_VERSION_FOR_PG_WAL ?
 			 "pg_xlog" : "pg_wal");
+
+#ifdef PERCONA_EXT
+	snprintf(tdedir, sizeof(tdedir), "%s/%s", basedir, PG_TDE_DATA_DIR);
+	pg_tde_fe_init(tdedir);
+	TDEXLogSmgrInit();
+#endif
 
 	/* Temporary replication slots are only supported in 10 and newer */
 	if (PQserverVersion(conn) < MINIMUM_VERSION_FOR_TEMP_SLOTS)
@@ -770,6 +786,14 @@ verify_dir_is_empty_or_create(char *dirname, bool *created, bool *found)
 		case 3:
 		case 4:
 
+#ifdef PERCONA_EXT
+			/* 
+			 * `pg_tde` may exists and contain keys and providers for the WAL
+			 * encryption
+			 */
+			if (strcmp(dirname, PG_TDE_DATA_DIR))
+				return;
+#endif
 			/*
 			 * Exists, not empty
 			 */
@@ -2201,7 +2225,7 @@ BaseBackup(char *compression_algorithm, char *compression_detail,
 		const char *sqlstate = PQresultErrorField(res, PG_DIAG_SQLSTATE);
 
 		if (sqlstate &&
-			strcmp(sqlstate, ERRCODE_DATA_CORRUPTED) == 0)
+			strcmp(sqlstate, ERRCODE_DATA_CORRUPTED_BCP) == 0)
 		{
 			pg_log_error("checksum error occurred");
 			checksum_failure = true;
