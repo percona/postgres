@@ -4,21 +4,23 @@ You can configure a default principal key using a global key provider. This key 
 
 ## Create a default principal key
 
-Run the following command:
+To create a principal key, run the following command:
 
 ```sql
 SELECT pg_tde_set_default_key_using_global_key_provider(
     'name-of-the-key',
-    'provider-name',
-    'ensure_new_key'
+    'global_vault_provider',
+    'false'  -- or 'true', or omit entirely
 );
 ```
 
 ## Parameter description
 
 * `name-of-the-key` is the name of the principal key. You will use this name to identify the key.
-* `provider-name` is the name of the key provider you added before. The principal key will be associated with this provider.
-* `ensure_new_key` defines if a principal key must be unique. The default value `true` means that you must speficy a unique key during key rotation. The `false` value allows reusing an existing principal key.
+* `global_vault_provider` is the name of the key provider you added before. The principal key will be associated with this provider.
+* [optional] third parameter:
+    * `true` forces the creation of a new and unique key.
+    * `false` or omitted, allows reuse of an existing key if available (default).
 
 This example is for testing purposes only. Replace the key name and provider name with your values:
 
@@ -26,7 +28,7 @@ This example is for testing purposes only. Replace the key name and provider nam
 SELECT pg_tde_set_key_using_global_key_provider(
     'test-db-master-key',
     'file-vault',
-    'ensure_new_key'
+    'false'
 );
 ```
 
