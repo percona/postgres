@@ -61,7 +61,7 @@ kmipSslConnect(KmipCtx *ctx, KmipKeyring *kmip_keyring, bool throw_error)
 		return false;
 	}
 
-	if (SSL_CTX_use_PrivateKey_file(ctx->ssl, kmip_keyring->kmip_cert_path, SSL_FILETYPE_PEM) != 1)
+	if (SSL_CTX_use_PrivateKey_file(ctx->ssl, kmip_keyring->kmip_key_path, SSL_FILETYPE_PEM) != 1)
 	{
 		SSL_CTX_free(ctx->ssl);
 		ereport(level, errmsg("SSL error: Loading the client key failed"));
@@ -103,11 +103,9 @@ set_key_by_name(GenericKeyring *keyring, KeyInfo *key)
 {
 	KmipCtx		ctx;
 	KmipKeyring *kmip_keyring = (KmipKeyring *) keyring;
-	bool		sslresult;
 	int			result;
 
-	sslresult = kmipSslConnect(&ctx, kmip_keyring, true);
-	Assert(sslresult);
+	kmipSslConnect(&ctx, kmip_keyring, true);
 
 	result = pg_tde_kmip_set_by_name(ctx.bio, key->name, key->data.data, key->data.len);
 
