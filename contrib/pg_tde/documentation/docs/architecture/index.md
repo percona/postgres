@@ -293,15 +293,22 @@ With `pg_tde.inherit_global_key_providers`, it is also possible to set up a defa
 
 With this feature, it is possible for the entire database server to easily use the same principal key for all databases, completely disabling multi-tenency.
 
-A default key can be managed with the following functions:
+You can manage a default key with the functions:
 
 ```sql
 pg_tde_set_default_key_using_global_key_provider('key-name', 'provider-name', 'true/false')
+pg_tde_delete_principal_key()
 ```
 
-`DROP` is only possible if there's no table currently using the default principal key.
+`DELETE` is only possible if there's no table currently using the default principal key.
 
 Changing the default principal key will rotate the encryption of internal keys for all databases using the current default principal key.
+
+#### Deleting the key (not yet implemented)¶
+
+The `pg_tde_delete_principal_key()` function removes the principal key for the current database. If the current database has any encrypted tables, and there isn’t a default principal key configured, it reports an error instead. If there are encrypted tables, but there’s also a global default principal key, internal keys will be encrypted with the default key.
+
+It isn’t possible to remove the WAL (server) principal key.
 
 ### Current key details
 
