@@ -22,17 +22,19 @@ help(void)
 	puts("");
 	puts("pg_tde_change_key_provider [-D <datadir>] <dbOid> <provider_name> <new_provider_type> <provider_parameters...>");
 	puts("");
-	puts("  Where <new_provider_type> can be file, vault or kmip");
+	puts("  Where <new_provider_type> can be file, vault-v2 or kmip");
 	puts("");
 	puts("Depending on the provider type, the complete parameter list is:");
 	puts("");
 	puts("pg_tde_change_key_provider [-D <datadir>] <dbOid> <provider_name> file <filename>");
-	puts("pg_tde_change_key_provider [-D <datadir>] <dbOid> <provider_name> vault <token> <url> <mount_path> [<ca_path>]");
-	puts("pg_tde_change_key_provider [-D <datadir>] <dbOid> <provider_name> kmip <host> <port> <cert_path> [<ca_path>]");
+	puts("pg_tde_change_key_provider [-D <datadir>] <dbOid> <provider_name> vault-v2 <url> <token> <mount_path> [<ca_path>]");
+	puts("pg_tde_change_key_provider [-D <datadir>] <dbOid> <provider_name> kmip <host> <port> <cert_path> <key_path> [<ca_path>]");
+	puts("");
+	printf("Use dbOid %d for global key providers.\n", GLOBAL_DATA_TDE_OID);
 	puts("");
 	puts("WARNING:");
 	puts("");
-	puts("This tool only changes the values, without properly XLogging the changes, or adjusting the configuration in the running postgres processes. Only use it in case the database is inaccessible and can't be started.\n");
+	puts("This tool only changes the values, without properly XLogging the changes, or validating that keys can be fetched using them. Only use it in case the database is inaccessible and can't be started.\n");
 }
 
 #define BUFFER_SIZE 1024
@@ -81,7 +83,7 @@ build_json(char *buffer, int count,...)
 		}
 		if (ptr - buffer > BUFFER_SIZE)
 		{
-			printf("Error: Configuration too long.\n");
+			fprintf(stderr, "Error: Configuration too long.\n");
 			return false;
 		}
 	}
@@ -91,7 +93,7 @@ build_json(char *buffer, int count,...)
 
 	if (ptr - buffer > BUFFER_SIZE)
 	{
-		printf("Error: Configuration too long.\n");
+		fprintf(stderr, "Error: Configuration too long.\n");
 		return false;
 	}
 
@@ -113,8 +115,7 @@ main(int argc, char *argv[])
 	char		tdedir[MAXPGPATH] = {0,};
 	char	   *cptr = tdedir;
 	bool		provider_found = false;
-	GenericKeyring *keyring = NULL;
-	KeyringProviderRecord provider;
+	KeyringProviderRecordInFile record;
 
 	Oid			db_oid;
 
@@ -149,7 +150,7 @@ main(int argc, char *argv[])
 	{
 		help();
 		puts("\n");
-		printf("Error: Data directory missing.\n");
+		fprintf(stderr, "Error: Data directory missing.\n");
 		exit(1);
 	}
 
@@ -171,11 +172,11 @@ main(int argc, char *argv[])
 		{
 			help();
 			puts("\n");
-			printf("Error: wrong number of arguments.\n");
+			fprintf(stderr, "Error: wrong number of arguments.\n");
 			exit(1);
 		}
 
-		if (!build_json(json, 2, "type", "file", "path", argv[4 + argstart]))
+		if (!build_json(json, 1, "path", argv[4 + argstart]))
 		{
 			exit(1);
 		}
@@ -189,11 +190,15 @@ main(int argc, char *argv[])
 		{
 			help();
 			puts("\n");
-			printf("Error: wrong number of arguments.\n");
+			fprintf(stderr, "Error: wrong number of arguments.\n");
 			exit(1);
 		}
 
-		if (!build_json(json, 5, "type", "vault-v2", "url", argv[4 + argstart], "token", argv[5 + argstart], "mountPath", argv[6 + argstart], "caPath", (argc - argstart > 7 ? argv[7 + argstart] : "")))
+		if (!build_json(json, 4,
+						"url", argv[4 + argstart],
+						"token", argv[5 + argstart],
+						"mountPath", argv[6 + argstart],
+						"caPath", (argc - argstart > 7 ? argv[7 + argstart] : "")))
 		{
 			exit(1);
 		}
@@ -207,11 +212,16 @@ main(int argc, char *argv[])
 		{
 			help();
 			puts("\n");
-			printf("Error: wrong number of arguments.\n");
+			fprintf(stderr, "Error: wrong number of arguments.\n");
 			exit(1);
 		}
 
-		if (!build_json(json, 6, "type", "kmip", "host", argv[4 + argstart], "port", argv[5 + argstart], "caPath", (argc - argstart > 8 ? argv[8 + argstart] : ""), "certPath", argv[6 + argstart], "keyPath", argv[7 + argstart]))
+		if (!build_json(json, 5,
+						"host", argv[4 + argstart],
+						"port", argv[5 + argstart],
+						"caPath", (argc - argstart > 8 ? argv[8 + argstart] : ""),
+						"certPath", argv[6 + argstart],
+						"keyPath", argv[7 + argstart]))
 		{
 			exit(1);
 		}
@@ -221,7 +231,7 @@ main(int argc, char *argv[])
 	{
 		help();
 		puts("\n");
-		printf("Error: Unknown provider type: %s\n.", new_provider_type);
+		fprintf(stderr, "Error: Unknown provider type: %s\n.", new_provider_type);
 		exit(1);
 	}
 
@@ -243,19 +253,17 @@ main(int argc, char *argv[])
 	cptr = strcat(cptr, PG_TDE_DATA_DIR);
 	pg_tde_set_data_dir(tdedir);
 
-	/* reports error if not found */
-	keyring = GetKeyProviderByName(provider_name, db_oid);
-
-	if (keyring == NULL)
+	if (get_keyring_info_file_record_by_name(provider_name, db_oid, &record) == false)
 	{
-		printf("Error: provider not found\n.");
+		fprintf(stderr, "Error: provider not found\n.");
 		exit(1);
 	}
 
-	strncpy(provider.options, json, sizeof(provider.options));
-	strncpy(provider.provider_name, provider_name, sizeof(provider.provider_name));
-	provider.provider_type = get_keyring_provider_from_typename(new_provider_type);
-	modify_key_provider_info(&provider, db_oid, false);
+	record.provider.provider_type = get_keyring_provider_from_typename(new_provider_type);
+	memset(record.provider.options, 0, sizeof(record.provider.options));
+	strncpy(record.provider.options, json, sizeof(record.provider.options));
+
+	write_key_provider_info(&record, false);
 
 	printf("Key provider updated successfully!\n");
 
