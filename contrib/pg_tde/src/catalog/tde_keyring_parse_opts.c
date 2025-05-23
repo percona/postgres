@@ -26,6 +26,7 @@
 #include "common/jsonapi.h"
 #include "mb/pg_wchar.h"
 #include "storage/fd.h"
+#include "utils/jsonfuncs.h"
 
 #include "catalog/tde_keyring.h"
 #include "keyring/keyring_curl.h"
@@ -135,7 +136,7 @@ static JsonParseErrorType json_kring_object_field_start(void *state, char *fname
 static JsonParseErrorType json_kring_object_start(void *state);
 static JsonParseErrorType json_kring_object_end(void *state);
 
-static JsonParseErrorType json_kring_assign_scalar(JsonKeyringState *parse, JsonKeyringField field, char *value);
+static void json_kring_assign_scalar(JsonKeyringState *parse, JsonKeyringField field, char *value);
 static char *get_remote_kring_value(const char *url, const char *field_name);
 static char *get_file_kring_value(const char *path, const char *field_name);
 
@@ -149,18 +150,12 @@ ParseKeyringJSONOptions(ProviderType provider_type, GenericKeyring *out_opts, ch
 	JsonLexContext *jlex;
 	JsonKeyringState parse = {0};
 	JsonSemAction sem;
-	JsonParseErrorType jerr;
 
 	/* Set up parsing context and initial semantic state */
 	parse.provider_type = provider_type;
 	parse.provider_opts = out_opts;
 	parse.state = JK_EXPECT_TOP_LEVEL_OBJECT;
-
-#if PG_VERSION_NUM >= 170000
 	jlex = makeJsonLexContextCstringLen(NULL, in_buf, buf_len, PG_UTF8, true);
-#else
-	jlex = makeJsonLexContextCstringLen(in_buf, buf_len, PG_UTF8, true);
-#endif
 
 	/*
 	 * Set up semantic actions. The function below will be called when the
@@ -177,17 +172,23 @@ ParseKeyringJSONOptions(ProviderType provider_type, GenericKeyring *out_opts, ch
 	sem.array_element_end = NULL;
 	sem.scalar = json_kring_scalar;
 
-	/* Run the parser */
-	jerr = pg_parse_json(jlex, &sem);
-	if (jerr != JSON_SUCCESS)
+#ifndef FRONTEND
+	pg_parse_json_or_ereport(jlex, &sem);
+#else
 	{
-		ereport(ERROR,
-				errmsg("parsing of keyring options failed: %s",
-					   json_errdetail(jerr, jlex)));
+		JsonParseErrorType jerr = pg_parse_json(jlex, &sem);
+
+		if (jerr != JSON_SUCCESS)
+		{
+			ereport(ERROR,
+					errmsg("parsing of keyring options failed: %s",
+						   json_errdetail(jerr, jlex)));
+		}
+
 	}
-#if PG_VERSION_NUM >= 170000
-	freeJsonLexContext(jlex);
 #endif
+
+	freeJsonLexContext(jlex);
 }
 
 /*
@@ -241,8 +242,8 @@ json_kring_object_start(void *state)
 			parse->state = JK_EXPECT_EXTERN_VAL;
 			break;
 		case JK_EXPECT_EXTERN_VAL:
-			ereport(ERROR,
-					errmsg("invalid semantic state"));
+			Assert(0);
+			elog(ERROR, "invalid semantic state");
 			break;
 	}
 
@@ -271,15 +272,14 @@ json_kring_object_end(void *state)
 	switch (parse->state)
 	{
 		case JK_EXPECT_TOP_LEVEL_OBJECT:
-			ereport(ERROR,
-					errmsg("invalid semantic state"));
+			Assert(0);
+			elog(ERROR, "invalid semantic state");
 			break;
 		case JK_EXPECT_TOP_FIELD:
 			/* We're done parsing the top level object */
 			break;
 		case JK_EXPECT_EXTERN_VAL:
 			{
-				JsonParseErrorType ret;
 				char	   *value = NULL;
 
 				if (!parse->field_type)
@@ -313,18 +313,9 @@ json_kring_object_end(void *state)
 				pfree(parse->field_type);
 				parse->field_type = NULL;
 
-				if (value == NULL)
-				{
-					return JSON_INCOMPLETE;
-				}
+				Assert(value != NULL);
 
-				ret = json_kring_assign_scalar(parse, parse->top_level_field, value);
-
-				if (ret != JSON_SUCCESS)
-				{
-					return ret;
-				}
-
+				json_kring_assign_scalar(parse, parse->top_level_field, value);
 				parse->state = JK_EXPECT_TOP_FIELD;
 				break;
 			}
@@ -348,8 +339,8 @@ json_kring_object_field_start(void *state, char *fname, bool isnull)
 	switch (parse->state)
 	{
 		case JK_EXPECT_TOP_LEVEL_OBJECT:
-			ereport(ERROR,
-					errmsg("invalid semantic state"));
+			Assert(0);
+			elog(ERROR, "invalid semantic state");
 			break;
 		case JK_EXPECT_TOP_FIELD:
 			switch (parse->provider_type)
@@ -360,7 +351,9 @@ json_kring_object_field_start(void *state, char *fname, bool isnull)
 					else
 					{
 						parse->top_level_field = JK_FIELD_UNKNOWN;
-						elog(ERROR, "parse file keyring config: unexpected field %s", fname);
+						ereport(ERROR,
+								errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+								errmsg("unexpected field \"%s\" for file provider", fname));
 					}
 					break;
 
@@ -376,7 +369,9 @@ json_kring_object_field_start(void *state, char *fname, bool isnull)
 					else
 					{
 						parse->top_level_field = JK_FIELD_UNKNOWN;
-						elog(ERROR, "parse json keyring config: unexpected field %s", fname);
+						ereport(ERROR,
+								errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+								errmsg("unexpected field \"%s\" for vault-v2 provider", fname));
 					}
 					break;
 
@@ -394,7 +389,9 @@ json_kring_object_field_start(void *state, char *fname, bool isnull)
 					else
 					{
 						parse->top_level_field = JK_FIELD_UNKNOWN;
-						elog(ERROR, "parse json keyring config: unexpected field %s", fname);
+						ereport(ERROR,
+								errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+								errmsg("unexpected field \"%s\" for vault-v2 provider", fname));
 					}
 					break;
 
@@ -413,7 +410,9 @@ json_kring_object_field_start(void *state, char *fname, bool isnull)
 			else
 			{
 				parse->extern_field = JK_FIELD_UNKNOWN;
-				elog(ERROR, "parse json keyring config: unexpected field %s", fname);
+				ereport(ERROR,
+						errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+						errmsg("unexpected field \"%s\" for external value \"%s\"", fname, JK_FIELD_NAMES[parse->top_level_field]));
 			}
 			break;
 	}
@@ -466,15 +465,17 @@ json_kring_scalar(void *state, char *token, JsonTokenType tokentype)
 			pfree(token);
 			break;
 		default:
-			ereport(ERROR,
-					errmsg("invalid token type"));
+			Assert(0);
+			elog(ERROR, "invalid token type");
 			break;
 	}
 
-	return json_kring_assign_scalar(parse, *field, value);
+	json_kring_assign_scalar(parse, *field, value);
+
+	return JSON_SUCCESS;
 }
 
-static JsonParseErrorType
+static void
 json_kring_assign_scalar(JsonKeyringState *parse, JsonKeyringField field, char *value)
 {
 	VaultV2Keyring *vault = (VaultV2Keyring *) parse->provider_opts;
@@ -527,10 +528,9 @@ json_kring_assign_scalar(JsonKeyringState *parse, JsonKeyringField field, char *
 			break;
 
 		default:
+			Assert(0);
 			elog(ERROR, "json keyring: unexpected scalar field %d", field);
 	}
-
-	return JSON_SUCCESS;
 }
 
 static char *
@@ -544,15 +544,15 @@ get_remote_kring_value(const char *url, const char *field_name)
 
 	if (!curlSetupSession(url, NULL, &outStr))
 	{
-		elog(ERROR, "CURL error for remote object %s", field_name);
+		elog(ERROR, "CURL error for remote object \"%s\"", field_name);
 	}
 	if (curl_easy_perform(keyringCurl) != CURLE_OK)
 	{
-		elog(ERROR, "HTTP request error for remote object %s", field_name);
+		elog(ERROR, "HTTP request error for remote object \"%s\"", field_name);
 	}
 	if (curl_easy_getinfo(keyringCurl, CURLINFO_RESPONSE_CODE, &httpCode) != CURLE_OK)
 	{
-		elog(ERROR, "HTTP error for remote object %s, HTTP code %li", field_name, httpCode);
+		elog(ERROR, "HTTP error for remote object \"%s\", HTTP code \"%li\"", field_name, httpCode);
 	}
 
 	/* remove trailing whitespace */
@@ -570,14 +570,14 @@ get_file_kring_value(const char *path, const char *field_name)
 	fd = BasicOpenFile(path, O_RDONLY);
 	if (fd < 0)
 	{
-		elog(ERROR, "failed to open file %s for %s", path, field_name);
+		elog(ERROR, "failed to open file \"%s\" for \"%s\"", path, field_name);
 	}
 
 	val = palloc0(MAX_CONFIG_FILE_DATA_LENGTH);
 	if (pg_pread(fd, val, MAX_CONFIG_FILE_DATA_LENGTH, 0) == -1)
 	{
 		close(fd);
-		elog(ERROR, "failed to read file %s for %s", path, field_name);
+		elog(ERROR, "failed to read file \"%s\" for \"%s\"", path, field_name);
 	}
 	/* remove trailing whitespace */
 	val[strcspn(val, " \t\n\r")] = '\0';
