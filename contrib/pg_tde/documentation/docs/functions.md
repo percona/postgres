@@ -278,8 +278,8 @@ SELECT pg_tde_set_key_using_database_key_provider(
 
 For the third parameter (`true`, `false`, or omitted):
 
-* `true` (default if omitted): Requires the key to be newly created. If a key with the same name already exists, the function fails.
-* `false`: Reuses the existing key with that name, if present. If the key does not exist, a new key is created.
+* `true`: Requires the key to be newly created. If a key with the same name already exists, the function fails.
+* `false` (default if omitted): Reuses the existing key with that name, if present. If the key does not exist, a new key is created.
 
 ### pg_tde_set_key_using_global_key_provider
 
