@@ -327,7 +327,7 @@ pg_tde_save_principal_key_redo(const TDESignedPrincipalKeyInfo *signed_key_info)
  * The caller must have an EXCLUSIVE LOCK on the files before calling this function.
  */
 void
-pg_tde_save_principal_key(const TDEPrincipalKey *principal_key, bool write_xlog)
+pg_tde_save_principal_key(const TDEPrincipalKey *principal_key)
 {
 	int			map_fd;
 	off_t		curr_pos = 0;
@@ -340,12 +340,9 @@ pg_tde_save_principal_key(const TDEPrincipalKey *principal_key, bool write_xlog)
 
 	pg_tde_sign_principal_key_info(&signed_key_Info, principal_key);
 
-	if (write_xlog)
-	{
-		XLogBeginInsert();
-		XLogRegisterData((char *) &signed_key_Info, sizeof(TDESignedPrincipalKeyInfo));
-		XLogInsert(RM_TDERMGR_ID, XLOG_TDE_ADD_PRINCIPAL_KEY);
-	}
+	XLogBeginInsert();
+	XLogRegisterData((char *) &signed_key_Info, sizeof(TDESignedPrincipalKeyInfo));
+	XLogInsert(RM_TDERMGR_ID, XLOG_TDE_ADD_PRINCIPAL_KEY);
 
 	map_fd = pg_tde_open_file_write(db_map_path, &signed_key_Info, true, &curr_pos);
 	close(map_fd);

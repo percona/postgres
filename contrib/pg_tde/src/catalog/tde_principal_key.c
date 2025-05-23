@@ -309,7 +309,7 @@ set_principal_key_with_keyring(const char *key_name, const char *provider_name,
 	if (!already_has_key)
 	{
 		/* First key created for the database */
-		pg_tde_save_principal_key(new_principal_key, true);
+		pg_tde_save_principal_key(new_principal_key);
 		push_principal_key_to_cache(new_principal_key);
 	}
 	else
@@ -842,7 +842,7 @@ GetPrincipalKey(Oid dbOid, LWLockMode lockMode)
 	*newPrincipalKey = *principalKey;
 	newPrincipalKey->keyInfo.databaseId = dbOid;
 
-	pg_tde_save_principal_key(newPrincipalKey, false);
+	pg_tde_save_principal_key(newPrincipalKey);
 
 	push_principal_key_to_cache(newPrincipalKey);
 

@@ -109,7 +109,7 @@ extern void pg_tde_delete_tde_files(Oid dbOid);
 
 extern TDESignedPrincipalKeyInfo *pg_tde_get_principal_key_info(Oid dbOid);
 extern bool pg_tde_verify_principal_key_info(TDESignedPrincipalKeyInfo *signed_key_info, const TDEPrincipalKey *principal_key);
-extern void pg_tde_save_principal_key(const TDEPrincipalKey *principal_key, bool write_xlog);
+extern void pg_tde_save_principal_key(const TDEPrincipalKey *principal_key);
 extern void pg_tde_save_principal_key_redo(const TDESignedPrincipalKeyInfo *signed_key_info);
 extern void pg_tde_perform_rotate_key(TDEPrincipalKey *principal_key, TDEPrincipalKey *new_principal_key, bool write_xlog);
 
