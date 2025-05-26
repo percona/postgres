@@ -16,7 +16,7 @@ SELECT pg_tde_set_default_key_using_global_key_provider(
 
 ## Parameter description
 
-* `key-name` the name under which the principal key is stored in the provider.
+* `key-name` is the name under which the principal key is stored in the provider.
 * `global_vault_provider` the name of the global key provider you previously configured.
 * Third parameter (optional):
     * `true` requires the key to be newly created. If the key already exists, the function fails.
