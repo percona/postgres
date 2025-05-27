@@ -38,14 +38,14 @@ typedef struct InternalKey
 	(((key)->type & TDE_KEY_TYPE_WAL_UNENCRYPTED) != 0 || \
 	((key)->type & TDE_KEY_TYPE_WAL_ENCRYPTED) != 0)
 
-#define MAP_ENTRY_EMPTY_IV_SIZE 16
-#define MAP_ENTRY_EMPTY_AEAD_TAG_SIZE 16
+#define MAP_ENTRY_IV_SIZE 16
+#define MAP_ENTRY_AEAD_TAG_SIZE 16
 
 typedef struct
 {
 	TDEPrincipalKeyInfo data;
-	unsigned char sign_iv[16];
-	unsigned char aead_tag[16];
+	unsigned char sign_iv[MAP_ENTRY_IV_SIZE];
+	unsigned char aead_tag[MAP_ENTRY_AEAD_TAG_SIZE];
 } TDESignedPrincipalKeyInfo;
 
 /* We do not need the dbOid since the entries are stored in a file per db */
@@ -56,8 +56,8 @@ typedef struct TDEMapEntry
 	uint32		flags;
 	InternalKey enc_key;
 	/* IV and tag used when encrypting the key itself */
-	unsigned char entry_iv[MAP_ENTRY_EMPTY_IV_SIZE];
-	unsigned char aead_tag[MAP_ENTRY_EMPTY_AEAD_TAG_SIZE];
+	unsigned char entry_iv[MAP_ENTRY_IV_SIZE];
+	unsigned char aead_tag[MAP_ENTRY_AEAD_TAG_SIZE];
 } TDEMapEntry;
 
 typedef struct XLogRelKey
@@ -66,20 +66,15 @@ typedef struct XLogRelKey
 } XLogRelKey;
 
 /*
- * WALKeyCacheRec is built on top of the InternalKeys cache. We still don't
- * want to key data be swapped out to the disk (implemented in the InternalKeys
- * cache) but we need extra information and the ability to have and reference
- * a sequence of keys.
- *
  * TODO: For now it's a simple linked list which is no good. So consider having
- * 			dedicated WAL keys cache inside some proper data structure.
+ * 		 dedicated WAL keys cache inside some proper data structure.
  */
 typedef struct WALKeyCacheRec
 {
 	XLogRecPtr	start_lsn;
 	XLogRecPtr	end_lsn;
 
-	InternalKey *key;
+	InternalKey key;
 	void	   *crypt_ctx;
 
 	struct WALKeyCacheRec *next;
@@ -95,7 +90,6 @@ extern void pg_tde_wal_last_key_set_lsn(XLogRecPtr lsn, const char *keyfile_path
 extern InternalKey *pg_tde_create_smgr_key(const RelFileLocatorBackend *newrlocator);
 extern void pg_tde_create_smgr_key_perm_redo(const RelFileLocator *newrlocator);
 extern void pg_tde_create_wal_key(InternalKey *rel_key_data, const RelFileLocator *newrlocator, uint32 flags);
-extern void pg_tde_free_key_map_entry(const RelFileLocator *rlocator);
 
 #define PG_TDE_MAP_FILENAME			"%d_keys"
 
@@ -107,6 +101,8 @@ pg_tde_set_db_file_path(Oid dbOid, char *path)
 
 extern bool IsSMGRRelationEncrypted(RelFileLocatorBackend rel);
 extern InternalKey *GetSMGRRelationKey(RelFileLocatorBackend rel);
+extern void DeleteSMGRRelationKey(RelFileLocatorBackend rel);
+
 extern int	pg_tde_count_relations(Oid dbOid);
 
 extern void pg_tde_delete_tde_files(Oid dbOid);
