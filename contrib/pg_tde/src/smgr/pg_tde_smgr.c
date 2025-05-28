@@ -1,10 +1,13 @@
-#include "smgr/pg_tde_smgr.h"
 #include "postgres.h"
+
+#include "smgr/pg_tde_smgr.h"
 #include "storage/smgr.h"
 #include "storage/md.h"
 #include "catalog/catalog.h"
 #include "encryption/enc_aes.h"
+#include "encryption/enc_tde.h"
 #include "access/pg_tde_tdemap.h"
+#include "utils/hsearch.h"
 #include "pg_tde_event_capture.h"
 
 typedef enum TDEMgrRelationEncryptionStatus
@@ -43,26 +46,80 @@ typedef struct TDESMgrRelation
 	InternalKey relKey;
 } TDESMgrRelation;
 
+typedef struct
+{
+	RelFileLocator rel;
+	InternalKey key;
+} TempRelKeyEntry;
+
+#define INIT_TEMP_RELS 16
+
+/*
+ * Each backend has a hashtable that stores the keys for all temproary tables.
+ */
+static HTAB *TempRelKeys = NULL;
+
+static SMgrId OurSMgrId = MaxSMgrId;
+
+static void tde_smgr_save_temp_key(const RelFileLocator *newrlocator, const InternalKey *key);
+static InternalKey *tde_smgr_get_temp_key(const RelFileLocator *rel);
+static bool tde_smgr_has_temp_key(const RelFileLocator *rel);
+static void tde_smgr_remove_temp_key(const RelFileLocator *rel);
 static void CalcBlockIv(ForkNumber forknum, BlockNumber bn, const unsigned char *base_iv, unsigned char *iv);
+
+static InternalKey *
+tde_smgr_create_key(const RelFileLocatorBackend *smgr_rlocator)
+{
+	InternalKey *key = palloc_object(InternalKey);
+
+	pg_tde_generate_internal_key(key, TDE_KEY_TYPE_SMGR);
+
+	if (RelFileLocatorBackendIsTemp(*smgr_rlocator))
+		tde_smgr_save_temp_key(&smgr_rlocator->locator, key);
+	else
+		pg_tde_save_smgr_key(smgr_rlocator->locator, key, true);
+
+	return key;
+}
+
+void
+tde_smgr_create_key_redo(const RelFileLocator *rlocator)
+{
+	InternalKey key;
+
+	if (pg_tde_has_smgr_key(*rlocator))
+		return;
+
+	pg_tde_generate_internal_key(&key, TDE_KEY_TYPE_SMGR);
+
+	pg_tde_save_smgr_key(*rlocator, &key, false);
+}
 
 static bool
 tde_smgr_is_encrypted(const RelFileLocatorBackend *smgr_rlocator)
 {
-	/* Do not try to encrypt/decrypt catalog tables */
-	if (IsCatalogRelationOid(smgr_rlocator->locator.relNumber))
-		return false;
-
-	return IsSMGRRelationEncrypted(*smgr_rlocator);
+	if (RelFileLocatorBackendIsTemp(*smgr_rlocator))
+		return tde_smgr_has_temp_key(&smgr_rlocator->locator);
+	else
+		return pg_tde_has_smgr_key(smgr_rlocator->locator);
 }
 
 static InternalKey *
 tde_smgr_get_key(const RelFileLocatorBackend *smgr_rlocator)
 {
-	/* Do not try to encrypt/decrypt catalog tables */
-	if (IsCatalogRelationOid(smgr_rlocator->locator.relNumber))
-		return NULL;
+	if (RelFileLocatorBackendIsTemp(*smgr_rlocator))
+		return tde_smgr_get_temp_key(&smgr_rlocator->locator);
+	else
+		return pg_tde_get_smgr_key(smgr_rlocator->locator);
+}
 
-	return GetSMGRRelationKey(*smgr_rlocator);
+static void
+tde_smgr_remove_key(const RelFileLocatorBackend *smgr_rlocator)
+{
+	if (RelFileLocatorBackendIsTemp(*smgr_rlocator))
+		tde_smgr_remove_temp_key(&smgr_rlocator->locator);
+	else
+		pg_tde_free_key_map_entry(smgr_rlocator->locator);
 }
 
 static bool
@@ -86,11 +143,23 @@ tde_smgr_should_encrypt(const RelFileLocatorBackend *smgr_rlocator, RelFileLocat
 					.backend = smgr_rlocator->backend,
 				};
 
-				return IsSMGRRelationEncrypted(old_smgr_locator);
+				return tde_smgr_is_encrypted(&old_smgr_locator);
 			}
 	}
 
 	return false;
+}
+
+bool
+tde_smgr_rel_is_encrypted(SMgrRelation reln)
+{
+	TDESMgrRelation *tdereln = (TDESMgrRelation *) reln;
+
+	if (reln->smgr_which != OurSMgrId)
+		return false;
+
+	return tdereln->encryption_status == RELATION_KEY_AVAILABLE ||
+		tdereln->encryption_status == RELATION_KEY_NOT_AVAILABLE;
 }
 
 static void
@@ -159,8 +228,8 @@ tde_mdunlink(RelFileLocatorBackend rlocator, ForkNumber forknum, bool isRedo)
 	 */
 	if (forknum == MAIN_FORKNUM || forknum == InvalidForkNumber)
 	{
-		if (IsSMGRRelationEncrypted(rlocator))
-			DeleteSMGRRelationKey(rlocator);
+		if (tde_smgr_is_encrypted(&rlocator))
+			tde_smgr_remove_key(&rlocator);
 	}
 }
 
@@ -282,7 +351,7 @@ tde_mdcreate(RelFileLocator relold, SMgrRelation reln, ForkNumber forknum, bool 
 		InternalKey *key = tde_smgr_get_key(&reln->smgr_rlocator);
 
 		if (!isRedo && !key && tde_smgr_should_encrypt(&reln->smgr_rlocator, &relold))
-			key = pg_tde_create_smgr_key(&reln->smgr_rlocator);
+			key = tde_smgr_create_key(&reln->smgr_rlocator);
 
 		if (key)
 		{
@@ -347,7 +416,68 @@ RegisterStorageMgr(void)
 {
 	if (storage_manager_id != MdSMgrId)
 		elog(FATAL, "Another storage manager was loaded before pg_tde. Multiple storage managers is unsupported.");
-	storage_manager_id = smgr_register(&tde_smgr, sizeof(TDESMgrRelation));
+	OurSMgrId = smgr_register(&tde_smgr, sizeof(TDESMgrRelation));
+	storage_manager_id = OurSMgrId;
+}
+
+static void
+tde_smgr_save_temp_key(const RelFileLocator *newrlocator, const InternalKey *key)
+{
+	TempRelKeyEntry *entry;
+	bool		found;
+
+	if (TempRelKeys == NULL)
+	{
+		HASHCTL		ctl;
+
+		ctl.keysize = sizeof(RelFileLocator);
+		ctl.entrysize = sizeof(TempRelKeyEntry);
+		TempRelKeys = hash_create("pg_tde temporary relation keys",
+								  INIT_TEMP_RELS,
+								  &ctl,
+								  HASH_ELEM | HASH_BLOBS);
+	}
+
+	entry = (TempRelKeyEntry *) hash_search(TempRelKeys,
+											newrlocator,
+											HASH_ENTER, &found);
+	Assert(!found);
+
+	entry->key = *key;
+}
+
+static InternalKey *
+tde_smgr_get_temp_key(const RelFileLocator *rel)
+{
+	TempRelKeyEntry *entry;
+
+	if (TempRelKeys == NULL)
+		return NULL;
+
+	entry = hash_search(TempRelKeys, rel, HASH_FIND, NULL);
+
+	if (entry)
+	{
+		InternalKey *key = palloc_object(InternalKey);
+
+		*key = entry->key;
+		return key;
+	}
+
+	return NULL;
+}
+
+static bool
+tde_smgr_has_temp_key(const RelFileLocator *rel)
+{
+	return TempRelKeys && hash_search(TempRelKeys, rel, HASH_FIND, NULL);
+}
+
+static void
+tde_smgr_remove_temp_key(const RelFileLocator *rel)
+{
+	Assert(TempRelKeys);
+	hash_search(TempRelKeys, rel, HASH_REMOVE, NULL);
 }
 
 /*
