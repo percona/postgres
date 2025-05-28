@@ -308,6 +308,12 @@ tde_mdcreate(RelFileLocator relold, SMgrRelation reln, ForkNumber forknum, bool 
 	}
 	else
 	{
+		/*
+		 * If we have a key for a relation that should not be encrypted we
+		 * need to remove it. This can happen if OID is re-used after a crash
+		 * left a key for a non-existing relation in the key file.
+		 */
+		DeleteSMGRRelationKey(reln->smgr_rlocator);
 		tdereln->encryption_status = RELATION_NOT_ENCRYPTED;
 	}
 }
