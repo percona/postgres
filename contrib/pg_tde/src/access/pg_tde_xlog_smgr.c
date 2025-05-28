@@ -202,7 +202,7 @@ TDEXLogSmgrInit(void)
 		pg_tde_create_wal_key(&EncryptionKey, &GLOBAL_SPACE_RLOCATOR(XLOG_TDE_OID),
 							  TDE_KEY_TYPE_WAL_ENCRYPTED);
 	}
-	else if (key && key->type & TDE_KEY_TYPE_WAL_ENCRYPTED)
+	else if (key && key->type == TDE_KEY_TYPE_WAL_ENCRYPTED)
 	{
 		pg_tde_create_wal_key(&EncryptionKey, &GLOBAL_SPACE_RLOCATOR(XLOG_TDE_OID),
 							  TDE_KEY_TYPE_WAL_UNENCRYPTED);
@@ -233,7 +233,7 @@ tdeheap_xlog_seg_write(int fd, const void *buf, size_t count, off_t offset,
 	 *
 	 * This func called with WALWriteLock held, so no need in any extra sync.
 	 */
-	if (EncryptionKey.type & TDE_KEY_TYPE_GLOBAL &&
+	if (EncryptionKey.type != MAP_ENTRY_EMPTY &&
 		pg_atomic_read_u64(&EncryptionState->enc_key_lsn) == 0)
 	{
 		XLogRecPtr	lsn;
@@ -278,13 +278,13 @@ tdeheap_xlog_seg_read(int fd, void *buf, size_t count, off_t offset,
 	if (!keys)
 	{
 		/* cache is empty, try to read keys from disk */
-		keys = pg_tde_fetch_wal_keys(0);
+		keys = pg_tde_fetch_wal_keys(InvalidXLogRecPtr);
 	}
 
 #ifndef FRONTEND
 	write_key_lsn = pg_atomic_read_u64(&EncryptionState->enc_key_lsn);
 
-	if (write_key_lsn != 0)
+	if (!XLogRecPtrIsInvalid(write_key_lsn))
 	{
 		WALKeyCacheRec *last_key = pg_tde_get_last_wal_key();
 
@@ -314,11 +314,11 @@ tdeheap_xlog_seg_read(int fd, void *buf, size_t count, off_t offset,
 		elog(DEBUG1, "WAL key %X/%X-%X/%X, encrypted: %s",
 			 LSN_FORMAT_ARGS(curr_key->start_lsn),
 			 LSN_FORMAT_ARGS(curr_key->end_lsn),
-			 curr_key->key.type & TDE_KEY_TYPE_WAL_ENCRYPTED ? "yes" : "no");
+			 curr_key->key.type == TDE_KEY_TYPE_WAL_ENCRYPTED ? "yes" : "no");
 #endif
 
 		if (curr_key->key.start_lsn != InvalidXLogRecPtr &&
-			(curr_key->key.type & TDE_KEY_TYPE_WAL_ENCRYPTED))
+			curr_key->key.type == TDE_KEY_TYPE_WAL_ENCRYPTED)
 		{
 			/*
 			 * Check if the key's range overlaps with the buffer's and decypt

@@ -819,36 +819,40 @@ TDEPrincipalKey *
 GetPrincipalKey(Oid dbOid, LWLockMode lockMode)
 {
 	TDEPrincipalKey *principalKey = GetPrincipalKeyNoDefault(dbOid, lockMode);
-#ifndef FRONTEND
-	TDEPrincipalKey *newPrincipalKey = NULL;
-#endif
-
-	if (principalKey != NULL)
-	{
-		return principalKey;
-	}
 
 #ifndef FRONTEND
-
-	/* Lock is already updated to exclusive at this point */
-	principalKey = GetPrincipalKeyNoDefault(DEFAULT_DATA_TDE_OID, LW_EXCLUSIVE);
-
 	if (principalKey == NULL)
 	{
-		return NULL;
+		/*
+		 * If database doesn't have dedicated principal key we should try to
+		 * fallback to default principal key.
+		 */
+		TDEPrincipalKey *newPrincipalKey;
+
+		/* Lock is already updated to exclusive at this point */
+		principalKey = GetPrincipalKeyNoDefault(DEFAULT_DATA_TDE_OID, LW_EXCLUSIVE);
+
+		if (principalKey == NULL)
+			return NULL;
+
+		newPrincipalKey = palloc_object(TDEPrincipalKey);
+		*newPrincipalKey = *principalKey;
+		newPrincipalKey->keyInfo.databaseId = dbOid;
+
+		/*
+		 * We have to write default principal key info to database keys file.
+		 * However we cannot write XLOG records about this operation as
+		 * current funcion may be invoked during server startup/recovery where
+		 * WAL writes forbidden.
+		 */
+		pg_tde_save_principal_key(newPrincipalKey, false);
+
+		push_principal_key_to_cache(newPrincipalKey);
+
+		pfree(newPrincipalKey);
+
+		principalKey = GetPrincipalKeyNoDefault(dbOid, LW_EXCLUSIVE);
 	}
-
-	newPrincipalKey = palloc_object(TDEPrincipalKey);
-	*newPrincipalKey = *principalKey;
-	newPrincipalKey->keyInfo.databaseId = dbOid;
-
-	pg_tde_save_principal_key(newPrincipalKey, false);
-
-	push_principal_key_to_cache(newPrincipalKey);
-
-	pfree(newPrincipalKey);
-
-	principalKey = GetPrincipalKeyNoDefault(dbOid, LW_EXCLUSIVE);
 #endif
 
 	return principalKey;
@@ -887,41 +891,36 @@ pg_tde_is_provider_used(Oid databaseOid, Oid providerId)
 		HeapTuple	tuple;
 		SysScanDesc scan;
 		Relation	rel;
-		bool		used = false;
+		TDEPrincipalKey *principal_key;
+		bool		used;
 
 		/* First verify that the global/default oid doesn't use it */
 
-		Oid			dbOid = GLOBAL_DATA_TDE_OID;
-		TDEPrincipalKey *principal_key = GetPrincipalKeyNoDefault(dbOid, LW_EXCLUSIVE);
-
+		principal_key = GetPrincipalKeyNoDefault(GLOBAL_DATA_TDE_OID, LW_EXCLUSIVE);
 		if (principal_key != NULL && providerId == principal_key->keyInfo.keyringId)
 		{
 			LWLockRelease(tde_lwlock_enc_keys());
-
 			return true;
 		}
 
-		dbOid = DEFAULT_DATA_TDE_OID;
-		principal_key = GetPrincipalKeyNoDefault(dbOid, LW_EXCLUSIVE);
-
+		principal_key = GetPrincipalKeyNoDefault(DEFAULT_DATA_TDE_OID, LW_EXCLUSIVE);
 		if (principal_key != NULL && providerId == principal_key->keyInfo.keyringId)
 		{
 			LWLockRelease(tde_lwlock_enc_keys());
-
 			return true;
 		}
 
 		/* We have to verify that it isn't currently used by any database */
 
 		rel = table_open(DatabaseRelationId, AccessShareLock);
-
 		scan = systable_beginscan(rel, 0, false, NULL, 0, NULL);
 
+		used = false;
 		while (HeapTupleIsValid(tuple = systable_getnext(scan)))
 		{
-			dbOid = ((Form_pg_database) GETSTRUCT(tuple))->oid;
-			principal_key = GetPrincipalKeyNoDefault(dbOid, LW_EXCLUSIVE);
+			Oid			dbOid = ((Form_pg_database) GETSTRUCT(tuple))->oid;
 
+			principal_key = GetPrincipalKeyNoDefault(dbOid, LW_EXCLUSIVE);
 			if (principal_key && principal_key->keyInfo.keyringId == providerId)
 			{
 				used = true;
@@ -943,9 +942,92 @@ pg_tde_is_provider_used(Oid databaseOid, Oid providerId)
 		bool		used = principal_key != NULL && providerId == principal_key->keyInfo.keyringId;
 
 		LWLockRelease(tde_lwlock_enc_keys());
-
 		return used;
 	}
+}
+
+/*
+ * Verifies that all keys that are currently in use matches the keys available
+ * at the provided key provider. This is meant to be used before modifying an
+ * existing provider to ensure the new settings will provide the same keys as
+ * those that are already in use.
+ */
+void
+pg_tde_verify_provider_keys_in_use(GenericKeyring *modified_provider)
+{
+	TDEPrincipalKey *existing_principal_key;
+	HeapTuple	tuple;
+	SysScanDesc scan;
+	Relation	rel;
+
+	Assert(modified_provider);
+	Assert(modified_provider->keyring_id);
+
+	LWLockAcquire(tde_lwlock_enc_keys(), LW_EXCLUSIVE);
+
+	/* Check the server key that is used for WAL encryption */
+	existing_principal_key = GetPrincipalKeyNoDefault(GLOBAL_DATA_TDE_OID, LW_EXCLUSIVE);
+	if (existing_principal_key != NULL &&
+		existing_principal_key->keyInfo.keyringId == modified_provider->keyring_id)
+	{
+		char	   *key_name = existing_principal_key->keyInfo.name;
+		KeyringReturnCodes return_code;
+		KeyInfo    *proposed_key;
+
+		proposed_key = KeyringGetKey(modified_provider, key_name, &return_code);
+		if (!proposed_key)
+		{
+			ereport(ERROR,
+					errmsg("could not fetch key \"%s\" used as server key from modified key provider \"%s\": %d",
+						   key_name, modified_provider->provider_name, return_code));
+		}
+
+		if (proposed_key->data.len != existing_principal_key->keyLength ||
+			memcmp(proposed_key->data.data, existing_principal_key->keyData, proposed_key->data.len) != 0)
+		{
+			ereport(ERROR,
+					errmsg("key \"%s\" from modified key provider \"%s\" does not match existing server key",
+						   key_name, modified_provider->provider_name));
+		}
+	}
+
+	/* Check all databases for usage of keys from this key provider. */
+	rel = table_open(DatabaseRelationId, AccessShareLock);
+	scan = systable_beginscan(rel, 0, false, NULL, 0, NULL);
+
+	while (HeapTupleIsValid(tuple = systable_getnext(scan)))
+	{
+		Form_pg_database database = (Form_pg_database) GETSTRUCT(tuple);
+
+		existing_principal_key = GetPrincipalKeyNoDefault(database->oid, LW_EXCLUSIVE);
+		if (existing_principal_key != NULL &&
+			existing_principal_key->keyInfo.keyringId == modified_provider->keyring_id)
+		{
+			char	   *key_name = existing_principal_key->keyInfo.name;
+			KeyringReturnCodes return_code;
+			KeyInfo    *proposed_key;
+
+			proposed_key = KeyringGetKey(modified_provider, key_name, &return_code);
+			if (!proposed_key)
+			{
+				ereport(ERROR,
+						errmsg("could not fetch key \"%s\" used by database \"%s\" from modified key provider \"%s\": %d",
+							   key_name, database->datname.data, modified_provider->provider_name, return_code));
+			}
+
+			if (proposed_key->data.len != existing_principal_key->keyLength ||
+				memcmp(proposed_key->data.data, existing_principal_key->keyData, proposed_key->data.len) != 0)
+			{
+				ereport(ERROR,
+						errmsg("key \"%s\" from modified key provider \"%s\" does not match existing key used by database \"%s\"",
+							   key_name, modified_provider->provider_name, database->datname.data));
+			}
+		}
+	}
+	systable_endscan(scan);
+	table_close(rel, AccessShareLock);
+
+	LWLockRelease(tde_lwlock_enc_keys());
 }
 
 static bool
@@ -977,11 +1059,10 @@ pg_tde_update_global_principal_key_everywhere(TDEPrincipalKey *oldKey, TDEPrinci
 	HeapTuple	tuple;
 	SysScanDesc scan;
 	Relation	rel;
-	Oid			dbOid = GLOBAL_DATA_TDE_OID;
 	TDEPrincipalKey *principal_key;
 
 	/* First check the global oid */
-	principal_key = GetPrincipalKeyNoDefault(dbOid, LW_EXCLUSIVE);
+	principal_key = GetPrincipalKeyNoDefault(GLOBAL_DATA_TDE_OID, LW_EXCLUSIVE);
 
 	if (pg_tde_is_same_principal_key(oldKey, principal_key))
 	{
@@ -994,14 +1075,13 @@ pg_tde_update_global_principal_key_everywhere(TDEPrincipalKey *oldKey, TDEPrinci
 	 * not ideal
 	 */
 	rel = table_open(DatabaseRelationId, RowExclusiveLock);
-
 	scan = systable_beginscan(rel, 0, false, NULL, 0, NULL);
 
 	while (HeapTupleIsValid(tuple = systable_getnext(scan)))
 	{
-		dbOid = ((Form_pg_database) GETSTRUCT(tuple))->oid;
-		principal_key = GetPrincipalKeyNoDefault(dbOid, LW_EXCLUSIVE);
+		Oid			dbOid = ((Form_pg_database) GETSTRUCT(tuple))->oid;
 
+		principal_key = GetPrincipalKeyNoDefault(dbOid, LW_EXCLUSIVE);
 		if (pg_tde_is_same_principal_key(oldKey, principal_key))
 		{
 			pg_tde_rotate_default_key_for_database(principal_key, newKey);
