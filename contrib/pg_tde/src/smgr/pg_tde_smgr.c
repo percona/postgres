@@ -265,7 +265,7 @@ tde_mdcreate(RelFileLocator relold, SMgrRelation reln, ForkNumber forknum, bool 
 
 	mdcreate(relold, reln, forknum, isRedo);
 
-	if (forknum == MAIN_FORKNUM || forknum == INIT_FORKNUM)
+	if (forknum != MAIN_FORKNUM && forknum != INIT_FORKNUM)
 	{
 		/*
 		 * Only create keys when creating the main/init fork. Other forks can
@@ -275,25 +275,40 @@ tde_mdcreate(RelFileLocator relold, SMgrRelation reln, ForkNumber forknum, bool 
 		 *
 		 * Later calls then decide to encrypt or not based on the existence of
 		 * the key.
-		 *
-		 * Since event triggers do not fire on the standby or in recovery we
-		 * do not try to generate any new keys and instead trust the xlog.
 		 */
+		return;
+	}
+
+	if (tde_smgr_should_encrypt(&reln->smgr_rlocator, &relold))
+	{
 		InternalKey *key = tde_smgr_get_key(&reln->smgr_rlocator);
 
-		if (!isRedo && !key && tde_smgr_should_encrypt(&reln->smgr_rlocator, &relold))
-			key = pg_tde_create_smgr_key(&reln->smgr_rlocator);
-
-		if (key)
+		if (unlikely(key))
 		{
 			tdereln->encryption_status = RELATION_KEY_AVAILABLE;
 			tdereln->relKey = *key;
 			pfree(key);
 		}
+		else if (unlikely(isRedo))
+		{
+			/*
+			 * Since event triggers do not fire on the standby or in recovery
+			 * we do not try to generate any new keys and instead trust the
+			 * xlog.
+			 */
+			tdereln->encryption_status = RELATION_KEY_NOT_AVAILABLE;
+		}
 		else
 		{
-			tdereln->encryption_status = RELATION_NOT_ENCRYPTED;
+			key = pg_tde_create_smgr_key(&reln->smgr_rlocator);
+			tdereln->encryption_status = RELATION_KEY_AVAILABLE;
+			tdereln->relKey = *key;
+			pfree(key);
 		}
+	}
+	else
+	{
+		tdereln->encryption_status = RELATION_NOT_ENCRYPTED;
 	}
 }
 
