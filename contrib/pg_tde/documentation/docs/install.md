@@ -1,5 +1,9 @@
 # Install pg_tde
 
+!!! warning "No upgrade path from RC to GA"
+    There is no safe upgrade path from the Release Candidate (RC 2) to the General Availability (GA) version of `pg_tde`.  
+    We recommend starting with a **clean installation** for GA deployments. Avoid using RC environments in production.
+
 To install `pg_tde`, use one of the following methods:
 
 === ":octicons-terminal-16: Package manager"
