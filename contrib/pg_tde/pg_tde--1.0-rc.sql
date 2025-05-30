@@ -34,7 +34,7 @@ CREATE FUNCTION pg_tde_add_database_key_provider_vault_v2(provider_name TEXT,
                                                 vault_token_path TEXT,
                                                 vault_url TEXT,
                                                 vault_mount_path TEXT,
-                                                vault_ca_path TEXT)
+                                                vault_ca_path TEXT DEFAULT NULL)
 RETURNS VOID
 LANGUAGE SQL
 BEGIN ATOMIC
@@ -117,7 +117,7 @@ CREATE FUNCTION pg_tde_add_global_key_provider_vault_v2(provider_name TEXT,
                                                         vault_token_path TEXT,
                                                         vault_url TEXT,
                                                         vault_mount_path TEXT,
-                                                        vault_ca_path TEXT)
+                                                        vault_ca_path TEXT DEFAULT NULL)
 RETURNS VOID
 LANGUAGE SQL
 BEGIN ATOMIC
@@ -180,7 +180,7 @@ CREATE FUNCTION pg_tde_change_database_key_provider_vault_v2(provider_name TEXT,
                                                     vault_token_path TEXT,
                                                     vault_url TEXT,
                                                     vault_mount_path TEXT,
-                                                    vault_ca_path TEXT)
+                                                    vault_ca_path TEXT DEFAULT NULL)
 RETURNS VOID
 LANGUAGE SQL
 BEGIN ATOMIC
@@ -243,7 +243,7 @@ CREATE FUNCTION pg_tde_change_global_key_provider_vault_v2(provider_name TEXT,
                                                            vault_token_path TEXT,
                                                            vault_url TEXT,
                                                            vault_mount_path TEXT,
-                                                           vault_ca_path TEXT)
+                                                           vault_ca_path TEXT DEFAULT NULL)
 RETURNS VOID
 LANGUAGE SQL
 BEGIN ATOMIC
