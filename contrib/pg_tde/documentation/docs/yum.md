@@ -62,7 +62,7 @@ You need the `percona-release` repository management tool that enables the desir
 Run the following command to install `pg_tde`:
 
 ```{.bash data-prompt="$"}
-    $ sudo yum -y install percona-postgresql17 percona-postgresql17-contrib 
+    $ sudo yum -y install percona-postgresql17-server percona-postgresql17-contrib 
 ```
 
 ## Next steps
