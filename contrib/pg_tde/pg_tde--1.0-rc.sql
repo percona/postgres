@@ -5,12 +5,12 @@
 
 -- Key Provider Management
 CREATE FUNCTION pg_tde_add_database_key_provider(provider_type TEXT, provider_name TEXT, options JSON)
-RETURNS INT
+RETURNS VOID
 LANGUAGE C
 AS 'MODULE_PATHNAME';
 
 CREATE FUNCTION pg_tde_add_database_key_provider_file(provider_name TEXT, file_path TEXT)
-RETURNS INT
+RETURNS VOID
 LANGUAGE SQL
 BEGIN ATOMIC
     -- JSON keys in the options must be matched to the keys in
@@ -20,7 +20,7 @@ BEGIN ATOMIC
 END;
 
 CREATE FUNCTION pg_tde_add_database_key_provider_file(provider_name TEXT, file_path JSON)
-RETURNS INT
+RETURNS VOID
 LANGUAGE SQL
 BEGIN ATOMIC
     -- JSON keys in the options must be matched to the keys in
@@ -34,7 +34,7 @@ CREATE FUNCTION pg_tde_add_database_key_provider_vault_v2(provider_name TEXT,
                                                 vault_url TEXT,
                                                 vault_mount_path TEXT,
                                                 vault_ca_path TEXT)
-RETURNS INT
+RETURNS VOID
 LANGUAGE SQL
 BEGIN ATOMIC
     -- JSON keys in the options must be matched to the keys in
@@ -51,7 +51,7 @@ CREATE FUNCTION pg_tde_add_database_key_provider_vault_v2(provider_name TEXT,
                                                 vault_url JSON,
                                                 vault_mount_path JSON,
                                                 vault_ca_path JSON)
-RETURNS INT
+RETURNS VOID
 LANGUAGE SQL
 BEGIN ATOMIC
     -- JSON keys in the options must be matched to the keys in
@@ -69,7 +69,7 @@ CREATE FUNCTION pg_tde_add_database_key_provider_kmip(provider_name TEXT,
                                              kmip_ca_path TEXT,
                                              kmip_cert_path TEXT,
                                              kmip_key_path TEXT)
-RETURNS INT
+RETURNS VOID
 LANGUAGE SQL
 BEGIN ATOMIC
     -- JSON keys in the options must be matched to the keys in
@@ -88,7 +88,7 @@ CREATE FUNCTION pg_tde_add_database_key_provider_kmip(provider_name TEXT,
                                              kmip_ca_path JSON,
                                              kmip_cert_path JSON,
                                              kmip_key_path JSON)
-RETURNS INT
+RETURNS VOID
 LANGUAGE SQL
 BEGIN ATOMIC
     -- JSON keys in the options must be matched to the keys in
@@ -107,7 +107,7 @@ CREATE FUNCTION pg_tde_list_all_database_key_providers
     OUT provider_type TEXT,
     OUT options JSON)
 RETURNS SETOF RECORD
-LANGUAGE C STRICT
+LANGUAGE C
 AS 'MODULE_PATHNAME';
 
 CREATE FUNCTION pg_tde_list_all_global_key_providers
@@ -116,17 +116,17 @@ CREATE FUNCTION pg_tde_list_all_global_key_providers
     OUT provider_type TEXT,
     OUT options JSON)
 RETURNS SETOF RECORD
-LANGUAGE C STRICT
+LANGUAGE C
 AS 'MODULE_PATHNAME';
 
 -- Global Tablespace Key Provider Management
 CREATE FUNCTION pg_tde_add_global_key_provider(provider_type TEXT, provider_name TEXT, options JSON)
-RETURNS INT
+RETURNS VOID
 LANGUAGE C
 AS 'MODULE_PATHNAME';
 
 CREATE FUNCTION pg_tde_add_global_key_provider_file(provider_name TEXT, file_path TEXT)
-RETURNS INT
+RETURNS VOID
 LANGUAGE SQL
 BEGIN ATOMIC
     -- JSON keys in the options must be matched to the keys in
@@ -136,7 +136,7 @@ BEGIN ATOMIC
 END;
 
 CREATE FUNCTION pg_tde_add_global_key_provider_file(provider_name TEXT, file_path JSON)
-RETURNS INT
+RETURNS VOID
 LANGUAGE SQL
 BEGIN ATOMIC
     -- JSON keys in the options must be matched to the keys in
@@ -150,7 +150,7 @@ CREATE FUNCTION pg_tde_add_global_key_provider_vault_v2(provider_name TEXT,
                                                         vault_url TEXT,
                                                         vault_mount_path TEXT,
                                                         vault_ca_path TEXT)
-RETURNS INT
+RETURNS VOID
 LANGUAGE SQL
 BEGIN ATOMIC
     -- JSON keys in the options must be matched to the keys in
@@ -167,7 +167,7 @@ CREATE FUNCTION pg_tde_add_global_key_provider_vault_v2(provider_name TEXT,
                                                         vault_url JSON,
                                                         vault_mount_path JSON,
                                                         vault_ca_path JSON)
-RETURNS INT
+RETURNS VOID
 LANGUAGE SQL
 BEGIN ATOMIC
     -- JSON keys in the options must be matched to the keys in
@@ -185,7 +185,7 @@ CREATE FUNCTION pg_tde_add_global_key_provider_kmip(provider_name TEXT,
                                                     kmip_ca_path TEXT,
                                                     kmip_cert_path TEXT,
                                                     kmip_key_path TEXT)
-RETURNS INT
+RETURNS VOID
 LANGUAGE SQL
 BEGIN ATOMIC
     -- JSON keys in the options must be matched to the keys in
@@ -204,7 +204,7 @@ CREATE FUNCTION pg_tde_add_global_key_provider_kmip(provider_name TEXT,
                                                     kmip_ca_path JSON,
                                                     kmip_cert_path JSON,
                                                     kmip_key_path JSON)
-RETURNS INT
+RETURNS VOID
 LANGUAGE SQL
 BEGIN ATOMIC
     -- JSON keys in the options must be matched to the keys in
@@ -219,12 +219,12 @@ END;
 
 -- Key Provider Management
 CREATE FUNCTION pg_tde_change_database_key_provider(provider_type TEXT, provider_name TEXT, options JSON)
-RETURNS INT
+RETURNS VOID
 LANGUAGE C
 AS 'MODULE_PATHNAME';
 
 CREATE FUNCTION pg_tde_change_database_key_provider_file(provider_name TEXT, file_path TEXT)
-RETURNS INT
+RETURNS VOID
 LANGUAGE SQL
 BEGIN ATOMIC
     -- JSON keys in the options must be matched to the keys in
@@ -234,7 +234,7 @@ BEGIN ATOMIC
 END;
 
 CREATE FUNCTION pg_tde_change_database_key_provider_file(provider_name TEXT, file_path JSON)
-RETURNS INT
+RETURNS VOID
 LANGUAGE SQL
 BEGIN ATOMIC
     -- JSON keys in the options must be matched to the keys in
@@ -248,7 +248,7 @@ CREATE FUNCTION pg_tde_change_database_key_provider_vault_v2(provider_name TEXT,
                                                     vault_url TEXT,
                                                     vault_mount_path TEXT,
                                                     vault_ca_path TEXT)
-RETURNS INT
+RETURNS VOID
 LANGUAGE SQL
 BEGIN ATOMIC
     -- JSON keys in the options must be matched to the keys in
@@ -265,7 +265,7 @@ CREATE FUNCTION pg_tde_change_database_key_provider_vault_v2(provider_name TEXT,
                                                     vault_url JSON,
                                                     vault_mount_path JSON,
                                                     vault_ca_path JSON)
-RETURNS INT
+RETURNS VOID
 LANGUAGE SQL
 BEGIN ATOMIC
     -- JSON keys in the options must be matched to the keys in
@@ -283,7 +283,7 @@ CREATE FUNCTION pg_tde_change_database_key_provider_kmip(provider_name TEXT,
                                                 kmip_ca_path TEXT,
                                                 kmip_cert_path TEXT,
                                                 kmip_key_path TEXT)
-RETURNS INT
+RETURNS VOID
 LANGUAGE SQL
 BEGIN ATOMIC
     -- JSON keys in the options must be matched to the keys in
@@ -302,7 +302,7 @@ CREATE FUNCTION pg_tde_change_database_key_provider_kmip(provider_name TEXT,
                                                 kmip_ca_path JSON,
                                                 kmip_cert_path JSON,
                                                 kmip_key_path JSON)
-RETURNS INT
+RETURNS VOID
 LANGUAGE SQL
 BEGIN ATOMIC
     -- JSON keys in the options must be matched to the keys in
@@ -317,12 +317,12 @@ END;
 
 -- Global Tablespace Key Provider Management
 CREATE FUNCTION pg_tde_change_global_key_provider(provider_type TEXT, provider_name TEXT, options JSON)
-RETURNS INT
+RETURNS VOID
 LANGUAGE C
 AS 'MODULE_PATHNAME';
 
 CREATE FUNCTION pg_tde_change_global_key_provider_file(provider_name TEXT, file_path TEXT)
-RETURNS INT
+RETURNS VOID
 LANGUAGE SQL
 BEGIN ATOMIC
     -- JSON keys in the options must be matched to the keys in
@@ -332,7 +332,7 @@ BEGIN ATOMIC
 END;
 
 CREATE FUNCTION pg_tde_change_global_key_provider_file(provider_name TEXT, file_path JSON)
-RETURNS INT
+RETURNS VOID
 LANGUAGE SQL
 BEGIN ATOMIC
     -- JSON keys in the options must be matched to the keys in
@@ -346,7 +346,7 @@ CREATE FUNCTION pg_tde_change_global_key_provider_vault_v2(provider_name TEXT,
                                                            vault_url TEXT,
                                                            vault_mount_path TEXT,
                                                            vault_ca_path TEXT)
-RETURNS INT
+RETURNS VOID
 LANGUAGE SQL
 BEGIN ATOMIC
     -- JSON keys in the options must be matched to the keys in
@@ -363,7 +363,7 @@ CREATE FUNCTION pg_tde_change_global_key_provider_vault_v2(provider_name TEXT,
                                                            vault_url JSON,
                                                            vault_mount_path JSON,
                                                            vault_ca_path JSON)
-RETURNS INT
+RETURNS VOID
 LANGUAGE SQL
 BEGIN ATOMIC
     -- JSON keys in the options must be matched to the keys in
@@ -381,7 +381,7 @@ CREATE FUNCTION pg_tde_change_global_key_provider_kmip(provider_name TEXT,
                                                        kmip_ca_path TEXT,
                                                        kmip_cert_path TEXT,
                                                        kmip_key_path TEXT)
-RETURNS INT
+RETURNS VOID
 LANGUAGE SQL
 BEGIN ATOMIC
     -- JSON keys in the options must be matched to the keys in
@@ -400,12 +400,12 @@ CREATE FUNCTION pg_tde_change_global_key_provider_kmip(provider_name TEXT,
                                                        kmip_ca_path JSON,
                                                        kmip_cert_path JSON,
                                                        kmip_key_path JSON)
-RETURNS INT
+RETURNS VOID
 LANGUAGE SQL
 BEGIN ATOMIC
     -- JSON keys in the options must be matched to the keys in
     -- load_kmip_keyring_provider_options function.
-    SELECT pg_tde_change_global_key_provider('vault-v2', provider_name,
+    SELECT pg_tde_change_global_key_provider('kmip', provider_name,
                             json_object('host' VALUE kmip_host,
                             'port' VALUE kmip_port,
                             'caPath' VALUE kmip_ca_path,
@@ -419,22 +419,22 @@ STRICT
 LANGUAGE C
 AS 'MODULE_PATHNAME';
 
-CREATE FUNCTION pg_tde_set_key_using_database_key_provider(key_name TEXT, provider_name TEXT DEFAULT NULL, ensure_new_key BOOLEAN DEFAULT FALSE)
+CREATE FUNCTION pg_tde_set_key_using_database_key_provider(key_name TEXT, provider_name TEXT, ensure_new_key BOOLEAN DEFAULT FALSE)
 RETURNS VOID
 LANGUAGE C
 AS 'MODULE_PATHNAME';
 
-CREATE FUNCTION pg_tde_set_key_using_global_key_provider(key_name TEXT, provider_name TEXT DEFAULT NULL, ensure_new_key BOOLEAN DEFAULT FALSE)
+CREATE FUNCTION pg_tde_set_key_using_global_key_provider(key_name TEXT, provider_name TEXT, ensure_new_key BOOLEAN DEFAULT FALSE)
 RETURNS VOID
 LANGUAGE C
 AS 'MODULE_PATHNAME';
 
-CREATE FUNCTION pg_tde_set_server_key_using_global_key_provider(key_name TEXT, provider_name TEXT DEFAULT NULL, ensure_new_key BOOLEAN DEFAULT FALSE)
+CREATE FUNCTION pg_tde_set_server_key_using_global_key_provider(key_name TEXT, provider_name TEXT, ensure_new_key BOOLEAN DEFAULT FALSE)
 RETURNS VOID
 LANGUAGE C
 AS 'MODULE_PATHNAME';
 
-CREATE FUNCTION pg_tde_set_default_key_using_global_key_provider(key_name TEXT, provider_name TEXT DEFAULT NULL, ensure_new_key BOOLEAN DEFAULT FALSE)
+CREATE FUNCTION pg_tde_set_default_key_using_global_key_provider(key_name TEXT, provider_name TEXT, ensure_new_key BOOLEAN DEFAULT FALSE)
 RETURNS VOID
 AS 'MODULE_PATHNAME'
 LANGUAGE C;
