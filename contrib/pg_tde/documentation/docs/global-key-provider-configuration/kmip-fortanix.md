@@ -4,9 +4,10 @@
 
 ## Recommended Configuration Steps
 
-1. To setup [see the following documentation](https://support.fortanix.com/docs/using-fortanix-data-security-manager-for-percona-mysql-encryption-at-rest).
-2. Generate or obtain a client certificate and private key from Fortanix DSM.
-3. Ensure you store the certificates securely and enable them for PostgreSQL.
+1. Obtain a client certificate, private key, and CA certificate from Fortanix DSM.
+2. Ensure you store the certificates securely.
+3. Register Fortanix DSM with `pg_tde`, see [the following example](#example-configuration-sql).
+4. Enable `pg_tde` and restart PostgreSQL, see [the following topic](../setup.md#configure-pg_tde).
 
 ## Example Configuration SQL
 
