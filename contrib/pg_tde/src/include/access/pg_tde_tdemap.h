@@ -13,12 +13,14 @@
 #include "catalog/tde_principal_key.h"
 #include "common/pg_tde_utils.h"
 
-/* Map entry flags */
-#define MAP_ENTRY_EMPTY					0x00
-#define TDE_KEY_TYPE_SMGR				0x02
-#define TDE_KEY_TYPE_GLOBAL				0x04
-#define TDE_KEY_TYPE_WAL_UNENCRYPTED	0x08
-#define TDE_KEY_TYPE_WAL_ENCRYPTED		0x10
+typedef enum
+{
+	MAP_ENTRY_EMPTY = 0,
+	TDE_KEY_TYPE_SMGR = 1,
+	TDE_KEY_TYPE_WAL_UNENCRYPTED = 2,
+	TDE_KEY_TYPE_WAL_ENCRYPTED = 3,
+	TDE_KEY_TYPE_WAL_INVALID = 4,
+} TDEMapEntryType;
 
 #define INTERNAL_KEY_LEN 16
 #define INTERNAL_KEY_IV_LEN 16
@@ -32,20 +34,14 @@ typedef struct InternalKey
 	XLogRecPtr	start_lsn;
 } InternalKey;
 
-#define WALKeySetInvalid(key) \
-	((key)->type &= ~(TDE_KEY_TYPE_WAL_ENCRYPTED | TDE_KEY_TYPE_WAL_UNENCRYPTED))
-#define WALKeyIsValid(key) \
-	(((key)->type & TDE_KEY_TYPE_WAL_UNENCRYPTED) != 0 || \
-	((key)->type & TDE_KEY_TYPE_WAL_ENCRYPTED) != 0)
-
-#define MAP_ENTRY_EMPTY_IV_SIZE 16
-#define MAP_ENTRY_EMPTY_AEAD_TAG_SIZE 16
+#define MAP_ENTRY_IV_SIZE 16
+#define MAP_ENTRY_AEAD_TAG_SIZE 16
 
 typedef struct
 {
 	TDEPrincipalKeyInfo data;
-	unsigned char sign_iv[16];
-	unsigned char aead_tag[16];
+	unsigned char sign_iv[MAP_ENTRY_IV_SIZE];
+	unsigned char aead_tag[MAP_ENTRY_AEAD_TAG_SIZE];
 } TDESignedPrincipalKeyInfo;
 
 /* We do not need the dbOid since the entries are stored in a file per db */
@@ -53,11 +49,11 @@ typedef struct TDEMapEntry
 {
 	Oid			spcOid;
 	RelFileNumber relNumber;
-	uint32		flags;
+	uint32		type;
 	InternalKey enc_key;
 	/* IV and tag used when encrypting the key itself */
-	unsigned char entry_iv[MAP_ENTRY_EMPTY_IV_SIZE];
-	unsigned char aead_tag[MAP_ENTRY_EMPTY_AEAD_TAG_SIZE];
+	unsigned char entry_iv[MAP_ENTRY_IV_SIZE];
+	unsigned char aead_tag[MAP_ENTRY_AEAD_TAG_SIZE];
 } TDEMapEntry;
 
 typedef struct XLogRelKey
@@ -66,20 +62,15 @@ typedef struct XLogRelKey
 } XLogRelKey;
 
 /*
- * WALKeyCacheRec is built on top of the InternalKeys cache. We still don't
- * want to key data be swapped out to the disk (implemented in the InternalKeys
- * cache) but we need extra information and the ability to have and reference
- * a sequence of keys.
- *
  * TODO: For now it's a simple linked list which is no good. So consider having
- * 			dedicated WAL keys cache inside some proper data structure.
+ * 		 dedicated WAL keys cache inside some proper data structure.
  */
 typedef struct WALKeyCacheRec
 {
 	XLogRecPtr	start_lsn;
 	XLogRecPtr	end_lsn;
 
-	InternalKey *key;
+	InternalKey key;
 	void	   *crypt_ctx;
 
 	struct WALKeyCacheRec *next;
@@ -92,10 +83,7 @@ extern WALKeyCacheRec *pg_tde_fetch_wal_keys(XLogRecPtr start_lsn);
 extern WALKeyCacheRec *pg_tde_get_wal_cache_keys(void);
 extern void pg_tde_wal_last_key_set_lsn(XLogRecPtr lsn, const char *keyfile_path);
 
-extern InternalKey *pg_tde_create_smgr_key(const RelFileLocatorBackend *newrlocator);
-extern void pg_tde_create_smgr_key_perm_redo(const RelFileLocator *newrlocator);
-extern void pg_tde_create_wal_key(InternalKey *rel_key_data, const RelFileLocator *newrlocator, uint32 flags);
-extern void pg_tde_free_key_map_entry(const RelFileLocator *rlocator);
+extern void pg_tde_create_wal_key(InternalKey *rel_key_data, const RelFileLocator *newrlocator, TDEMapEntryType flags);
 
 #define PG_TDE_MAP_FILENAME			"%d_keys"
 
@@ -105,8 +93,11 @@ pg_tde_set_db_file_path(Oid dbOid, char *path)
 	join_path_components(path, pg_tde_get_data_dir(), psprintf(PG_TDE_MAP_FILENAME, dbOid));
 }
 
-extern bool IsSMGRRelationEncrypted(RelFileLocatorBackend rel);
-extern InternalKey *GetSMGRRelationKey(RelFileLocatorBackend rel);
+extern void pg_tde_save_smgr_key(RelFileLocator rel, const InternalKey *key, bool write_xlog);
+extern bool pg_tde_has_smgr_key(RelFileLocator rel);
+extern InternalKey *pg_tde_get_smgr_key(RelFileLocator rel);
+extern void pg_tde_free_key_map_entry(RelFileLocator rel);
+
 extern int	pg_tde_count_relations(Oid dbOid);
 
 extern void pg_tde_delete_tde_files(Oid dbOid);

@@ -62,7 +62,6 @@ static GenericKeyring *load_keyring_provider_options(ProviderType provider_type,
 static KmipKeyring *load_kmip_keyring_provider_options(char *keyring_options);
 static VaultV2Keyring *load_vaultV2_keyring_provider_options(char *keyring_options);
 static int	open_keyring_infofile(Oid dbOid, int flags);
-static void write_key_provider_info(KeyringProviderRecordInFile *record, bool write_xlog);
 
 #ifdef FRONTEND
 
@@ -236,7 +235,7 @@ pg_tde_change_key_provider_internal(PG_FUNCTION_ARGS, Oid dbOid)
 
 	modify_key_provider_info(&provider, dbOid, true);
 
-	PG_RETURN_INT32(provider.provider_id);
+	PG_RETURN_VOID();
 }
 
 Datum
@@ -295,7 +294,7 @@ pg_tde_add_key_provider_internal(PG_FUNCTION_ARGS, Oid dbOid)
 	provider.provider_type = get_keyring_provider_from_typename(provider_type);
 	save_new_key_provider_info(&provider, dbOid, true);
 
-	PG_RETURN_INT32(provider.provider_id);
+	PG_RETURN_VOID();
 }
 
 Datum
@@ -432,7 +431,7 @@ GetKeyProviderByID(int provider_id, Oid dbOid)
 
 #endif							/* !FRONTEND */
 
-static void
+void
 write_key_provider_info(KeyringProviderRecordInFile *record, bool write_xlog)
 {
 	off_t		bytes_written;
@@ -463,7 +462,7 @@ write_key_provider_info(KeyringProviderRecordInFile *record, bool write_xlog)
 		XLogRegisterData((char *) record, sizeof(KeyringProviderRecordInFile));
 		XLogInsert(RM_TDERMGR_ID, XLOG_TDE_WRITE_KEY_PROVIDER);
 #else
-		Assert(0);
+		Assert(false);
 #endif
 	}
 
@@ -512,11 +511,23 @@ check_provider_record(KeyringProviderRecord *provider_record)
 
 	KeyringValidate(provider);
 
+#ifndef FRONTEND				/* We can't scan the pg_database catalog from
+								 * frontend. */
+	if (provider->keyring_id != 0)
+	{
+		/*
+		 * If we are modifying an existing provider, verify that all of the
+		 * keys already in use are the same.
+		 */
+		pg_tde_verify_provider_keys_in_use(provider);
+	}
+#endif
+
 	pfree(provider);
 }
 
 /* Returns true if the record is found, false otherwise. */
-static bool
+bool
 get_keyring_info_file_record_by_name(char *provider_name, Oid database_id,
 									 KeyringProviderRecordInFile *record)
 {
@@ -781,7 +792,7 @@ scan_key_provider_file(ProviderScanType scanType, void *scanKey, Oid dbOid)
 				providers_list = lappend(providers_list, keyring);
 #else
 				if (providers_list == NULL)
-					providers_list = palloc_object(SimplePtrList);
+					providers_list = palloc0_object(SimplePtrList);
 				simple_ptr_list_append(providers_list, keyring);
 #endif
 			}

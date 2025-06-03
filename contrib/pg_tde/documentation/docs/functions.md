@@ -11,26 +11,6 @@ However, database owners can run the “view keys” and “set principal key”
 * `GRANT EXECUTE`
 * `REVOKE EXECUTE`
 
-The following functions are also provided for easier management of functionality groups:
-
-### Database local key management
-
-Use these functions to grant or revoke permissions to manage the key of the current database. They enable or disable all functions related to the key of the current database:
-
-* `pg_tde_grant_database_key_management_to_role(role)`
-* `pg_tde_revoke_database_key_management_from_role(role)`
-
-### Global scope key management
-
-Managment of the global scope is restricted to superusers only.
-
-### Inspections
-
-Use these functions to grant or revoke the use of query functions, which do not modify the encryption settings:
-
-* `pg_tde_grant_key_viewer_to_role(role)`
-* `pg_tde_revoke_key_viewer_from_role(role)`
-
 ## Key provider management
 
 A key provider is a system or service responsible for managing encryption keys. `pg_tde` supports the following key providers:
@@ -264,21 +244,22 @@ Princial keys are stored on key providers by the name specified in this function
 
 ### pg_tde_set_key_using_database_key_provider
 
-Creates or rotates the principal key for the current database using the specified database key provider and key name.
+Creates or reuses a principal key for the **current** database, using the specified local key provider. It also rotates internal encryption keys to use the specified principal key.
+
+This function is typically used when working with per-database encryption through a local key provider.
 
 ```sql
 SELECT pg_tde_set_key_using_database_key_provider(
-  'name-of-the-key',
+  'key-name',
   'provider-name',
-  'ensure_new_key'
+  'false' -- or 'true'
 );
 ```
 
- The `ensure_new_key` parameter instructs the function how to handle a principal key during key rotation:
+For the third parameter (`true`, `false`, or omitted):
 
-* If set to `true` (default), a new key must be unique.
-  If the provider already stores a key by that name, the function returns an error.
-* If set to `false`, an existing principal key may be reused.
+* `true`: Requires the key to be newly created. If a key with the same name already exists, the function fails.
+* `false` (default if omitted): Reuses the existing key with that name, if present. If the key does not exist, a new key is created.
 
 ### pg_tde_set_key_using_global_key_provider
 
@@ -286,7 +267,7 @@ Creates or rotates the global principal key using the specified global key provi
 
 ```sql
 SELECT pg_tde_set_key_using_global_key_provider(
-  'name-of-the-key',
+  'key-name',
   'provider-name',
   'ensure_new_key'
 );
@@ -304,7 +285,7 @@ Creates or rotates the server principal key using the specified global key provi
 
 ```sql
 SELECT pg_tde_set_server_key_using_global_key_provider(
-  'name-of-the-key',
+  'key-name',
   'provider-name',
   'ensure_new_key'
 );
@@ -324,7 +305,7 @@ The default key is automatically used as a principal key  by any database that d
 
 ```sql
 SELECT pg_tde_set_default_key_using_global_key_provider(
-  'name-of-the-key',
+  'key-name',
   'provider-name',
   'ensure_new_key'
 );
