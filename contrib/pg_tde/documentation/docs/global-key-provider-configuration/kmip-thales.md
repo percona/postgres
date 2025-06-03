@@ -1,22 +1,20 @@
 # Thales KMIP Server Configuration
 
-To use the Python library pykmip for cryptographic operations with Thales CipherTrust Manager, see Using pykmip in the Implementing Thales CipherTrust Manager documentation for instructions. pykmip is a Python library that implements the KMIP industry standard for key management operations.
-
-https://www.enterprisedb.com/docs/partner_docs/ThalesCipherTrustManager/
-https://www.enterprisedb.com/docs/partner_docs/ThalesCipherTrustManager/05-UsingThalesCipherTrustManager/
+`pg_tde` is compatible with the Thales CipherTrust Manager via the KMIP protocol. For a full setup guide, see [the following documentation](https://thalesdocs.com/ctp/cm/2.19/reference/kmip-ref/index.html?).
 
 ## Recommended Configuration Steps
 
-1.
-2.
-3.
+1. Obtain and secure the certificates from Thales CipherTrust Manager.
+2. Create `pykmip.conf`.
+3. Configure PostgreSQL for pg_tde + KMIP.
+4. Create or Retrieve the KMIP Key.
 
 ## Example Configuration SQL
 
 ```sql
 SELECT pg_tde_add_global_key_provider_kmip(
     'thales_kmip_provider',
-    'kmip.thales.local',
+    'kmip.example.org',
     5696,
     '/path/to/thales-client-cert.pem',
     '/path/to/thales-client-key.pem',
@@ -25,4 +23,4 @@ SELECT pg_tde_add_global_key_provider_kmip(
 ```
 
 !!! note
-    Replace the above paths with the actual certificate locations on your PostgreSQL host.
+    Replace the example paths and parameters with the actual certificate locations on your PostgreSQL host.
