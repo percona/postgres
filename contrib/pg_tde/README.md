@@ -118,7 +118,8 @@ _See [Make Builds for Developers](https://github.com/percona/pg_tde/wiki/Make-bu
             'vault-provider',
             '/path/to/token_file',
             'https://your.vault.server',
-            'secret', NULL);
+            'secret',
+            '/path/to/ca_cert.pem');
 
         -- For File key provider
         -- pg_tde_add_database_key_provider_file(provider_name, file_path);
