@@ -23,6 +23,7 @@
 #include "utils/fmgroids.h"
 #include "common/pg_tde_utils.h"
 #include "miscadmin.h"
+#include "storage/fd.h"
 #include "unistd.h"
 #include "utils/builtins.h"
 #include "pg_tde.h"
@@ -62,6 +63,7 @@ static GenericKeyring *load_keyring_provider_options(ProviderType provider_type,
 static KmipKeyring *load_kmip_keyring_provider_options(char *keyring_options);
 static VaultV2Keyring *load_vaultV2_keyring_provider_options(char *keyring_options);
 static int	open_keyring_infofile(Oid dbOid, int flags);
+static char *get_file_value(const char *path, const char *field_name);
 
 #ifdef FRONTEND
 
@@ -870,18 +872,21 @@ load_vaultV2_keyring_provider_options(char *keyring_options)
 							(GenericKeyring *) vaultV2_keyring,
 							keyring_options, strlen(keyring_options));
 
-	if (vaultV2_keyring->vault_token == NULL || vaultV2_keyring->vault_token[0] == '\0' ||
+	if (vaultV2_keyring->vault_token_path == NULL || vaultV2_keyring->vault_token_path[0] == '\0' ||
 		vaultV2_keyring->vault_url == NULL || vaultV2_keyring->vault_url[0] == '\0' ||
 		vaultV2_keyring->vault_mount_path == NULL || vaultV2_keyring->vault_mount_path[0] == '\0')
 	{
 		ereport(WARNING,
 				errcode(ERRCODE_INVALID_PARAMETER_VALUE),
 				errmsg("missing in the keyring options:%s%s%s",
-					   (vaultV2_keyring->vault_token != NULL && vaultV2_keyring->vault_token[0] != '\0') ? "" : " token",
+					   (vaultV2_keyring->vault_token_path != NULL && vaultV2_keyring->vault_token_path[0] != '\0') ? "" : " tokenPath",
 					   (vaultV2_keyring->vault_url != NULL && vaultV2_keyring->vault_url[0] != '\0') ? "" : " url",
 					   (vaultV2_keyring->vault_mount_path != NULL && vaultV2_keyring->vault_mount_path[0] != '\0') ? "" : " mountPath"));
 		return NULL;
 	}
+
+	/* TODO: the vault_token mem should be protected from paging to the swap */
+	vaultV2_keyring->vault_token = get_file_value(vaultV2_keyring->vault_token_path, "vault_token");
 
 	return vaultV2_keyring;
 }
@@ -916,6 +921,36 @@ load_kmip_keyring_provider_options(char *keyring_options)
 	return kmip_keyring;
 }
 
+#define MAX_FILE_DATA_LENGTH 1024
+
+static char *
+get_file_value(const char *path, const char *field_name)
+{
+	FILE	   *fd;
+	char	   *val;
+
+	fd = AllocateFile(path, "r");
+	if (fd == NULL)
+	{
+		ereport(ERROR,
+				(errcode_for_file_access(),
+				 errmsg("could not open file \"%s\" for \"%s\": %m", path, field_name)));
+	}
+
+	val = palloc(MAX_FILE_DATA_LENGTH);
+	if (fgets(val, MAX_FILE_DATA_LENGTH, fd) == NULL && ferror(fd))
+	{
+		ereport(ERROR,
+				(errcode_for_file_access(),
+				 errmsg("could not read file \"%s\" for \"%s\": %m", path, field_name)));
+	}
+	/* remove trailing whitespace */
+	val[strcspn(val, " \t\n\r")] = '\0';
+
+	FreeFile(fd);
+	return val;
+}
+
 static void
 debug_print_kerying(GenericKeyring *keyring)
 {
@@ -928,7 +963,7 @@ debug_print_kerying(GenericKeyring *keyring)
 			elog(DEBUG2, "File Keyring Path: %s", ((FileKeyring *) keyring)->file_name);
 			break;
 		case VAULT_V2_KEY_PROVIDER:
-			elog(DEBUG2, "Vault Keyring Token: %s", ((VaultV2Keyring *) keyring)->vault_token);
+			elog(DEBUG2, "Vault Keyring Token Path: %s", ((VaultV2Keyring *) keyring)->vault_token_path);
 			elog(DEBUG2, "Vault Keyring URL: %s", ((VaultV2Keyring *) keyring)->vault_url);
 			elog(DEBUG2, "Vault Keyring Mount Path: %s", ((VaultV2Keyring *) keyring)->vault_mount_path);
 			elog(DEBUG2, "Vault Keyring CA Path: %s", ((VaultV2Keyring *) keyring)->vault_ca_path);
