@@ -18,34 +18,18 @@ The following steps assume:
     # Example of WAL and replication settings
     wal_level            = replica
     max_wal_senders      = 5
-    max_replication_slots = 1
+    max_replication_slots = 10 # the default value
     wal_keep_size        = '1GB'
     # Enable TDE in WAL pipeline
     shared_preload_libraries = 'pg_tde' # Loads TDE hooks at server start.
     ```
 
-    !!! note
-        Make sure you set `max_replication_slots` before creating any slot.
-
-* (Optional - **To review**) Create a physical slot to retain the encrypted WAL, set `max_replication_slots ≥ 1` and then:
-
-    ```sql
-    SELECT pg_create_physical_replication_slot('tde_slot');
-    ```
-
-* Ensure you have [configured the global key provider](global-key-provider-configuration/index.md).
+* Ensure you have configured the provider.
 * Create the [principal key](functions#pg_tde_set_server_key_using_global_key_provider).
-* Enable [WAL encryption](wal-encryption). **Restart** PostgreSQL.
-* Ensure the extension is installed in each database:
+* Ensure the extension is installed where it is needed:
 
     ```sql
     CREATE EXTENSION IF NOT EXISTS pg_tde;
-    ```
-
-* (Optional) If you want to block any unencrypted tables, you can [enforce table-level encryption](variables#pg_tde.enforce_encryption):
-
-    ```ini
-    pg_tde.enforce_encryption = on
     ```
 
 ### Create the replication role
@@ -79,16 +63,14 @@ Run the base backup from your standby machine to pull the encrypted base backup:
 ```bash
 export PGPASSWORD='example_password'
 pg_basebackup \
--h primary_ip \
--D /var/lib/pgsql/data \
--U example_replicator \
---wal-method=stream \
---slot=tde_slot \
--v -P
+  -h primary_ip \
+  -D /var/lib/pgsql/data \
+  -U example_replicator \
+  --wal-method=stream \
+  --slot=tde_slot \
+  -c fast \
+  -v -P
 ```
-
-!!! note
-    Run pg_basebackup only **after** slot creation if using `--slot=tde_slot`.
 
 ### Initial standby setup
 
@@ -98,36 +80,6 @@ pg_basebackup \
 shared_preload_libraries = 'pg_tde'
 hot_standby = on
 ```
-
-!!! note
-    By default `pg_tde.inherit_global_providers = on`, so the standby inherits your global KMS configuration automatically.
-
-* Install the extension so the standby can register `tde_heap`:
-
-```sql
-CREATE EXTENSION IF NOT EXISTS pg_tde;
-```
-
-* For PostgreSQL ≥13, in `postgresql.auto.conf`, ensure you have set the following:
-
-```ini
-primary_conninfo = 'host=primary_ip port=5432 \
-                    user=example_replicator password=example_password \
-                    application_name=standby_node sslmode=verify-full \
-                    sslrootcert=/path/to/ca.pem'
-primary_slot_name = 'tde_slot'
-```
-
-### On the standby host, after pg_basebackup and configuration is set:
-
-```bash
-touch $PGDATA/standby.signal
-```
-
-PostgreSQL looks for the `standby.signal` (replacing `recovery.conf` as of v12) to know it should enter streaming recovery.
-
-!!! note
-    Ensure the standby has access to the **same** encryption key material or provider configuration used by the primary.
 
 ## 3. Start and validate replication
 
