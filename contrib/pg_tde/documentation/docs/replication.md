@@ -4,26 +4,15 @@ This section outlines how to set up PostgreSQL streaming replication when the `p
 
 The following steps assume:
 
-* You have configured a global key provider for both **primary** and **standby** (see [Configure Key Management (KMS)](global-key-provider-configuration/index.md)).
 * You have enabled `pg_tde` and you have setup at least one active key on the **primary**.
-* Both primary and standby run the **same** Percona PostgreSQL version.
+* You have configured a global key provider for the **primary**, see [Configure Key Management (KMS)](global-key-provider-configuration/index.md) for more information.
+* Ensure the certificate files are accessible for the standby, and that `pg_tde` is added to the shared preload libraries.
 
 ## 1. Configure the Primary
 
 ### Configure postgresql.conf
 
-* Ensure you set the following replication settings in `postgresql.conf`:
-
-    ```ini
-    # Example of WAL and replication settings
-    wal_level            = replica
-    max_wal_senders      = 5
-    max_replication_slots = 10 # the default value
-    wal_keep_size        = '1GB'
-    # Enable TDE in WAL pipeline
-    shared_preload_libraries = 'pg_tde' # Loads TDE hooks at server start.
-    ```
-
+* Ensure you have configured `postgresql.conf`.
 * Ensure you have configured the provider.
 * Create the [principal key](functions#pg_tde_set_server_key_using_global_key_provider).
 * Ensure the extension is installed where it is needed:
@@ -68,6 +57,7 @@ pg_basebackup \
   -U example_replicator \
   --wal-method=stream \
   --slot=tde_slot \
+  -C \
   -c fast \
   -v -P
 ```
