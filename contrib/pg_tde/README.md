@@ -5,21 +5,21 @@
 
 # pg_tde: Transparent Database Encryption for PostgreSQL
 
-The PostgreSQL extension provides data at rest encryption. It is currently in an experimental phase and is under active development. [We need your feedback!](https://github.com/percona/postgres/tree/TDE_REL_17_STABLE)
+The PostgreSQL extension provides data at rest encryption. It is currently in an experimental phase and is under active development. [We need your feedback!](https://github.com/percona/postgres/discussions)
 
 ## Table of Contents
 
 1. [Overview](#overview)
 2. [Documentation](#documentation)
 3. [Percona Server for PostgreSQL](#percona-server-for-postgresql)
-4. [Build from sources](#building-from-sources-for-community-postgresql)
-5. [Run in docker](#run-in-docker)
-6. [Set up pg_tde](#set-up-pg_tde)
+4. [Run in docker](#run-in-docker)
+5. [Set up pg_tde](#set-up-pg_tde)
+6. [Downloads](#downloads)
 7. [Additional functions](#additional-functions)
 
 ## Overview
 
-Transparent Data Encryption offers encryption at the file level and solves the problem of protecting data at rest. The encryption is transparent for users allowing them to access and manipulate the data and not to worry about the encryption process. As a key provider, the extension supports the keyringfile and  [Hashicorp Vault](https://www.vaultproject.io/).
+Transparent Data Encryption offers encryption at the file level and solves the problem of protecting data at rest. The encryption is transparent for users allowing them to access and manipulate the data and not to worry about the encryption process. As a key provider, the extension supports [keyringfile and external Key Management Systems (KMS) through a Global Key Provider interface](../pg_tde/documentation/docs/global-key-provider-configuration/index.md).
 
 ### This extension provides the `tde_heap access method`
 
@@ -37,47 +37,6 @@ For more information about `pg_tde`, [see the official documentation](https://do
 ## Percona Server for PostgreSQL
 
 Percona provides binary packages of `pg_tde` extension only for Percona Server for PostgreSQL. Learn how to install them or build `pg_tde` from sources for PSPG in the [documentation](https://docs.percona.com/pg-tde/install.html).
-
-## Building from sources for community PostgreSQL
-
-1. Install required dependencies (replace XX with 16 or 17)
-   - On Debian and Ubuntu:
-
-        ```sh
-        sudo apt install make gcc autoconf git libcurl4-openssl-dev postgresql-server-dev-XX
-        ```
-
-   - On RHEL 8 compatible OS:
-
-        ```sh
-        sudo yum install epel-release
-        yum --enablerepo=powertools install git make gcc autoconf libcurl-devel perl-IPC-Run redhat-rpm-config openssl-devel postgresqlXX-devel
-        ```
-
-   - On MacOS:
-
-        ```sh
-        brew install make autoconf curl gettext postgresql@XX
-        ```
-
-2. Install or build postgresql 16 or 17
-3. If postgres is installed in a non standard directory, set the `PG_CONFIG` environment variable to point to the `pg_config` executable
-
-4. Clone the repository, build and install it with the following commands:  
-
-     ```sh
-     git clone https://github.com/percona/postgres.git
-     cd postgres
-     git checkout TDE_REL_17_STABLE
-     ```
-  
-5. Compile and install the extension
-
-      ```sh
-      cd pg_tde
-      make USE_PGXS=1
-      sudo make USE_PGXS=1 install
-      ```
 
 ## Run in Docker
 
