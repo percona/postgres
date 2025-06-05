@@ -4,8 +4,6 @@
 
 For more information on adding or modifying the provider, see the [Adding or modifying KMIP providers](https://docs.percona.com/pg-tde/functions.html?h=pg_tde_add_global_key_provider_kmip#adding-or-modifying-kmip-providers) topic.
 
-## Example Configuration SQL
-
 !!! note
     Replace 'your-region.kms.fortanix.com' with the actual KMIP endpoint for your Fortanix DSM instance.
     Fortanix uses region-specific or tenant-specific KMIP domains (e.g., eu.kms.fortanix.com, us.kms.fortanix.com).
