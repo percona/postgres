@@ -19,7 +19,7 @@ The PostgreSQL extension provides data at rest encryption. It is currently in an
 
 ## Overview
 
-Transparent Data Encryption offers encryption at the file level and solves the problem of protecting data at rest. The encryption is transparent for users allowing them to access and manipulate the data and not to worry about the encryption process. As a key provider, the extension supports [keyringfile and external Key Management Systems (KMS) through a Global Key Provider interface](../pg_tde/documentation/docs/global-key-provider-configuration/index.md).
+Transparent Data Encryption offers encryption at the file level and solves the problem of protecting data at rest. The encryption is transparent for users allowing them to access and manipulate the data and not to worry about the encryption process. The extension supports [keyringfile and external Key Management Systems (KMS) through a Global Key Provider interface](../pg_tde/documentation/docs/global-key-provider-configuration/index.md).
 
 ### This extension provides the `tde_heap access method`
 
