@@ -4,22 +4,27 @@ This section outlines how to set up PostgreSQL streaming replication when the `p
 
 The following steps assume:
 
-* You have enabled `pg_tde` and you have setup at least one active key on the **primary**.
-* You have configured a global key provider for the **primary**, see [Configure Key Management (KMS)](global-key-provider-configuration/index.md) for more information.
+* You have enabled `pg_tde`.
+* You have configured a key provider for the **primary**, see [Configure Key Management (KMS)](global-key-provider-configuration/index.md) for more information.
 * Ensure the certificate files are accessible for the standby, and that `pg_tde` is added to the shared preload libraries.
 
 ## 1. Configure the Primary
 
 ### Configure postgresql.conf
 
-* Ensure you have configured `postgresql.conf`.
-* Ensure you have configured the provider.
-* Create the [principal key](functions#pg_tde_set_server_key_using_global_key_provider).
+* Ensure you have configured `postgresql.conf` and that it contains the following line:
+
+```ini
+shared_preload_libraries = 'pg_tde'
+```
+
 * Ensure the extension is installed where it is needed:
 
     ```sql
     CREATE EXTENSION IF NOT EXISTS pg_tde;
     ```
+
+* Create the [principal key](functions#pg_tde_set_server_key_using_global_key_provider).
 
 ### Create the replication role
 
@@ -31,7 +36,7 @@ CREATE ROLE example_replicator WITH REPLICATION LOGIN PASSWORD 'example_password
 
 ### Configure pg_hba.conf
 
-To connect to the replication server, add the following line in `pg_hba.conf`:
+To allow the replica to connect to the primary server, add the following line in `pg_hba.conf`:
 
 ```conf
 host  replication  example_replicator  standby_ip/32  scram-sha-256
@@ -45,7 +50,7 @@ SELECT pg_reload_conf();
 
 ## 2. Configure the Standby
 
-### Perform an encrypted database backup
+### Perform a database backup
 
 Run the base backup from your standby machine to pull the encrypted base backup:
 
@@ -64,11 +69,10 @@ pg_basebackup \
 
 ### Initial standby setup
 
-* Ensure that in `postgresql.conf` or `postgresql.auto.conf`:
+* Ensure that the following line is present in `postgresql.conf` or `postgresql.auto.conf`:
 
 ```ini
 shared_preload_libraries = 'pg_tde'
-hot_standby = on
 ```
 
 ## 3. Start and validate replication
