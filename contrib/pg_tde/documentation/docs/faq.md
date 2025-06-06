@@ -157,7 +157,7 @@ WAL files are encrypted globally across the entire PostgreSQL cluster using the 
 
 Since the encryption happens on the database level, it makes no difference for your tools and applications. They work with the data in the same way.
 
-To restore from an encrypted backup, you must have the same principal encryption key, which was used to encrypt files in your backup.  
+To restore from an encrypted backup, you must have the same principal encryption key, which was used to encrypt files in your backup. For more information, see [Handling Key Rotation and Encrypted Backups](how-to/decrypt-backups.md).
 
 ## I'm using OpenSSL in FIPS mode and need to use `pg_tde`. Does `pg_tde` comply with FIPS requirements? Can I use my own FIPS-mode OpenSSL library with `pg_tde`?
 
