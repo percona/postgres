@@ -189,7 +189,7 @@ nav:
     - "Uninstall pg_tde": how-to/uninstall.md
     - "Configure Multi-tenancy": how-to/multi-tenant-setup.md
     - "Decrypt an Encrypted Table": how-to/decrypt.md
-    - "Handling Key Rotation and Encrypted Backups": how-to/decrypt-backups.md
+    - "Restore an encrypted pg_tde backup": how-to/restore-backups.md
   - faq.md
   - "Release Notes":
     - "pg_tde release notes": release-notes/release-notes.md
