@@ -1,12 +1,8 @@
 # Streaming Replication with tde_heap
 
-This section outlines how to set up PostgreSQL streaming replication when the `pg_tde` extension (specifically the `tde_heap` access method) is enabled on the primary server.
+This section outlines how to set up PostgreSQL streaming replication when the `pg_tde` extension (specifically the [`tde_heap`](index/table-access-method.md) access method) is enabled on the primary server.
 
-The following steps assume:
-
-* You have enabled `pg_tde`.
-* You have configured a key provider for the **primary**, see [Configure Key Management (KMS)](global-key-provider-configuration/index.md) for more information.
-* Ensure the certificate files are accessible for the standby, and that `pg_tde` is added to the shared preload libraries.
+The following steps assume you have [installed](install.md) and [configured](setup.md) `pg_tde`.
 
 ## 1. Configure the Primary
 
