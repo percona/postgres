@@ -2,14 +2,14 @@
 
 For `pg_tde`, encryption enforcement ensures that only encrypted storage is allowed for specific operations, tables, or the entire database. It prevents the accidental creation of unencrypted tables or indexes in environments where encryption is required for compliance, security, or policy enforcement.
 
-## How to enforce encryption usage
+## Enforcing encryption usage
 
-Use the following techniques to enforce the secure use of `pg_tde`:
+Use the following techniques to enforce the secure use of `pg_tde`.
 
-### 1. Use encrypted tablespaces exclusively
+### 1. Use pg_tde.enforce_encryption
+
+The [`pg_tde.enforce_encryption`](../variables.md/#pg_tdeenforce_encryption) option automatically encrypts new tables as they are created. This removes the risk of sensitive information being accidentally exposed because it was not encrypted.
+
+### 2. Use encrypted tablespaces exclusively
 
 Create and configure databases/tables to use encrypted tablespaces only. Use permissions or DDL policies to block unencrypted usage.
-
-### 2.
-
-### 3.
