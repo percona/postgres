@@ -8,4 +8,4 @@ Use the following techniques to enforce the secure use of `pg_tde`.
 
 ### 1. Use pg_tde.enforce_encryption
 
-The [`pg_tde.enforce_encryption`](../variables.md/#pg_tdeenforce_encryption) option automatically encrypts new tables as they are created. This removes the risk of sensitive information being accidentally exposed because it was not encrypted.
+The [`pg_tde.enforce_encryption`](../variables.md/#pg_tdeenforce_encryption) option prevents non encrypted tables to be created. 
