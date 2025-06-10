@@ -18,14 +18,6 @@ BEGIN ATOMIC
                 json_object('path' VALUE file_path));
 END;
 
-CREATE FUNCTION pg_tde_add_database_key_provider_file(provider_name TEXT, file_path JSON)
-RETURNS VOID
-LANGUAGE SQL
-BEGIN ATOMIC
-    SELECT pg_tde_add_database_key_provider('file', provider_name,
-                json_object('path' VALUE file_path));
-END;
-
 CREATE FUNCTION pg_tde_add_database_key_provider_vault_v2(provider_name TEXT,
                                                 vault_token_path TEXT,
                                                 vault_url TEXT,
@@ -93,14 +85,6 @@ BEGIN ATOMIC
                 json_object('path' VALUE file_path));
 END;
 
-CREATE FUNCTION pg_tde_add_global_key_provider_file(provider_name TEXT, file_path JSON)
-RETURNS VOID
-LANGUAGE SQL
-BEGIN ATOMIC
-    SELECT pg_tde_add_global_key_provider('file', provider_name,
-                json_object('path' VALUE file_path));
-END;
-
 CREATE FUNCTION pg_tde_add_global_key_provider_vault_v2(provider_name TEXT,
                                                         vault_token_path TEXT,
                                                         vault_url TEXT,
@@ -148,14 +132,6 @@ BEGIN ATOMIC
                 json_object('path' VALUE file_path));
 END;
 
-CREATE FUNCTION pg_tde_change_database_key_provider_file(provider_name TEXT, file_path JSON)
-RETURNS VOID
-LANGUAGE SQL
-BEGIN ATOMIC
-    SELECT pg_tde_change_database_key_provider('file', provider_name,
-                json_object('path' VALUE file_path));
-END;
-
 CREATE FUNCTION pg_tde_change_database_key_provider_vault_v2(provider_name TEXT,
                                                     vault_token_path TEXT,
                                                     vault_url TEXT,
@@ -196,14 +172,6 @@ AS 'MODULE_PATHNAME';
 REVOKE ALL ON FUNCTION pg_tde_change_global_key_provider(TEXT, TEXT, JSON) FROM PUBLIC;
 
 CREATE FUNCTION pg_tde_change_global_key_provider_file(provider_name TEXT, file_path TEXT)
-RETURNS VOID
-LANGUAGE SQL
-BEGIN ATOMIC
-    SELECT pg_tde_change_global_key_provider('file', provider_name,
-                json_object('path' VALUE file_path));
-END;
-
-CREATE FUNCTION pg_tde_change_global_key_provider_file(provider_name TEXT, file_path JSON)
 RETURNS VOID
 LANGUAGE SQL
 BEGIN ATOMIC
