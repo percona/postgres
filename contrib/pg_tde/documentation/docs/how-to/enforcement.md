@@ -8,4 +8,7 @@ Use the following techniques to enforce the secure use of `pg_tde`.
 
 ### 1. Use pg_tde.enforce_encryption
 
-The [`pg_tde.enforce_encryption`](../variables.md/#pg_tdeenforce_encryption) option prevents non encrypted tables to be created. 
+The [`pg_tde.enforce_encryption`](../variables.md/#pg_tdeenforce_encryption) option prevents non encrypted tables to be created.
+
+!!! note
+    This option prevents unauthorized users from creating unencrypted tables or indexes, ensuring encryption compliance. Superusers retain the privilege to create unencrypted tables as necessary.
