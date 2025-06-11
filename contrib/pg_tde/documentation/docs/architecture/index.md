@@ -279,12 +279,12 @@ pg_tde_REVOKE_database_key_management_FROM_role
 Principal keys can be created or rotated using the following functions:
 
 ```sql
-pg_tde_set_key_using_(global/database)_key_provider('key-name', 'provider-name', ensure_new_key)
-pg_tde_set_server_key_using_(global/database)_key_provider('key-name', 'provider-name', ensure_new_key)
-pg_tde_set_default_key_using_(global/database)_key_provider('key-name', 'provider-name', ensure_new_key)
+pg_tde_set_key_using_(global/database)_key_provider('key-name', 'provider-name', key_action)
+pg_tde_set_server_key_using_(global/database)_key_provider('key-name', 'provider-name', key_action)
+pg_tde_set_default_key_using_(global/database)_key_provider('key-name', 'provider-name', key_action)
 ```
 
-`ensure_new_key` is a boolean parameter defaulting to false. If it is `true` the function might return an error instead of setting the key if it already exists on the provider.
+`key_action` is a enum parameter defaulting to `generate_if_not_exists`. If it is set to `generate` the function will return an error if the key already exists on the provider. If is is set to `existing` it will try to use an existing key or error out if no key was found.
 
 ### Default principal key
 
@@ -296,7 +296,7 @@ With this feature, it is possible for the entire database server to easily use t
 
 You can manage a default key with the following functions:
 
-* `pg_tde_set_default_key_using_global_key_provider('key-name','provider-name','true/false')`
+* `pg_tde_set_default_key_using_global_key_provider('key-name','provider-name','generate/existing/generate_if_not_exists')`
 * `pg_tde_delete_default_key()`
 
 !!! note

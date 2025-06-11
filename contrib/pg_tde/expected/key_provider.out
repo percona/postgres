@@ -109,7 +109,7 @@ SELECT id, name FROM pg_tde_list_all_global_key_providers();
  -5 | file-keyring2
 (2 rows)
 
-SELECT pg_tde_set_key_using_global_key_provider('test-db-key', 'file-keyring', false);
+SELECT pg_tde_set_key_using_global_key_provider('test-db-key', 'file-keyring');
  pg_tde_set_key_using_global_key_provider 
 ------------------------------------------
  

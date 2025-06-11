@@ -10,6 +10,7 @@
 #include "access/xlog.h"
 #include "access/xloginsert.h"
 #include "catalog/pg_database.h"
+#include "catalog/pg_enum.h"
 #include "common/relpath.h"
 #include "miscadmin.h"
 #include "storage/fd.h"
@@ -18,6 +19,7 @@
 #include "utils/guc.h"
 #include "utils/memutils.h"
 #include "utils/palloc.h"
+#include "utils/syscache.h"
 #include "utils/timestamp.h"
 #include "utils/wait_event.h"
 
@@ -61,6 +63,13 @@ typedef struct TdePrincipalKeylocalState
 	dshash_table *sharedHash;
 } TdePrincipalKeylocalState;
 
+typedef enum
+{
+	SET_KEY_ACTION_GENERATE,
+	SET_KEY_ACTION_EXISTING,
+	SET_KEY_ACTION_GENERATE_IF_NOT_EXISTS,
+} SetKeyAction;
+
 /* Length of newly generated principal keys */
 #define PRINCIPAL_KEY_LEN 16
 
@@ -89,7 +98,7 @@ static void set_principal_key_with_keyring(const char *key_name,
 										   const char *provider_name,
 										   Oid providerOid,
 										   Oid dbOid,
-										   bool ensure_new_key);
+										   SetKeyAction key_action);
 static bool pg_tde_verify_principal_key_internal(Oid databaseOid);
 static void pg_tde_rotate_default_key_for_database(TDEPrincipalKey *oldKey, TDEPrincipalKey *newKeyTemplate);
 
@@ -100,7 +109,7 @@ PG_FUNCTION_INFO_V1(pg_tde_set_server_key_using_global_key_provider);
 PG_FUNCTION_INFO_V1(pg_tde_delete_key);
 PG_FUNCTION_INFO_V1(pg_tde_delete_default_key);
 
-static void pg_tde_set_principal_key_internal(Oid providerOid, Oid dbOid, const char *principal_key_name, const char *provider_name, bool ensure_new_key);
+static void pg_tde_set_principal_key_internal(Oid providerOid, Oid dbOid, const char *principal_key_name, const char *provider_name, Oid key_action_oid);
 
 /*
  * Request some pages so we can fit the DSA header, empty hash table plus some
@@ -216,9 +225,9 @@ principal_key_info_attach_shmem(void)
 	MemoryContextSwitchTo(oldcontext);
 }
 
-void
+static void
 set_principal_key_with_keyring(const char *key_name, const char *provider_name,
-							   Oid providerOid, Oid dbOid, bool ensure_new_key)
+							   Oid providerOid, Oid dbOid, SetKeyAction key_action)
 {
 	TDEPrincipalKey *curr_principal_key;
 	TDEPrincipalKey *new_principal_key;
@@ -256,19 +265,22 @@ set_principal_key_with_keyring(const char *key_name, const char *provider_name,
 		}
 	}
 
-	if (keyInfo != NULL && ensure_new_key)
-	{
+	if (key_action == SET_KEY_ACTION_EXISTING && keyInfo == NULL)
 		ereport(ERROR,
-				errmsg("failed to create principal key: already exists"));
-	}
-
-	if (strlen(key_name) >= sizeof(keyInfo->name))
+				errmsg("failed to retrieve principal key: \"%s\" does not exists", key_name));
+	else if (key_action == SET_KEY_ACTION_GENERATE && keyInfo != NULL)
 		ereport(ERROR,
-				errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-				errmsg("too long principal key name, maximum length is %ld bytes", sizeof(keyInfo->name) - 1));
+				errmsg("failed to create principal key: \"%s\" exists", key_name));
 
 	if (keyInfo == NULL)
+	{
+		if (strlen(key_name) >= sizeof(keyInfo->name))
+			ereport(ERROR,
+					errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+					errmsg("too long principal key name, maximum length is %ld bytes", sizeof(keyInfo->name) - 1));
+
 		keyInfo = KeyringGenerateNewKeyAndStore(new_keyring, key_name, PRINCIPAL_KEY_LEN);
+	}
 
 	new_principal_key = palloc_object(TDEPrincipalKey);
 	new_principal_key->keyInfo.databaseId = dbOid;
@@ -457,10 +469,10 @@ pg_tde_set_default_key_using_global_key_provider(PG_FUNCTION_ARGS)
 {
 	char	   *principal_key_name = PG_ARGISNULL(0) ? NULL : text_to_cstring(PG_GETARG_TEXT_PP(0));
 	char	   *provider_name = PG_ARGISNULL(1) ? NULL : text_to_cstring(PG_GETARG_TEXT_PP(1));
-	bool		ensure_new_key = PG_GETARG_BOOL(2);
+	Oid			key_action_oid = PG_GETARG_OID(2);
 
 	/* Using a global provider for the default encryption setting */
-	pg_tde_set_principal_key_internal(GLOBAL_DATA_TDE_OID, DEFAULT_DATA_TDE_OID, principal_key_name, provider_name, ensure_new_key);
+	pg_tde_set_principal_key_internal(GLOBAL_DATA_TDE_OID, DEFAULT_DATA_TDE_OID, principal_key_name, provider_name, key_action_oid);
 
 	PG_RETURN_VOID();
 }
@@ -470,10 +482,10 @@ pg_tde_set_key_using_database_key_provider(PG_FUNCTION_ARGS)
 {
 	char	   *principal_key_name = PG_ARGISNULL(0) ? NULL : text_to_cstring(PG_GETARG_TEXT_PP(0));
 	char	   *provider_name = PG_ARGISNULL(1) ? NULL : text_to_cstring(PG_GETARG_TEXT_PP(1));
-	bool		ensure_new_key = PG_GETARG_BOOL(2);
+	Oid			key_action_oid = PG_GETARG_OID(2);
 
 	/* Using a local provider for the current database */
-	pg_tde_set_principal_key_internal(MyDatabaseId, MyDatabaseId, principal_key_name, provider_name, ensure_new_key);
+	pg_tde_set_principal_key_internal(MyDatabaseId, MyDatabaseId, principal_key_name, provider_name, key_action_oid);
 
 	PG_RETURN_VOID();
 }
@@ -483,10 +495,10 @@ pg_tde_set_key_using_global_key_provider(PG_FUNCTION_ARGS)
 {
 	char	   *principal_key_name = PG_ARGISNULL(0) ? NULL : text_to_cstring(PG_GETARG_TEXT_PP(0));
 	char	   *provider_name = PG_ARGISNULL(1) ? NULL : text_to_cstring(PG_GETARG_TEXT_PP(1));
-	bool		ensure_new_key = PG_GETARG_BOOL(2);
+	Oid			key_action_oid = PG_GETARG_OID(2);
 
 	/* Using a global provider for the current database */
-	pg_tde_set_principal_key_internal(GLOBAL_DATA_TDE_OID, MyDatabaseId, principal_key_name, provider_name, ensure_new_key);
+	pg_tde_set_principal_key_internal(GLOBAL_DATA_TDE_OID, MyDatabaseId, principal_key_name, provider_name, key_action_oid);
 
 	PG_RETURN_VOID();
 }
@@ -496,19 +508,22 @@ pg_tde_set_server_key_using_global_key_provider(PG_FUNCTION_ARGS)
 {
 	char	   *principal_key_name = PG_ARGISNULL(0) ? NULL : text_to_cstring(PG_GETARG_TEXT_PP(0));
 	char	   *provider_name = PG_ARGISNULL(1) ? NULL : text_to_cstring(PG_GETARG_TEXT_PP(1));
-	bool		ensure_new_key = PG_GETARG_BOOL(2);
+	Oid			key_action_oid = PG_GETARG_OID(2);
 
 	/* Using a global provider for the global (wal) database */
-	pg_tde_set_principal_key_internal(GLOBAL_DATA_TDE_OID, GLOBAL_DATA_TDE_OID, principal_key_name, provider_name, ensure_new_key);
+	pg_tde_set_principal_key_internal(GLOBAL_DATA_TDE_OID, GLOBAL_DATA_TDE_OID, principal_key_name, provider_name, key_action_oid);
 
 	PG_RETURN_VOID();
 }
 
 static void
-pg_tde_set_principal_key_internal(Oid providerOid, Oid dbOid, const char *key_name, const char *provider_name, bool ensure_new_key)
+pg_tde_set_principal_key_internal(Oid providerOid, Oid dbOid, const char *key_name, const char *provider_name, Oid key_action_oid)
 {
 	TDEPrincipalKey *existingDefaultKey = NULL;
 	TDEPrincipalKey existingKeyCopy;
+	HeapTuple	tup;
+	char	   *enlabel;
+	SetKeyAction key_action;
 
 	if (providerOid == GLOBAL_DATA_TDE_OID && !superuser())
 		ereport(ERROR,
@@ -542,11 +557,34 @@ pg_tde_set_principal_key_internal(Oid providerOid, Oid dbOid, const char *key_na
 		LWLockRelease(tde_lwlock_enc_keys());
 	}
 
+	tup = SearchSysCache1(ENUMOID, ObjectIdGetDatum(key_action_oid));
+	if (!HeapTupleIsValid(tup))
+		ereport(ERROR,
+				(errcode(ERRCODE_INVALID_BINARY_REPRESENTATION),
+				 errmsg("invalid internal value for enum: %u",
+						key_action_oid)));
+
+	enlabel = NameStr(((Form_pg_enum) GETSTRUCT(tup))->enumlabel);
+
+	if (strcmp(enlabel, "generate") == 0)
+		key_action = SET_KEY_ACTION_GENERATE;
+	else if (strcmp(enlabel, "existing") == 0)
+		key_action = SET_KEY_ACTION_EXISTING;
+	else if (strcmp(enlabel, "generate_if_not_exists") == 0)
+		key_action = SET_KEY_ACTION_GENERATE_IF_NOT_EXISTS;
+	else
+	{
+		Assert(false);
+		pg_unreachable();
+	}
+
+	ReleaseSysCache(tup);
+
 	set_principal_key_with_keyring(key_name,
 								   provider_name,
 								   providerOid,
 								   dbOid,
-								   ensure_new_key);
+								   key_action);
 
 	if (dbOid == DEFAULT_DATA_TDE_OID && existingDefaultKey != NULL)
 	{
