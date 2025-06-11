@@ -217,25 +217,25 @@ AS 'MODULE_PATHNAME';
 
 CREATE TYPE pg_tde_key_action AS ENUM ('generate', 'existing', 'generate_if_not_exists');
 
-CREATE FUNCTION pg_tde_set_key_using_database_key_provider(key_name TEXT, provider_name TEXT, key_action pg_tde_key_action DEFAULT 'generate_if_not_exists')
+CREATE FUNCTION pg_tde_set_key_using_database_key_provider(key_name TEXT, provider_name TEXT, key_action pg_tde_key_action DEFAULT 'generate')
 RETURNS VOID
 LANGUAGE C
 AS 'MODULE_PATHNAME';
 REVOKE ALL ON FUNCTION pg_tde_set_key_using_database_key_provider(TEXT, TEXT, pg_tde_key_action) FROM PUBLIC;
 
-CREATE FUNCTION pg_tde_set_key_using_global_key_provider(key_name TEXT, provider_name TEXT, key_action pg_tde_key_action DEFAULT 'generate_if_not_exists')
+CREATE FUNCTION pg_tde_set_key_using_global_key_provider(key_name TEXT, provider_name TEXT, key_action pg_tde_key_action DEFAULT 'generate')
 RETURNS VOID
 LANGUAGE C
 AS 'MODULE_PATHNAME';
 REVOKE ALL ON FUNCTION pg_tde_set_key_using_global_key_provider(TEXT, TEXT, pg_tde_key_action) FROM PUBLIC;
 
-CREATE FUNCTION pg_tde_set_server_key_using_global_key_provider(key_name TEXT, provider_name TEXT, key_action pg_tde_key_action DEFAULT 'generate_if_not_exists')
+CREATE FUNCTION pg_tde_set_server_key_using_global_key_provider(key_name TEXT, provider_name TEXT, key_action pg_tde_key_action DEFAULT 'generate')
 RETURNS VOID
 LANGUAGE C
 AS 'MODULE_PATHNAME';
 REVOKE ALL ON FUNCTION pg_tde_set_server_key_using_global_key_provider(TEXT, TEXT, pg_tde_key_action) FROM PUBLIC;
 
-CREATE FUNCTION pg_tde_set_default_key_using_global_key_provider(key_name TEXT, provider_name TEXT, key_action pg_tde_key_action DEFAULT 'generate_if_not_exists')
+CREATE FUNCTION pg_tde_set_default_key_using_global_key_provider(key_name TEXT, provider_name TEXT, key_action pg_tde_key_action DEFAULT 'generate')
 RETURNS VOID
 AS 'MODULE_PATHNAME'
 LANGUAGE C;

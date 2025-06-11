@@ -250,9 +250,9 @@ SELECT pg_tde_set_key_using_database_key_provider(
 
 For the third parameter (`generate`, `existing`, `generate_if_not_exists`, or omitted):
 
-* `generate` requires the key to be newly created. If the key already exists, the function fails.
+* `generate` or omitted (default), requires the key to be newly created. If the key already exists, the function fails.
 * `existing` requires the key to already exist. If the key does not exist, the function fails.
-* `generate_if_not_exists` or omitted (default), allows reuse of an existing key if it exists. If not, a new key is created under the specified name.
+* `generate_if_not_exists` allows reuse of an existing key if it exists. If not, a new key is created under the specified name.
 
 Creates or rotates the global principal key using the specified global key provider and the key name. This key is used for global settings like WAL encryption.
 
@@ -266,9 +266,9 @@ SELECT pg_tde_set_key_using_global_key_provider(
 
 For the third parameter (`generate`, `existing`, `generate_if_not_exists`, or omitted):
 
-* `generate` requires the key to be newly created. If the key already exists, the function fails.
+* `generate` or omitted (default), requires the key to be newly created. If the key already exists, the function fails.
 * `existing` requires the key to already exist. If the key does not exist, the function fails.
-* `generate_if_not_exists` or omitted (default), allows reuse of an existing key if it exists. If not, a new key is created under the specified name.
+* `generate_if_not_exists` allows reuse of an existing key if it exists. If not, a new key is created under the specified name.
 
 ### pg_tde_set_server_key_using_global_key_provider
 
@@ -284,9 +284,9 @@ SELECT pg_tde_set_server_key_using_global_key_provider(
 
 For the third parameter (`generate`, `existing`, `generate_if_not_exists`, or omitted):
 
-* `generate` requires the key to be newly created. If the key already exists, the function fails.
+* `generate` or omitted (default), requires the key to be newly created. If the key already exists, the function fails.
 * `existing` requires the key to already exist. If the key does not exist, the function fails.
-* `generate_if_not_exists` or omitted (default), allows reuse of an existing key if it exists. If not, a new key is created under the specified name.
+* `generate_if_not_exists` allows reuse of an existing key if it exists. If not, a new key is created under the specified name.
 
 ### pg_tde_set_default_key_using_global_key_provider
 
@@ -304,9 +304,9 @@ SELECT pg_tde_set_default_key_using_global_key_provider(
 
 For the third parameter (`generate`, `existing`, `generate_if_not_exists`, or omitted):
 
-* `generate` requires the key to be newly created. If the key already exists, the function fails.
+* `generate` or omitted (default), requires the key to be newly created. If the key already exists, the function fails.
 * `existing` requires the key to already exist. If the key does not exist, the function fails.
-* `generate_if_not_exists` or omitted (default), allows reuse of an existing key if it exists. If not, a new key is created under the specified name.
+* `generate_if_not_exists` or allows reuse of an existing key if it exists. If not, a new key is created under the specified name.
 
 ## Encryption status check
 

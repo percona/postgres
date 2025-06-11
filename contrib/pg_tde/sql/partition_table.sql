@@ -1,6 +1,6 @@
 CREATE EXTENSION pg_tde;
 SELECT pg_tde_add_database_key_provider_file('database_keyring_provider','/tmp/pg_tde_keyring.per');
-SELECT pg_tde_set_key_using_database_key_provider('table_key','database_keyring_provider');
+SELECT pg_tde_set_key_using_database_key_provider('table_key', 'database_keyring_provider', 'generate_if_not_exists');
 CREATE TABLE IF NOT EXISTS partitioned_table (
     id SERIAL,
     data TEXT,

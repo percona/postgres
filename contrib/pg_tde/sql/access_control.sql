@@ -7,7 +7,7 @@ CREATE USER regress_pg_tde_access_control;
 SET ROLE regress_pg_tde_access_control;
 
 -- should throw access denied
-SELECT pg_tde_set_key_using_database_key_provider('test-db-key', 'local-file-provider');
+SELECT pg_tde_set_key_using_database_key_provider('test-db-key', 'local-file-provider', 'generate_if_not_exists');
 SELECT pg_tde_delete_key();
 SELECT pg_tde_list_all_database_key_providers();
 SELECT pg_tde_list_all_global_key_providers();

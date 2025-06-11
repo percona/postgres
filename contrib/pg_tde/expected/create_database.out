@@ -10,7 +10,7 @@ SELECT pg_tde_add_database_key_provider_file('file-vault', '/tmp/template_provid
  
 (1 row)
 
-SELECT pg_tde_set_key_using_database_key_provider('test-db-key', 'file-vault');
+SELECT pg_tde_set_key_using_database_key_provider('test-db-key', 'file-vault', 'generate_if_not_exists');
  pg_tde_set_key_using_database_key_provider 
 --------------------------------------------
  
@@ -29,7 +29,7 @@ SELECT pg_tde_add_global_key_provider_file('global-file-vault','/tmp/template_pr
  
 (1 row)
 
-SELECT pg_tde_set_default_key_using_global_key_provider('default-key', 'global-file-vault');
+SELECT pg_tde_set_default_key_using_global_key_provider('default-key', 'global-file-vault', 'generate_if_not_exists');
  pg_tde_set_default_key_using_global_key_provider 
 --------------------------------------------------
  

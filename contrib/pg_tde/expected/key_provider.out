@@ -30,7 +30,7 @@ SELECT * FROM pg_tde_list_all_database_key_providers();
 
 SELECT pg_tde_verify_key();
 ERROR:  principal key not configured for current database
-SELECT pg_tde_set_key_using_database_key_provider('test-db-key','file-provider');
+SELECT pg_tde_set_key_using_database_key_provider('test-db-key', 'file-provider', 'generate_if_not_exists');
  pg_tde_set_key_using_database_key_provider 
 --------------------------------------------
  
@@ -109,7 +109,7 @@ SELECT id, name FROM pg_tde_list_all_global_key_providers();
  -5 | file-keyring2
 (2 rows)
 
-SELECT pg_tde_set_key_using_global_key_provider('test-db-key', 'file-keyring');
+SELECT pg_tde_set_key_using_global_key_provider('test-db-key', 'file-keyring', 'generate_if_not_exists');
  pg_tde_set_key_using_global_key_provider 
 ------------------------------------------
  
@@ -228,7 +228,7 @@ SELECT pg_tde_add_global_key_provider_file('global-provider', '/tmp/global-provi
  
 (1 row)
 
-SELECT pg_tde_set_server_key_using_global_key_provider('server-key', 'global-provider');
+SELECT pg_tde_set_server_key_using_global_key_provider('server-key', 'global-provider', 'generate_if_not_exists');
  pg_tde_set_server_key_using_global_key_provider 
 -------------------------------------------------
  
@@ -248,7 +248,7 @@ SELECT current_database() AS regress_database
 CREATE DATABASE db_using_global_provider;
 \c db_using_global_provider;
 CREATE EXTENSION pg_tde;
-SELECT pg_tde_set_key_using_global_key_provider('database-key', 'global-provider2');
+SELECT pg_tde_set_key_using_global_key_provider('database-key', 'global-provider2', 'generate_if_not_exists');
  pg_tde_set_key_using_global_key_provider 
 ------------------------------------------
  
@@ -267,7 +267,7 @@ SELECT pg_tde_add_database_key_provider_file('db-provider', '/tmp/db-provider-fi
  
 (1 row)
 
-SELECT pg_tde_set_key_using_database_key_provider('database-key', 'db-provider');
+SELECT pg_tde_set_key_using_database_key_provider('database-key', 'db-provider', 'generate_if_not_exists');
  pg_tde_set_key_using_database_key_provider 
 --------------------------------------------
  

@@ -5,7 +5,7 @@ CREATE EXTENSION IF NOT EXISTS pg_tde;
 
 SELECT pg_tde_add_database_key_provider_vault_v2('vault-incorrect', 'https://127.0.0.1:8200', 'DUMMY-TOKEN', :'root_token_file', :'cacert_file');
 -- FAILS
-SELECT pg_tde_set_key_using_database_key_provider('vault-v2-key', 'vault-incorrect');
+SELECT pg_tde_set_key_using_database_key_provider('vault-v2-key', 'vault-incorrect', 'generate_if_not_exists');
 
 CREATE TABLE test_enc(
 	  id SERIAL,
@@ -14,7 +14,7 @@ CREATE TABLE test_enc(
 	) USING tde_heap;
 
 SELECT pg_tde_add_database_key_provider_vault_v2('vault-v2', 'https://127.0.0.1:8200', 'secret', :'root_token_file', :'cacert_file');
-SELECT pg_tde_set_key_using_database_key_provider('vault-v2-key', 'vault-v2');
+SELECT pg_tde_set_key_using_database_key_provider('vault-v2-key', 'vault-v2', 'generate_if_not_exists');
 
 CREATE TABLE test_enc(
 	  id SERIAL,

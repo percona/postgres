@@ -19,9 +19,9 @@ SELECT pg_tde_set_default_key_using_global_key_provider(
 * `key-name` is the name under which the principal key is stored in the provider.
 * `global_vault_provider` is the name of the global key provider you previously configured.
 * Third parameter (optional):
-    * `generate` requires the key to be newly created. If the key already exists, the function fails.
+    * `generate` or omitted (default), requires the key to be newly created. If the key already exists, the function fails.
     * `existing` requires the key to already exist. If the key does not exist, the function fails.
-    * `generate_if_not_exists` or omitted (default), allows reuse of an existing key if it exists. If not, a new key is created under the specified name.
+    * `generate_if_not_exists` allows reuse of an existing key if it exists. If not, a new key is created under the specified name.
 
 ## How key generation works
 

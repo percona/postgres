@@ -134,7 +134,7 @@ PGTDE::psql($node, 'postgres',
 );
 
 PGTDE::psql($node, 'postgres',
-	"SELECT pg_tde_set_key_using_database_key_provider('rotated-key2', 'file-2');"
+	"SELECT pg_tde_set_key_using_database_key_provider('rotated-key2', 'file-2', 'existing');"
 );
 PGTDE::psql($node, 'postgres',
 	"SELECT provider_id, provider_name, key_name FROM pg_tde_key_info();");

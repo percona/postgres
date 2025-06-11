@@ -193,7 +193,7 @@ SELECT provider_id, provider_name, key_name FROM pg_tde_server_key_info();
              |               | 
 (1 row)
 
-SELECT pg_tde_set_key_using_database_key_provider('rotated-key2', 'file-2');
+SELECT pg_tde_set_key_using_database_key_provider('rotated-key2', 'file-2', 'existing');
  pg_tde_set_key_using_database_key_provider 
 --------------------------------------------
  

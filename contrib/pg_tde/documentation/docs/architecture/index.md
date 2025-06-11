@@ -284,7 +284,7 @@ pg_tde_set_server_key_using_(global/database)_key_provider('key-name', 'provider
 pg_tde_set_default_key_using_(global/database)_key_provider('key-name', 'provider-name', key_action)
 ```
 
-`key_action` is a enum parameter defaulting to `generate_if_not_exists`. If it is set to `generate` the function will return an error if the key already exists on the provider. If is is set to `existing` it will try to use an existing key or error out if no key was found.
+`key_action` is a enum parameter defaulting to `generate` which means the function will return an error if the key already exists in the provider. If is is set to `existing` it will try to use an existing key or error out if no key was found. If it is set to `generate_if_not_exists` and new key will be generated if one does not already exist.
 
 ### Default principal key
 

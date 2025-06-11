@@ -8,7 +8,7 @@ SELECT pg_tde_add_database_key_provider_vault_v2('vault-incorrect', 'https://127
 (1 row)
 
 -- FAILS
-SELECT pg_tde_set_key_using_database_key_provider('vault-v2-key', 'vault-incorrect');
+SELECT pg_tde_set_key_using_database_key_provider('vault-v2-key', 'vault-incorrect', 'generate_if_not_exists');
 ERROR:  Invalid HTTP response from keyring provider "vault-incorrect": 404
 CREATE TABLE test_enc(
 	  id SERIAL,
@@ -23,7 +23,7 @@ SELECT pg_tde_add_database_key_provider_vault_v2('vault-v2', 'https://127.0.0.1:
  
 (1 row)
 
-SELECT pg_tde_set_key_using_database_key_provider('vault-v2-key', 'vault-v2');
+SELECT pg_tde_set_key_using_database_key_provider('vault-v2-key', 'vault-v2', 'generate_if_not_exists');
  pg_tde_set_key_using_database_key_provider 
 --------------------------------------------
  
