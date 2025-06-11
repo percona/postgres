@@ -1,43 +1,38 @@
-/*-------------------------------------------------------------------------
- *
- * pg_tde_event_capture.c
- *      event trigger logic to identify if we are creating the encrypted table or not.
- *
- * IDENTIFICATION
- *    contrib/pg_tde/src/pg_tde_event_trigger.c
- *
- *-------------------------------------------------------------------------
+/*
+ * event trigger logic to identify if we are creating the encrypted table or not.
  */
 
 #include "postgres.h"
-#include "funcapi.h"
-#include "fmgr.h"
-#include "utils/rel.h"
-#include "utils/builtins.h"
-#include "utils/lsyscache.h"
+
+#include "access/heapam.h"
+#include "access/relation.h"
+#include "access/table.h"
+#include "access/tableam.h"
+#include "catalog/namespace.h"
 #include "catalog/pg_class.h"
 #include "catalog/pg_database.h"
+#include "catalog/pg_event_trigger.h"
 #include "catalog/pg_inherits.h"
 #include "commands/defrem.h"
-#include "commands/sequence.h"
-#include "access/heapam.h"
-#include "access/table.h"
-#include "access/relation.h"
-#include "catalog/pg_event_trigger.h"
-#include "catalog/namespace.h"
 #include "commands/event_trigger.h"
-#include "common/pg_tde_utils.h"
+#include "commands/sequence.h"
+#include "fmgr.h"
+#include "funcapi.h"
+#include "miscadmin.h"
 #include "storage/lmgr.h"
 #include "tcop/utility.h"
+#include "utils/builtins.h"
 #include "utils/fmgroids.h"
+#include "utils/lsyscache.h"
+#include "utils/rel.h"
 #include "utils/syscache.h"
+
+#include "access/pg_tde_tdemap.h"
+#include "catalog/tde_global_space.h"
+#include "catalog/tde_principal_key.h"
+#include "common/pg_tde_utils.h"
 #include "pg_tde_event_capture.h"
 #include "pg_tde_guc.h"
-#include "access/pg_tde_tdemap.h"
-#include "catalog/tde_principal_key.h"
-#include "miscadmin.h"
-#include "access/tableam.h"
-#include "catalog/tde_global_space.h"
 
 typedef struct
 {
@@ -47,7 +42,7 @@ typedef struct
 	Oid			rebuildSequence;
 } TdeDdlEvent;
 
-static FullTransactionId ddlEventStackTid = {};
+static FullTransactionId ddlEventStackTid = {0};
 static List *ddlEventStack = NIL;
 
 static Oid	get_db_oid(const char *name);
@@ -633,7 +628,11 @@ pg_tde_proccess_utility(PlannedStmt *pstmt,
 
 					if (dbOid != InvalidOid)
 					{
-						int			count = pg_tde_count_relations(dbOid);
+						int			count;
+
+						LWLockAcquire(tde_lwlock_enc_keys(), LW_SHARED);
+						count = pg_tde_count_relations(dbOid);
+						LWLockRelease(tde_lwlock_enc_keys());
 
 						if (count > 0)
 							ereport(ERROR,

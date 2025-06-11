@@ -1,10 +1,3 @@
-/*-------------------------------------------------------------------------
- *
- * pg_tde_tdemap.h
- *	  TDE relation fork manapulation.
- *
- *-------------------------------------------------------------------------
- */
 #ifndef PG_TDE_MAP_H
 #define PG_TDE_MAP_H
 
@@ -77,13 +70,11 @@ typedef struct WALKeyCacheRec
 } WALKeyCacheRec;
 
 extern InternalKey *pg_tde_read_last_wal_key(void);
-
 extern WALKeyCacheRec *pg_tde_get_last_wal_key(void);
 extern WALKeyCacheRec *pg_tde_fetch_wal_keys(XLogRecPtr start_lsn);
 extern WALKeyCacheRec *pg_tde_get_wal_cache_keys(void);
 extern void pg_tde_wal_last_key_set_lsn(XLogRecPtr lsn, const char *keyfile_path);
-
-extern void pg_tde_create_wal_key(InternalKey *rel_key_data, const RelFileLocator *newrlocator, TDEMapEntryType flags);
+extern void pg_tde_create_wal_key(InternalKey *rel_key_data, const RelFileLocator *newrlocator, TDEMapEntryType entry_type);
 
 #define PG_TDE_MAP_FILENAME			"%d_keys"
 
@@ -107,6 +98,8 @@ extern bool pg_tde_verify_principal_key_info(TDESignedPrincipalKeyInfo *signed_k
 extern void pg_tde_save_principal_key(const TDEPrincipalKey *principal_key, bool write_xlog);
 extern void pg_tde_save_principal_key_redo(const TDESignedPrincipalKeyInfo *signed_key_info);
 extern void pg_tde_perform_rotate_key(TDEPrincipalKey *principal_key, TDEPrincipalKey *new_principal_key, bool write_xlog);
+extern void pg_tde_delete_principal_key(Oid dbOid);
+extern void pg_tde_delete_principal_key_redo(Oid dbOid);
 
 const char *tde_sprint_key(InternalKey *k);
 

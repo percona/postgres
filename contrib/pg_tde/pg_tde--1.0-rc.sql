@@ -1,5 +1,3 @@
-/* contrib/pg_tde/pg_tde--1.0-rc.sql */
-
 -- complain if script is sourced in psql, rather than via CREATE EXTENSION
 \echo Use "CREATE EXTENSION pg_tde" to load this file. \quit
 
@@ -19,35 +17,35 @@ BEGIN ATOMIC
 END;
 
 CREATE FUNCTION pg_tde_add_database_key_provider_vault_v2(provider_name TEXT,
-                                                vault_token_path TEXT,
                                                 vault_url TEXT,
                                                 vault_mount_path TEXT,
+                                                vault_token_path TEXT,
                                                 vault_ca_path TEXT)
 RETURNS VOID
 LANGUAGE SQL
 BEGIN ATOMIC
     SELECT pg_tde_add_database_key_provider('vault-v2', provider_name,
                             json_object('url' VALUE vault_url,
-                            'tokenPath' VALUE vault_token_path,
                             'mountPath' VALUE vault_mount_path,
+                            'tokenPath' VALUE vault_token_path,
                             'caPath' VALUE vault_ca_path));
 END;
 
 CREATE FUNCTION pg_tde_add_database_key_provider_kmip(provider_name TEXT,
                                              kmip_host TEXT,
                                              kmip_port INT,
-                                             kmip_ca_path TEXT,
                                              kmip_cert_path TEXT,
-                                             kmip_key_path TEXT)
+                                             kmip_key_path TEXT,
+                                             kmip_ca_path TEXT)
 RETURNS VOID
 LANGUAGE SQL
 BEGIN ATOMIC
     SELECT pg_tde_add_database_key_provider('kmip', provider_name,
                             json_object('host' VALUE kmip_host,
                             'port' VALUE kmip_port,
-                            'caPath' VALUE kmip_ca_path,
                             'certPath' VALUE kmip_cert_path,
-                            'keyPath' VALUE kmip_key_path));
+                            'keyPath' VALUE kmip_key_path,
+                            'caPath' VALUE kmip_ca_path));
 END;
 
 CREATE FUNCTION pg_tde_list_all_database_key_providers
@@ -86,35 +84,35 @@ BEGIN ATOMIC
 END;
 
 CREATE FUNCTION pg_tde_add_global_key_provider_vault_v2(provider_name TEXT,
-                                                        vault_token_path TEXT,
                                                         vault_url TEXT,
                                                         vault_mount_path TEXT,
+                                                        vault_token_path TEXT,
                                                         vault_ca_path TEXT)
 RETURNS VOID
 LANGUAGE SQL
 BEGIN ATOMIC
     SELECT pg_tde_add_global_key_provider('vault-v2', provider_name,
                             json_object('url' VALUE vault_url,
-                            'tokenPath' VALUE vault_token_path,
                             'mountPath' VALUE vault_mount_path,
+                            'tokenPath' VALUE vault_token_path,
                             'caPath' VALUE vault_ca_path));
 END;
 
 CREATE FUNCTION pg_tde_add_global_key_provider_kmip(provider_name TEXT,
                                                     kmip_host TEXT,
                                                     kmip_port INT,
-                                                    kmip_ca_path TEXT,
                                                     kmip_cert_path TEXT,
-                                                    kmip_key_path TEXT)
+                                                    kmip_key_path TEXT,
+                                                    kmip_ca_path TEXT)
 RETURNS VOID
 LANGUAGE SQL
 BEGIN ATOMIC
     SELECT pg_tde_add_global_key_provider('kmip', provider_name,
                             json_object('host' VALUE kmip_host,
                             'port' VALUE kmip_port,
-                            'caPath' VALUE kmip_ca_path,
                             'certPath' VALUE kmip_cert_path,
-                            'keyPath' VALUE kmip_key_path));
+                            'keyPath' VALUE kmip_key_path,
+                            'caPath' VALUE kmip_ca_path));
 END;
 
 -- Key Provider Management
@@ -133,26 +131,26 @@ BEGIN ATOMIC
 END;
 
 CREATE FUNCTION pg_tde_change_database_key_provider_vault_v2(provider_name TEXT,
-                                                    vault_token_path TEXT,
                                                     vault_url TEXT,
                                                     vault_mount_path TEXT,
+                                                    vault_token_path TEXT,
                                                     vault_ca_path TEXT)
 RETURNS VOID
 LANGUAGE SQL
 BEGIN ATOMIC
     SELECT pg_tde_change_database_key_provider('vault-v2', provider_name,
                             json_object('url' VALUE vault_url,
-                            'tokenPath' VALUE vault_token_path,
                             'mountPath' VALUE vault_mount_path,
+                            'tokenPath' VALUE vault_token_path,
                             'caPath' VALUE vault_ca_path));
 END;
 
 CREATE FUNCTION pg_tde_change_database_key_provider_kmip(provider_name TEXT,
                                                 kmip_host TEXT,
                                                 kmip_port INT,
-                                                kmip_ca_path TEXT,
                                                 kmip_cert_path TEXT,
-                                                kmip_key_path TEXT)
+                                                kmip_key_path TEXT,
+                                                kmip_ca_path TEXT)
 RETURNS VOID
 LANGUAGE SQL
 BEGIN ATOMIC
@@ -180,35 +178,35 @@ BEGIN ATOMIC
 END;
 
 CREATE FUNCTION pg_tde_change_global_key_provider_vault_v2(provider_name TEXT,
-                                                           vault_token_path TEXT,
                                                            vault_url TEXT,
                                                            vault_mount_path TEXT,
+                                                           vault_token_path TEXT,
                                                            vault_ca_path TEXT)
 RETURNS VOID
 LANGUAGE SQL
 BEGIN ATOMIC
     SELECT pg_tde_change_global_key_provider('vault-v2', provider_name,
                             json_object('url' VALUE vault_url,
-                            'tokenPath' VALUE vault_token_path,
                             'mountPath' VALUE vault_mount_path,
+                            'tokenPath' VALUE vault_token_path,
                             'caPath' VALUE vault_ca_path));
 END;
 
 CREATE FUNCTION pg_tde_change_global_key_provider_kmip(provider_name TEXT,
                                                        kmip_host TEXT,
                                                        kmip_port INT,
-                                                       kmip_ca_path TEXT,
                                                        kmip_cert_path TEXT,
-                                                       kmip_key_path TEXT)
+                                                       kmip_key_path TEXT,
+                                                       kmip_ca_path TEXT)
 RETURNS VOID
 LANGUAGE SQL
 BEGIN ATOMIC
     SELECT pg_tde_change_global_key_provider('kmip', provider_name,
                             json_object('host' VALUE kmip_host,
                             'port' VALUE kmip_port,
-                            'caPath' VALUE kmip_ca_path,
                             'certPath' VALUE kmip_cert_path,
-                            'keyPath' VALUE kmip_key_path));
+                            'keyPath' VALUE kmip_key_path,
+                            'caPath' VALUE kmip_ca_path));
 END;
 
 CREATE FUNCTION pg_tde_is_encrypted(relation REGCLASS)
@@ -258,6 +256,18 @@ RETURNS VOID
 LANGUAGE C
 AS 'MODULE_PATHNAME';
 REVOKE ALL ON FUNCTION pg_tde_verify_default_key() FROM PUBLIC;
+
+CREATE FUNCTION pg_tde_delete_key()
+RETURNS VOID
+LANGUAGE C
+AS 'MODULE_PATHNAME';
+REVOKE ALL ON FUNCTION pg_tde_delete_key() FROM PUBLIC;
+
+CREATE FUNCTION pg_tde_delete_default_key()
+RETURNS VOID
+LANGUAGE C
+AS 'MODULE_PATHNAME';
+REVOKE ALL ON FUNCTION pg_tde_delete_default_key() FROM PUBLIC;
 
 CREATE FUNCTION pg_tde_key_info()
 RETURNS TABLE ( key_name TEXT,
