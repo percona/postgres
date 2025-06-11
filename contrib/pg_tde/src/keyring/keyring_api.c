@@ -1,15 +1,17 @@
-#include "keyring/keyring_api.h"
-
 #include "postgres.h"
+
+#include <openssl/err.h>
+#include <openssl/rand.h>
+
 #include "nodes/pg_list.h"
 #include "utils/memutils.h"
+
+#include "keyring/keyring_api.h"
+
 #ifdef FRONTEND
 #include "fe_utils/simple_list.h"
 #include "pg_tde_fe.h"
 #endif
-
-#include <assert.h>
-#include <openssl/rand.h>
 
 typedef struct RegisteredKeyProviderType
 {
@@ -127,15 +129,15 @@ KeyringGenerateNewKey(const char *key_name, unsigned key_len)
 {
 	KeyInfo    *key;
 
-	Assert(key_len <= 32);
+	Assert(key_len <= sizeof(key->data));
 	/* Struct will be saved to disk so keep clean */
 	key = palloc0_object(KeyInfo);
 	key->data.len = key_len;
 	if (!RAND_bytes(key->data.data, key_len))
-	{
-		pfree(key);
-		return NULL;			/* openssl error */
-	}
+		ereport(ERROR,
+				errcode(ERRCODE_INTERNAL_ERROR),
+				errmsg("could not generate new principal key: %s",
+					   ERR_error_string(ERR_get_error(), NULL)));
 	strlcpy(key->name, key_name, sizeof(key->name));
 	return key;
 }

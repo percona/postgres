@@ -1,21 +1,16 @@
-/*-------------------------------------------------------------------------
- *
- * pg_tde_fe.h
- * 		TDE redefinitions for frontend included code
- *
- * src/include/pg_tde_fe.h
- *
- *-------------------------------------------------------------------------
+/*
+ * TDE redefinitions for frontend included code
  */
+
 #ifndef PG_TDE_EREPORT_H
 #define PG_TDE_EREPORT_H
 
 #ifdef FRONTEND
 
 #include "postgres_fe.h"
-#include "utils/elog.h"
 #include "common/logging.h"
 #include "common/file_perm.h"
+#include "utils/elog.h"
 
 #pragma GCC diagnostic ignored "-Wunused-macros"
 #pragma GCC diagnostic ignored "-Wunused-value"
@@ -85,7 +80,10 @@ static int	tde_fe_error_level = 0;
 #define LW_EXCLUSIVE NULL
 #define tde_lwlock_enc_keys() NULL
 
-#define BasicOpenFile(fileName, fileFlags) open(fileName, fileFlags, PG_FILE_MODE_OWNER)
+#define OpenTransientFile(fileName, fileFlags) open(fileName, fileFlags, PG_FILE_MODE_OWNER)
+#define CloseTransientFile(fd) close(fd)
+#define AllocateFile(name, mode) fopen(name, mode)
+#define FreeFile(file) fclose(file)
 
 #define pg_fsync(fd) fsync(fd)
 #endif							/* FRONTEND */

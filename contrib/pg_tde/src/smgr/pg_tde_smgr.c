@@ -1,14 +1,17 @@
 #include "postgres.h"
 
-#include "smgr/pg_tde_smgr.h"
-#include "storage/smgr.h"
-#include "storage/md.h"
+#include "access/xloginsert.h"
 #include "catalog/catalog.h"
+#include "storage/md.h"
+#include "storage/smgr.h"
+#include "utils/hsearch.h"
+
+#include "access/pg_tde_tdemap.h"
+#include "access/pg_tde_xlog.h"
 #include "encryption/enc_aes.h"
 #include "encryption/enc_tde.h"
-#include "access/pg_tde_tdemap.h"
-#include "utils/hsearch.h"
 #include "pg_tde_event_capture.h"
+#include "smgr/pg_tde_smgr.h"
 
 typedef enum TDEMgrRelationEncryptionStatus
 {
@@ -77,9 +80,21 @@ tde_smgr_create_key(const RelFileLocatorBackend *smgr_rlocator)
 	if (RelFileLocatorBackendIsTemp(*smgr_rlocator))
 		tde_smgr_save_temp_key(&smgr_rlocator->locator, key);
 	else
-		pg_tde_save_smgr_key(smgr_rlocator->locator, key, true);
+		pg_tde_save_smgr_key(smgr_rlocator->locator, key);
 
 	return key;
+}
+
+static void
+tde_smgr_log_create_key(const RelFileLocatorBackend *smgr_rlocator)
+{
+	XLogRelKey	xlrec = {
+		.rlocator = smgr_rlocator->locator,
+	};
+
+	XLogBeginInsert();
+	XLogRegisterData((char *) &xlrec, sizeof(xlrec));
+	XLogInsert(RM_TDERMGR_ID, XLOG_TDE_ADD_RELATION_KEY);
 }
 
 void
@@ -92,7 +107,27 @@ tde_smgr_create_key_redo(const RelFileLocator *rlocator)
 
 	pg_tde_generate_internal_key(&key, TDE_KEY_TYPE_SMGR);
 
-	pg_tde_save_smgr_key(*rlocator, &key, false);
+	pg_tde_save_smgr_key(*rlocator, &key);
+}
+
+static void
+tde_smgr_delete_key(const RelFileLocatorBackend *smgr_rlocator)
+{
+	XLogRelKey	xlrec = {
+		.rlocator = smgr_rlocator->locator,
+	};
+
+	pg_tde_free_key_map_entry(smgr_rlocator->locator);
+
+	XLogBeginInsert();
+	XLogRegisterData((char *) &xlrec, sizeof(xlrec));
+	XLogInsert(RM_TDERMGR_ID, XLOG_TDE_REMOVE_RELATION_KEY);
+}
+
+void
+tde_smgr_delete_key_redo(const RelFileLocator *rlocator)
+{
+	pg_tde_free_key_map_entry(*rlocator);
 }
 
 static bool
@@ -322,6 +357,7 @@ static void
 tde_mdcreate(RelFileLocator relold, SMgrRelation reln, ForkNumber forknum, bool isRedo)
 {
 	TDESMgrRelation *tdereln = (TDESMgrRelation *) reln;
+	InternalKey *key;
 
 	/* Copied from mdcreate() in md.c */
 	if (isRedo && tdereln->md_num_open_segs[forknum] > 0)
@@ -334,36 +370,60 @@ tde_mdcreate(RelFileLocator relold, SMgrRelation reln, ForkNumber forknum, bool 
 
 	mdcreate(relold, reln, forknum, isRedo);
 
-	if (forknum == MAIN_FORKNUM || forknum == INIT_FORKNUM)
+	if (forknum != MAIN_FORKNUM)
 	{
 		/*
-		 * Only create keys when creating the main/init fork. Other forks can
-		 * be created later, even during tde creation events. We definitely do
+		 * Only create keys when creating the main fork. Other forks can be
+		 * created later, even during tde creation events. We definitely do
 		 * not want to create keys then, even later, when we encrypt all
 		 * forks!
 		 *
 		 * Later calls then decide to encrypt or not based on the existence of
 		 * the key.
-		 *
-		 * Since event triggers do not fire on the standby or in recovery we
-		 * do not try to generate any new keys and instead trust the xlog.
 		 */
-		InternalKey *key = tde_smgr_get_key(&reln->smgr_rlocator);
-
-		if (!isRedo && !key && tde_smgr_should_encrypt(&reln->smgr_rlocator, &relold))
-			key = tde_smgr_create_key(&reln->smgr_rlocator);
-
-		if (key)
-		{
-			tdereln->encryption_status = RELATION_KEY_AVAILABLE;
-			tdereln->relKey = *key;
-			pfree(key);
-		}
-		else
-		{
-			tdereln->encryption_status = RELATION_NOT_ENCRYPTED;
-		}
+		return;
 	}
+
+	if (!isRedo)
+	{
+		/*
+		 * If we have a key for this relation already, we need to remove it.
+		 * This can happen if OID is re-used after a crash left a key for a
+		 * non-existing relation in the key file.
+		 *
+		 * If we're in redo, a separate WAL record will make sure the key is
+		 * removed.
+		 */
+		tde_smgr_delete_key(&reln->smgr_rlocator);
+	}
+
+	if (!tde_smgr_should_encrypt(&reln->smgr_rlocator, &relold))
+	{
+		tdereln->encryption_status = RELATION_NOT_ENCRYPTED;
+		return;
+	}
+
+	if (isRedo)
+	{
+		/*
+		 * If we're in redo, the WAL record for creating the key has already
+		 * happened and we can just fetch it.
+		 */
+		key = tde_smgr_get_key(&reln->smgr_rlocator);
+
+		Assert(key);
+		if (!key)
+			elog(ERROR, "could not get key when creating encrypted relation");
+	}
+	else
+	{
+		key = tde_smgr_create_key(&reln->smgr_rlocator);
+		tde_smgr_log_create_key(&reln->smgr_rlocator);
+	}
+
+	tdereln->encryption_status = RELATION_KEY_AVAILABLE;
+	tdereln->relKey = *key;
+	pfree(key);
 }
 
 /*

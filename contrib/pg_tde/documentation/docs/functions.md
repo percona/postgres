@@ -15,7 +15,7 @@ However, database owners can run the “view keys” and “set principal key”
 
 A key provider is a system or service responsible for managing encryption keys. `pg_tde` supports the following key providers:
 
-* local file (not for production use)
+* local file (not recommended for production use)
 * Hashicorp Vault / OpenBao
 * KMIP compatible providers
 
@@ -26,7 +26,7 @@ Key provider management includes the following operations:
 * deleting a key provider,
 * listing key providers.
 
-### Add a provider
+### Add a key provider
 
 You can add a new key provider using the provided functions, which are implemented for each provider type.
 
@@ -35,7 +35,7 @@ There are two functions to add a key provider: one function adds it for the curr
 * `pg_tde_add_database_key_provider_<type>('provider-name', <provider specific parameters>)`
 * `pg_tde_add_global_key_provider_<type>('provider-name', <provider specific parameters>)`
 
-When you add a new provider, the provider name must be unqiue in the scope. But a local database provider and a global provider can have the same name.
+When you add a new provider, the provider name must be unique in the scope. But a local database provider and a global provider can have the same name.
 
 ### Change an existing provider
 
@@ -63,15 +63,17 @@ Use the following functions to add the Vault provider:
 ```sql
 SELECT pg_tde_add_database_key_provider_vault_v2(
   'provider-name',
-  'secret_token',
-  'url','mount',
+  'url',
+  'mount',
+  'secret_token_path',
   'ca_path'
 );
 
 SELECT pg_tde_add_global_key_provider_vault_v2(
   'provider-name',
-  'secret_token',
-  'url','mount',
+  'url',
+  'mount',
+  'secret_token_path',
   'ca_path'
 );
 ```
@@ -81,17 +83,17 @@ These functions change the Vault provider:
 ```sql
 SELECT pg_tde_change_database_key_provider_vault_v2(
   'provider-name',
-  'secret_token',
   'url',
   'mount',
+  'secret_token_path',
   'ca_path'
 );
 
 SELECT pg_tde_change_global_key_provider_vault_v2(
   'provider-name',
-  'secret_token',
   'url',
   'mount',
+  'secret_token_path',
   'ca_path'
 );
 ```
@@ -101,13 +103,8 @@ where:
 * `provider-name` is the name of the key provider
 * `url` is the URL of the Vault server
 * `mount` is the mount point on the Vault server where the key provider should store the keys
-* `secret_token` is an access token with read and write access to the above mount point
+* `secret_token_path` is a path to the file that contains an access token with read and write access to the above mount point
 * **[optional]** `ca_path` is the path of the CA file used for SSL verification
-
-All parameters can be either strings, or JSON objects [referencing remote parameters](how-to/external-parameters.md).
-
-!!! important
-    Never specify the secret token directly, use a remote parameter instead.
 
 #### Adding or modifying KMIP providers
 
@@ -118,19 +115,19 @@ Use these functions to add a KMIP provider:
 ```sql
 SELECT pg_tde_add_database_key_provider_kmip(
   'provider-name',
-  'kmip-addr', 
-  `port`, 
-  '/path_to/server_certificate.pem', 
-  '/path_to/client_cert.pem', 
-  '/path_to/client_key.pem'
+  'kmip-addr',
+  port,
+  '/path_to/client_cert.pem',
+  '/path_to/client_key.pem',
+  '/path_to/server_certificate.pem'
 );
 SELECT pg_tde_add_global_key_provider_kmip(
   'provider-name',
-  'kmip-addr', 
-  `port`, 
-  '/path_to/server_certificate.pem', 
-  '/path_to/client_certificate.pem', 
-  '/path_to/client_key.pem'
+  'kmip-addr',
+  port,
+  '/path_to/client_certificate.pem',
+  '/path_to/client_key.pem',
+  '/path_to/server_certificate.pem'
 );
 ```
 
@@ -139,19 +136,19 @@ These functions change the KMIP provider:
 ```sql
 SELECT pg_tde_change_database_key_provider_kmip(
   'provider-name',
-  'kmip-addr', 
-  `port`, 
-  '/path_to/server_certificate.pem', 
-  '/path_to/client_cert.pem', 
-  '/path_to/client_key.pem'
+  'kmip-addr',
+  port,
+  '/path_to/client_cert.pem',
+  '/path_to/client_key.pem',
+  '/path_to/server_certificate.pem'
 );
 SELECT pg_tde_change_global_key_provider_kmip(
   'provider-name',
-  'kmip-addr', 
-  `port`, 
-  '/path_to/server_certificate.pem', 
-  '/path_to/client_certificate.pem', 
-  '/path_to/client_key.pem'
+  'kmip-addr',
+  port,
+  '/path_to/client_certificate.pem',
+  '/path_to/client_key.pem',
+  '/path_to/server_certificate.pem'
 );
 ```
 
@@ -167,8 +164,6 @@ where:
 
 !!! note
     The specified access parameters require permission to read and write keys at the server.
-
-All parameters can be either strings, or JSON objects [referencing remote parameters](how-to/external-parameters.md).
 
 ### Adding or modifying local keyfile providers
 
@@ -211,9 +206,6 @@ where:
 
 * `provider-name` is the name of the provider. You can specify any name, it's for you to identify the provider.
 * `/path/to/the/key/provider/data.file` is the path to the key provider file.
-
-!!! note
-    All parameters can be either strings, or JSON objects [referencing remote parameters](how-to/external-parameters.md).
 
 ### Delete a provider
 
