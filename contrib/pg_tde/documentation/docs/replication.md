@@ -2,29 +2,24 @@
 
 This section outlines how to set up PostgreSQL streaming replication when the `pg_tde` extension (specifically the [`tde_heap`](index/table-access-method.md) access method) is enabled on the primary server.
 
-The following steps assume you have [installed](install.md) and [configured](setup.md) `pg_tde`.
+Before you begin, ensure you have followed the [`pg_tde` setup instructions](setup.md), which includes:
+
+- Installing the `pg_tde` extension binaries, where they are needed, on **both** the primary and standby servers.
+- Configuring `shared_preload_libraries = 'pg_tde'` in `postgresql.conf` on **both** systems.
+- Initializing the extension and setting a principal key on the **primary**.
+
+!!! note
+    You do **not** need to run `CREATE EXTENSION` on the standby. It will be replicated automatically.
 
 ## 1. Configure the Primary
 
-### Configure postgresql.conf
+### Create a principal key
 
-* Ensure you have configured `postgresql.conf` and that it contains the following line:
-
-```ini
-shared_preload_libraries = 'pg_tde'
-```
-
-* Ensure the extension is installed where it is needed:
-
-    ```sql
-    CREATE EXTENSION IF NOT EXISTS pg_tde;
-    ```
-
-* Create the [principal key](functions#pg_tde_set_server_key_using_global_key_provider).
+Use the [`pg_tde_set_server_key_using_global_key_provider`](functions.md#pg_tde_set_server_key_using_global_key_provider) function to create a principal key.
 
 ### Create the replication role
 
-Ensure your primary has a replication role:
+Create a replication role on the primary:
 
 ```sql
 CREATE ROLE example_replicator WITH REPLICATION LOGIN PASSWORD 'example_password';
@@ -63,15 +58,9 @@ pg_basebackup \
   -v -P
 ```
 
-### Initial standby setup
-
-* Ensure that the following line is present in `postgresql.conf` or `postgresql.auto.conf`:
-
-```ini
-shared_preload_libraries = 'pg_tde'
-```
-
 ## 3. Start and validate replication
+
+Start the PostgreSQL service:
 
 ```bash
 sudo systemctl start postgresql
@@ -92,3 +81,6 @@ SELECT
     pg_last_wal_receive_lsn()    AS receive_lsn,
     pg_last_wal_replay_lsn()     AS replay_lsn;
 ```
+
+!!! tip
+    Want to verify if everything works? Run `SELECT pg_tde_is_encrypted('your_encrypted_table');` on the standby to confirm that the encryption is active and the keys are resolved.
