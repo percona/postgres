@@ -200,4 +200,7 @@ nav:
     - release-notes/beta.md
     - release-notes/alpha1.md
     - release-notes/mvp.md
-  - contribute.md
+  - "Reference":
+    - "Contributing guide": reference\contribute.md
+    - "AI usage disclaimer": reference\AI-docs-disclaimer.md
+  
