@@ -1,24 +1,13 @@
-/*-------------------------------------------------------------------------
- *
- * pg_tde_utils.c
- *      Utility functions.
- *
- * IDENTIFICATION
- *    contrib/pg_tde/src/pg_tde_utils.c
- *
- *-------------------------------------------------------------------------
- */
-
 #include "postgres.h"
 
 #include "common/pg_tde_utils.h"
 #include "pg_tde.h"
 
 #ifndef FRONTEND
-#include "fmgr.h"
-#include "smgr/pg_tde_smgr.h"
 #include "access/relation.h"
+#include "fmgr.h"
 #include "utils/rel.h"
+#include "smgr/pg_tde_smgr.h"
 
 PG_FUNCTION_INFO_V1(pg_tde_is_encrypted);
 Datum

@@ -1,21 +1,16 @@
-/*-------------------------------------------------------------------------
- *
- * pg_tde_fe.h
- * 		TDE redefinitions for frontend included code
- *
- * src/include/pg_tde_fe.h
- *
- *-------------------------------------------------------------------------
+/*
+ * TDE redefinitions for frontend included code
  */
+
 #ifndef PG_TDE_EREPORT_H
 #define PG_TDE_EREPORT_H
 
 #ifdef FRONTEND
 
 #include "postgres_fe.h"
-#include "utils/elog.h"
 #include "common/logging.h"
 #include "common/file_perm.h"
+#include "utils/elog.h"
 
 #pragma GCC diagnostic ignored "-Wunused-macros"
 #pragma GCC diagnostic ignored "-Wunused-value"

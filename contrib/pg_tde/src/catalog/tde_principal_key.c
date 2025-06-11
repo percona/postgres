@@ -1,41 +1,39 @@
-/*-------------------------------------------------------------------------
- *
- * tde_principal_key.c
- *      Deals with the tde principal key configuration catalog
- *      routines.
- *
- * IDENTIFICATION
- *    contrib/pg_tde/src/catalog/tde_principal_key.c
- *
- *-------------------------------------------------------------------------
+/*
+ * Deals with the tde principal key configuration catalog routines.
  */
+
 #include "postgres.h"
-#include "access/xlog.h"
-#include "access/xloginsert.h"
-#include "catalog/tde_principal_key.h"
-#include "storage/fd.h"
-#include "utils/palloc.h"
-#include "utils/memutils.h"
-#include "utils/wait_event.h"
-#include "utils/timestamp.h"
-#include "common/relpath.h"
-#include "miscadmin.h"
-#include "utils/builtins.h"
-#include "pg_tde.h"
-#include "access/pg_tde_xlog.h"
+
 #include <sys/mman.h>
 #include <sys/time.h>
+
+#include "access/xlog.h"
+#include "access/xloginsert.h"
+#include "catalog/pg_database.h"
+#include "common/relpath.h"
+#include "miscadmin.h"
+#include "storage/fd.h"
+#include "utils/builtins.h"
 #include "utils/fmgroids.h"
 #include "utils/guc.h"
-#include "catalog/pg_database.h"
-#include "keyring/keyring_api.h"
+#include "utils/memutils.h"
+#include "utils/palloc.h"
+#include "utils/timestamp.h"
+#include "utils/wait_event.h"
 
 #include "access/pg_tde_tdemap.h"
+#include "access/pg_tde_xlog.h"
 #include "catalog/tde_global_space.h"
+#include "catalog/tde_principal_key.h"
+#include "keyring/keyring_api.h"
+#include "pg_tde.h"
+#include "pg_tde_guc.h"
+
 #ifndef FRONTEND
 #include "access/genam.h"
+#include "access/heapam.h"
 #include "access/table.h"
-#include "common/pg_tde_shmem.h"
+#include "access/tableam.h"
 #include "funcapi.h"
 #include "lib/dshash.h"
 #include "storage/lwlock.h"
@@ -43,9 +41,6 @@
 #else
 #include "pg_tde_fe.h"
 #endif
-#include "pg_tde_guc.h"
-
-#include <sys/time.h>
 
 #ifndef FRONTEND
 
@@ -58,7 +53,6 @@ typedef struct TdePrincipalKeySharedState
 	LWLockPadded *Locks;
 	dshash_table_handle hashHandle;
 	void	   *rawDsaArea;		/* DSA area pointer */
-
 } TdePrincipalKeySharedState;
 
 typedef struct TdePrincipalKeylocalState
@@ -82,15 +76,11 @@ static dshash_parameters principal_key_dsh_params = {
 static TdePrincipalKeylocalState principalKeyLocalState;
 
 static void principal_key_info_attach_shmem(void);
-static Size initialize_shared_state(void *start_address);
-static void initialize_objects_in_dsa_area(dsa_area *dsa, void *raw_dsa_area);
-static Size required_shared_mem_size(void);
-static void shared_memory_shutdown(int code, Datum arg);
 static void clear_principal_key_cache(Oid databaseId);
-static inline dshash_table *get_principal_key_Hash(void);
+static inline dshash_table *get_principal_key_hash(void);
 static TDEPrincipalKey *get_principal_key_from_cache(Oid dbOid);
 static bool pg_tde_is_same_principal_key(TDEPrincipalKey *a, TDEPrincipalKey *b);
-static void pg_tde_update_global_principal_key_everywhere(TDEPrincipalKey *oldKey, TDEPrincipalKey *newKey);
+static void pg_tde_update_default_principal_key_everywhere(TDEPrincipalKey *oldKey, TDEPrincipalKey *newKey);
 static void push_principal_key_to_cache(TDEPrincipalKey *principalKey);
 static Datum pg_tde_get_key_info(PG_FUNCTION_ARGS, Oid dbOid);
 static TDEPrincipalKey *get_principal_key_from_keyring(Oid dbOid);
@@ -101,26 +91,93 @@ static void set_principal_key_with_keyring(const char *key_name,
 										   Oid dbOid,
 										   bool ensure_new_key);
 static bool pg_tde_verify_principal_key_internal(Oid databaseOid);
+static void pg_tde_rotate_default_key_for_database(TDEPrincipalKey *oldKey, TDEPrincipalKey *newKeyTemplate);
 
 PG_FUNCTION_INFO_V1(pg_tde_set_default_key_using_global_key_provider);
 PG_FUNCTION_INFO_V1(pg_tde_set_key_using_database_key_provider);
 PG_FUNCTION_INFO_V1(pg_tde_set_key_using_global_key_provider);
 PG_FUNCTION_INFO_V1(pg_tde_set_server_key_using_global_key_provider);
+PG_FUNCTION_INFO_V1(pg_tde_delete_key);
+PG_FUNCTION_INFO_V1(pg_tde_delete_default_key);
 
 static void pg_tde_set_principal_key_internal(Oid providerOid, Oid dbOid, const char *principal_key_name, const char *provider_name, bool ensure_new_key);
 
-static const TDEShmemSetupRoutine principal_key_info_shmem_routine = {
-	.init_shared_state = initialize_shared_state,
-	.init_dsa_area_objects = initialize_objects_in_dsa_area,
-	.required_shared_mem_size = required_shared_mem_size,
-	.shmem_kill = shared_memory_shutdown
-};
+/*
+ * Request some pages so we can fit the DSA header, empty hash table plus some
+ * extra. Additional memory to grow the hash map will be allocated as needed
+ * from the dynamic shared memory.
+ *
+ * The only reason we need this at all is because we create the DSA in the
+ * postmaster before any DSM allocations can be done.
+ */
+#define CACHE_DSA_INITIAL_SIZE (4096 * 64)
+
+Size
+PrincipalKeyShmemSize(void)
+{
+	Size		sz = CACHE_DSA_INITIAL_SIZE;
+
+	sz = add_size(sz, sizeof(TdePrincipalKeySharedState));
+	return MAXALIGN(sz);
+}
 
 void
-InitializePrincipalKeyInfo(void)
+PrincipalKeyShmemInit(void)
 {
-	ereport(LOG, errmsg("Initializing TDE principal key info"));
-	RegisterShmemRequest(&principal_key_info_shmem_routine);
+	bool		found;
+	char	   *free_start;
+	Size		required_shmem_size = PrincipalKeyShmemSize();
+
+	LWLockAcquire(AddinShmemInitLock, LW_EXCLUSIVE);
+
+	/* Create or attach to the shared memory state */
+	ereport(NOTICE, errmsg("PrincipalKeyShmemInit: requested %ld bytes", required_shmem_size));
+	free_start = ShmemInitStruct("pg_tde", required_shmem_size, &found);
+
+	if (!found)
+	{
+		TdePrincipalKeySharedState *sharedState;
+		Size		sz;
+		Size		dsa_area_size;
+		dsa_area   *dsa;
+		dshash_table *dsh;
+
+		/* Now place shared state structure */
+		sharedState = (TdePrincipalKeySharedState *) free_start;
+		sz = MAXALIGN(sizeof(TdePrincipalKeySharedState));
+		free_start += sz;
+		Assert(sz <= required_shmem_size);
+
+		/* Create DSA area */
+		dsa_area_size = required_shmem_size - sz;
+		Assert(dsa_area_size > 0);
+
+		ereport(LOG, errmsg("creating DSA area of size %lu", dsa_area_size));
+
+		dsa = dsa_create_in_place(free_start,
+								  dsa_area_size,
+								  LWLockNewTrancheId(), 0);
+		dsa_pin(dsa);
+
+		/* Limit area size during population to get a nice error */
+		dsa_set_size_limit(dsa, dsa_area_size);
+
+		principal_key_dsh_params.tranche_id = LWLockNewTrancheId();
+		dsh = dshash_create(dsa, &principal_key_dsh_params, NULL);
+
+		dsa_set_size_limit(dsa, -1);
+
+		sharedState->Locks = GetNamedLWLockTranche(TDE_TRANCHE_NAME);
+		sharedState->hashHandle = dshash_get_hash_table_handle(dsh);
+		sharedState->rawDsaArea = free_start;
+
+		principalKeyLocalState.sharedPrincipalKeyState = sharedState;
+		principalKeyLocalState.sharedHash = NULL;
+
+		dshash_detach(dsh);
+	}
+
+	LWLockRelease(AddinShmemInitLock);
 }
 
 /*
@@ -136,62 +193,6 @@ tde_lwlock_enc_keys(void)
 }
 
 /*
- * Request some pages so we can fit the DSA header, empty hash table plus some
- * extra. Additional memory to grow the hash map will be allocated as needed
- * from the dynamic shared memory.
- *
- * The only reason we need this at all is because we create the DSA in the
- * postmaster before any DSM allocations can be done.
- */
-#define CACHE_DSA_INITIAL_SIZE (4096 * 64)
-
-static Size
-required_shared_mem_size(void)
-{
-	Size		sz = CACHE_DSA_INITIAL_SIZE;
-
-	sz = add_size(sz, sizeof(TdePrincipalKeySharedState));
-	return MAXALIGN(sz);
-}
-
-/*
- * Initialize the shared area for Principal key info.
- * This includes locks and cache area for principal key info
- */
-
-static Size
-initialize_shared_state(void *start_address)
-{
-	TdePrincipalKeySharedState *sharedState = (TdePrincipalKeySharedState *) start_address;
-
-	ereport(LOG, errmsg("initializing shared state for principal key"));
-
-	sharedState->Locks = GetNamedLWLockTranche(TDE_TRANCHE_NAME);
-
-	principalKeyLocalState.sharedPrincipalKeyState = sharedState;
-	principalKeyLocalState.sharedHash = NULL;
-
-	return sizeof(TdePrincipalKeySharedState);
-}
-
-static void
-initialize_objects_in_dsa_area(dsa_area *dsa, void *raw_dsa_area)
-{
-	dshash_table *dsh;
-	TdePrincipalKeySharedState *sharedState = principalKeyLocalState.sharedPrincipalKeyState;
-
-	ereport(LOG, errmsg("initializing dsa area objects for principal key"));
-
-	Assert(sharedState != NULL);
-
-	sharedState->rawDsaArea = raw_dsa_area;
-	principal_key_dsh_params.tranche_id = LWLockNewTrancheId();
-	dsh = dshash_create(dsa, &principal_key_dsh_params, NULL);
-	sharedState->hashHandle = dshash_get_hash_table_handle(dsh);
-	dshash_detach(dsh);
-}
-
-/*
  * Attaches to the DSA to local backend
  */
 static void
@@ -199,9 +200,6 @@ principal_key_info_attach_shmem(void)
 {
 	MemoryContext oldcontext;
 	dsa_area   *dsa;
-
-	if (principalKeyLocalState.sharedHash)
-		return;
 
 	/*
 	 * We want the dsa to remain valid throughout the lifecycle of this
@@ -216,12 +214,6 @@ principal_key_info_attach_shmem(void)
 													  principalKeyLocalState.sharedPrincipalKeyState->hashHandle, 0);
 
 	MemoryContextSwitchTo(oldcontext);
-}
-
-static void
-shared_memory_shutdown(int code, Datum arg)
-{
-	principalKeyLocalState.sharedPrincipalKeyState = NULL;
 }
 
 void
@@ -256,7 +248,7 @@ set_principal_key_with_keyring(const char *key_name, const char *provider_name,
 
 		keyInfo = KeyringGetKey(new_keyring, key_name, &kr_ret);
 
-		if (kr_ret != KEYRING_CODE_SUCCESS && kr_ret != KEYRING_CODE_RESOURCE_NOT_AVAILABLE)
+		if (kr_ret != KEYRING_CODE_SUCCESS)
 		{
 			ereport(ERROR,
 					errmsg("failed to retrieve principal key from keyring provider :\"%s\"", new_keyring->provider_name),
@@ -333,7 +325,7 @@ xl_tde_perform_rotate_key(XLogPrincipalKeyRotate *xlrec)
 	new_keyring = GetKeyProviderByID(xlrec->keyringId, xlrec->databaseId);
 	keyInfo = KeyringGetKey(new_keyring, xlrec->keyName, &kr_ret);
 
-	if (kr_ret != KEYRING_CODE_SUCCESS && kr_ret != KEYRING_CODE_RESOURCE_NOT_AVAILABLE)
+	if (kr_ret != KEYRING_CODE_SUCCESS)
 	{
 		ereport(ERROR,
 				errmsg("failed to retrieve principal key from keyring provider: \"%s\"", new_keyring->provider_name),
@@ -372,9 +364,10 @@ xl_tde_perform_rotate_key(XLogPrincipalKeyRotate *xlrec)
  */
 
 static inline dshash_table *
-get_principal_key_Hash(void)
+get_principal_key_hash(void)
 {
-	principal_key_info_attach_shmem();
+	if (!principalKeyLocalState.sharedHash)
+		principal_key_info_attach_shmem();
 	return principalKeyLocalState.sharedHash;
 }
 
@@ -386,10 +379,10 @@ get_principal_key_from_cache(Oid dbOid)
 {
 	TDEPrincipalKey *cacheEntry = NULL;
 
-	cacheEntry = (TDEPrincipalKey *) dshash_find(get_principal_key_Hash(),
+	cacheEntry = (TDEPrincipalKey *) dshash_find(get_principal_key_hash(),
 												 &dbOid, false);
 	if (cacheEntry)
-		dshash_release_lock(get_principal_key_Hash(), cacheEntry);
+		dshash_release_lock(get_principal_key_hash(), cacheEntry);
 
 	return cacheEntry;
 }
@@ -411,12 +404,12 @@ push_principal_key_to_cache(TDEPrincipalKey *principalKey)
 	Oid			databaseId = principalKey->keyInfo.databaseId;
 	bool		found = false;
 
-	cacheEntry = dshash_find_or_insert(get_principal_key_Hash(),
+	cacheEntry = dshash_find_or_insert(get_principal_key_hash(),
 									   &databaseId, &found);
 
 	if (!found)
 		*cacheEntry = *principalKey;
-	dshash_release_lock(get_principal_key_Hash(), cacheEntry);
+	dshash_release_lock(get_principal_key_hash(), cacheEntry);
 
 	/* we don't want principal keys to end up paged to the swap */
 	if (mlock(cacheEntry, sizeof(TDEPrincipalKey)) == -1)
@@ -447,11 +440,11 @@ clear_principal_key_cache(Oid databaseId)
 	TDEPrincipalKey *cache_entry;
 
 	/* Start with deleting the cache entry for the database */
-	cache_entry = (TDEPrincipalKey *) dshash_find(get_principal_key_Hash(),
+	cache_entry = (TDEPrincipalKey *) dshash_find(get_principal_key_hash(),
 												  &databaseId, true);
 	if (cache_entry)
 	{
-		dshash_delete_entry(get_principal_key_Hash(), cache_entry);
+		dshash_delete_entry(get_principal_key_hash(), cache_entry);
 	}
 }
 
@@ -573,10 +566,157 @@ pg_tde_set_principal_key_internal(Oid providerOid, Oid dbOid, const char *key_na
 		LWLockAcquire(tde_lwlock_enc_keys(), LW_EXCLUSIVE);
 		newDefaultKey = GetPrincipalKeyNoDefault(dbOid, LW_EXCLUSIVE);
 
-		pg_tde_update_global_principal_key_everywhere(&existingKeyCopy, newDefaultKey);
+		pg_tde_update_default_principal_key_everywhere(&existingKeyCopy, newDefaultKey);
 
 		LWLockRelease(tde_lwlock_enc_keys());
 	}
+}
+
+
+/*
+ * SQL interface to delete principal key.
+ *
+ * This operation allowed if there is no any encrypted tables in the database or
+ * if the default principal key is set for the database. In second case,
+ * key for database rotated to the default key.
+ */
+Datum
+pg_tde_delete_key(PG_FUNCTION_ARGS)
+{
+	TDEPrincipalKey *principal_key;
+	TDEPrincipalKey *default_principal_key;
+
+	LWLockAcquire(tde_lwlock_enc_keys(), LW_EXCLUSIVE);
+
+	principal_key = GetPrincipalKeyNoDefault(MyDatabaseId, LW_EXCLUSIVE);
+	if (principal_key == NULL)
+		ereport(ERROR, errmsg("principal key does not exists for the database"));
+
+	ereport(LOG, errmsg("Deleting principal key [%s] for the database", principal_key->keyInfo.name));
+
+	/*
+	 * If database has something encryted, we can try to fallback to the
+	 * default principal key
+	 */
+	if (pg_tde_count_relations(MyDatabaseId) != 0)
+	{
+		default_principal_key = GetPrincipalKeyNoDefault(DEFAULT_DATA_TDE_OID, LW_EXCLUSIVE);
+		if (default_principal_key == NULL)
+		{
+			ereport(ERROR,
+					errmsg("cannot delete principal key"),
+					errdetail("There are encrypted tables in the database."),
+					errhint("Set default principal key as fallback option or decrypt all tables before deleting principal key."));
+		}
+
+		/*
+		 * If database already encrypted with default principal key, there is
+		 * nothing to do
+		 */
+		if (pg_tde_is_same_principal_key(principal_key, default_principal_key))
+		{
+			ereport(ERROR,
+					errmsg("cannot delete principal key"),
+					errdetail("There are encrypted tables in the database."));
+		}
+
+		pg_tde_rotate_default_key_for_database(principal_key, default_principal_key);
+
+		LWLockRelease(tde_lwlock_enc_keys());
+		PG_RETURN_VOID();
+	}
+
+	pg_tde_delete_principal_key(MyDatabaseId);
+	clear_principal_key_cache(MyDatabaseId);
+
+	LWLockRelease(tde_lwlock_enc_keys());
+	PG_RETURN_VOID();
+}
+
+/*
+ * SQL interface to delete default principal key.
+ *
+ * This operation allowed if there is no databases using the default principal key.
+ */
+Datum
+pg_tde_delete_default_key(PG_FUNCTION_ARGS)
+{
+	HeapTuple	tuple;
+	SysScanDesc scan;
+	Relation	rel;
+	TDEPrincipalKey *principal_key;
+	TDEPrincipalKey *default_principal_key;
+	List	   *dbs = NIL;
+
+	if (!superuser())
+		ereport(ERROR,
+				errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
+				errmsg("must be superuser to access global key providers"));
+
+	LWLockAcquire(tde_lwlock_enc_keys(), LW_EXCLUSIVE);
+
+	default_principal_key = GetPrincipalKeyNoDefault(DEFAULT_DATA_TDE_OID, LW_EXCLUSIVE);
+	if (default_principal_key == NULL)
+		ereport(ERROR, errmsg("default principal key is not set"));
+
+	ereport(LOG, errmsg("Deleting default principal key [%s]", default_principal_key->keyInfo.name));
+
+	/*
+	 * Take row exclusive lock, as we do not want anybody to create/drop a
+	 * database in parallel. If it happens, its not the end of the world, but
+	 * not ideal.
+	 */
+	rel = table_open(DatabaseRelationId, RowExclusiveLock);
+	scan = systable_beginscan(rel, 0, false, NULL, 0, NULL);
+
+	while (HeapTupleIsValid(tuple = systable_getnext(scan)))
+	{
+		Oid			dbOid = ((Form_pg_database) GETSTRUCT(tuple))->oid;
+
+		principal_key = GetPrincipalKeyNoDefault(dbOid, LW_EXCLUSIVE);
+
+		/* Check if database uses default principalkey */
+		if (pg_tde_is_same_principal_key(default_principal_key, principal_key))
+		{
+			/*
+			 * If database key map is non-empty raise an error, as we cannot
+			 * delete default principal key if there are encrypted tables in
+			 * the database.
+			 */
+			if (pg_tde_count_relations(dbOid) != 0)
+			{
+				ereport(ERROR,
+						errmsg("cannot delete default principal key"),
+						errhint("There are encrypted tables in the database with id: %u.", dbOid));
+			}
+
+			/* Remember databases that has no encrypted tables */
+			dbs = lappend_oid(dbs, dbOid);
+		}
+	}
+
+	/*
+	 * Remove empty key map files for databases that has no encrypted tables
+	 * as we cannot leave reference to the default principal key.
+	 */
+	foreach_oid(dbOid, dbs)
+	{
+		pg_tde_delete_principal_key(dbOid);
+		clear_principal_key_cache(dbOid);
+	}
+
+	systable_endscan(scan);
+	table_close(rel, RowExclusiveLock);
+
+	/* No databases use default principal key, so we can delete it */
+	pg_tde_delete_principal_key(DEFAULT_DATA_TDE_OID);
+	clear_principal_key_cache(DEFAULT_DATA_TDE_OID);
+
+	LWLockRelease(tde_lwlock_enc_keys());
+
+	list_free(dbs);
+
+	PG_RETURN_VOID();
 }
 
 PG_FUNCTION_INFO_V1(pg_tde_key_info);
@@ -1009,7 +1149,7 @@ pg_tde_verify_provider_keys_in_use(GenericKeyring *modified_provider)
 static bool
 pg_tde_is_same_principal_key(TDEPrincipalKey *a, TDEPrincipalKey *b)
 {
-	return a != NULL && b != NULL && strncmp(a->keyInfo.name, b->keyInfo.name, PRINCIPAL_KEY_NAME_LEN) == 0 && a->keyInfo.keyringId == b->keyInfo.keyringId;
+	return a != NULL && b != NULL && strcmp(a->keyInfo.name, b->keyInfo.name) == 0 && a->keyInfo.keyringId == b->keyInfo.keyringId;
 }
 
 static void
@@ -1020,7 +1160,6 @@ pg_tde_rotate_default_key_for_database(TDEPrincipalKey *oldKey, TDEPrincipalKey 
 	*newKey = *newKeyTemplate;
 	newKey->keyInfo.databaseId = oldKey->keyInfo.databaseId;
 
-	/* key rotation */
 	pg_tde_perform_rotate_key(oldKey, newKey, true);
 
 	clear_principal_key_cache(oldKey->keyInfo.databaseId);
@@ -1029,8 +1168,17 @@ pg_tde_rotate_default_key_for_database(TDEPrincipalKey *oldKey, TDEPrincipalKey 
 	pfree(newKey);
 }
 
+/*
+ * Update the default principal key for all databases that use it.
+ *
+ * This function is called when the default principal key is rotated. It
+ * updates all databases that use the old default principal key to use the new
+ * one.
+ *
+ * Caller should hold an exclusive tde_lwlock_enc_keys lock.
+ */
 static void
-pg_tde_update_global_principal_key_everywhere(TDEPrincipalKey *oldKey, TDEPrincipalKey *newKey)
+pg_tde_update_default_principal_key_everywhere(TDEPrincipalKey *oldKey, TDEPrincipalKey *newKey)
 {
 	HeapTuple	tuple;
 	SysScanDesc scan;

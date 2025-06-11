@@ -1,29 +1,20 @@
-/*-------------------------------------------------------------------------
- *
- * keyring_vault.c
- *      HashiCorp Vault 2 based keyring provider
- *
- * IDENTIFICATION
- *    contrib/pg_tde/src/keyring/keyring_vault.c
- *
- *-------------------------------------------------------------------------
+/*
+ * HashiCorp Vault 2 based keyring provider
  */
 
 #include "postgres.h"
 
-#include "keyring/keyring_vault.h"
-#include "keyring/keyring_curl.h"
-#include "keyring/keyring_api.h"
-#include "pg_tde_defines.h"
+#include <curl/curl.h>
+
+#include "common/base64.h"
 #include "common/jsonapi.h"
 #include "mb/pg_wchar.h"
 #include "utils/builtins.h"
 
-#include <stdio.h>
-
-#include <curl/curl.h>
-
-#include "common/base64.h"
+#include "keyring/keyring_api.h"
+#include "keyring/keyring_curl.h"
+#include "keyring/keyring_vault.h"
+#include "pg_tde_defines.h"
 
 #ifdef FRONTEND
 #include "pg_tde_fe.h"
@@ -238,7 +229,6 @@ get_key_by_name(GenericKeyring *keyring, const char *key_name, KeyringReturnCode
 
 	if (httpCode == 404)
 	{
-		*return_code = KEYRING_CODE_RESOURCE_NOT_AVAILABLE;
 		goto cleanup;
 	}
 

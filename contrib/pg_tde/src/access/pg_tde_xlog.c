@@ -1,30 +1,22 @@
-/*-------------------------------------------------------------------------
- *
- * tdeheap_xlog.c
- *	  TDE XLog resource manager
- *
- *
- * IDENTIFICATION
- *	  src/access/pg_tde_xlog.c
- *
- *-------------------------------------------------------------------------
+/*
+ * TDE XLog resource manager
  */
 
 #include "postgres.h"
 
-#include "pg_tde.h"
-#include "pg_tde_defines.h"
 #include "access/xlog.h"
 #include "access/xlog_internal.h"
 #include "access/xloginsert.h"
-#include "catalog/tde_keyring.h"
 #include "storage/bufmgr.h"
 #include "storage/shmem.h"
 #include "utils/guc.h"
 #include "utils/memutils.h"
 
 #include "access/pg_tde_xlog.h"
+#include "catalog/tde_keyring.h"
 #include "encryption/enc_tde.h"
+#include "pg_tde.h"
+#include "pg_tde_defines.h"
 #include "smgr/pg_tde_smgr.h"
 
 static void tdeheap_rmgr_redo(XLogReaderState *record);
@@ -73,6 +65,12 @@ tdeheap_rmgr_redo(XLogReaderState *record)
 
 		xl_tde_perform_rotate_key(xlrec);
 	}
+	else if (info == XLOG_TDE_DELETE_PRINCIPAL_KEY)
+	{
+		Oid			dbOid = *((Oid *) XLogRecGetData(record));
+
+		pg_tde_delete_principal_key_redo(dbOid);
+	}
 	else if (info == XLOG_TDE_WRITE_KEY_PROVIDER)
 	{
 		KeyringProviderRecordInFile *xlrec = (KeyringProviderRecordInFile *) XLogRecGetData(record);
@@ -114,6 +112,12 @@ tdeheap_rmgr_desc(StringInfo buf, XLogReaderState *record)
 
 		appendStringInfo(buf, "db: %u", xlrec->databaseId);
 	}
+	else if (info == XLOG_TDE_DELETE_PRINCIPAL_KEY)
+	{
+		Oid			dbOid = *((Oid *) XLogRecGetData(record));
+
+		appendStringInfo(buf, "db: %u", dbOid);
+	}
 	else if (info == XLOG_TDE_WRITE_KEY_PROVIDER)
 	{
 		KeyringProviderRecordInFile *xlrec = (KeyringProviderRecordInFile *) XLogRecGetData(record);
@@ -139,6 +143,8 @@ tdeheap_rmgr_identify(uint8 info)
 			return "ADD_PRINCIPAL_KEY";
 		case XLOG_TDE_ROTATE_PRINCIPAL_KEY:
 			return "ROTATE_PRINCIPAL_KEY";
+		case XLOG_TDE_DELETE_PRINCIPAL_KEY:
+			return "DELETE_PRINCIPAL_KEY";
 		case XLOG_TDE_WRITE_KEY_PROVIDER:
 			return "WRITE_KEY_PROVIDER";
 		case XLOG_TDE_INSTALL_EXTENSION:

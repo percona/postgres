@@ -1,20 +1,9 @@
-/*-------------------------------------------------------------------------
- *
- * pg_tde_xlog_smgr.c
- *	  Encrypted XLog storage manager
- *
- *
- * IDENTIFICATION
- *	  src/access/pg_tde_xlog_smgr.c
- *
- *-------------------------------------------------------------------------
+/*
+ * Encrypted XLog storage manager
  */
 
 #include "postgres.h"
 
-#include "pg_tde.h"
-#include "pg_tde_defines.h"
-#include "pg_tde_guc.h"
 #include "access/xlog.h"
 #include "access/xlog_internal.h"
 #include "access/xlog_smgr.h"
@@ -28,6 +17,9 @@
 #include "access/pg_tde_xlog_smgr.h"
 #include "catalog/tde_global_space.h"
 #include "encryption/enc_tde.h"
+#include "pg_tde.h"
+#include "pg_tde_defines.h"
+#include "pg_tde_guc.h"
 
 #ifdef FRONTEND
 #include "pg_tde_fe.h"

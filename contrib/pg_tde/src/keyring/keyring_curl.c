@@ -1,12 +1,5 @@
-/*-------------------------------------------------------------------------
- *
- * keyring_curl.c
- *      Contains common curl related methods.
- *
- * IDENTIFICATION
- *    contrib/pg_tde/src/keyring/keyring_curl.c
- *
- *-------------------------------------------------------------------------
+/*
+ * Contains common curl related methods.
  */
 
 #include "postgres.h"
@@ -16,8 +9,7 @@
 
 CURL	   *keyringCurl = NULL;
 
-static
-size_t
+static size_t
 write_func(void *ptr, size_t size, size_t nmemb, struct CurlString *s)
 {
 	size_t		new_len = s->len + size * nmemb;
