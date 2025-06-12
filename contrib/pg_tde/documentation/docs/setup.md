@@ -53,16 +53,31 @@ See [CREATE EXTENSION :octicons-link-external-16:](https://www.postgresql.org/do
 
     The `pg_tde` extension is created only for the current database. To enable it for other databases, you must run the command in each individual database.
 
-## 4. (Optional) Enable pg_tde by default
+## 4. (Optional) Automatically enable pg_tde by default
 
-To automatically have `pg_tde` enabled for all new databases, modify the `template1` database:
+To automatically have `pg_tde` enabled for all new databases follow these steps:
 
+* [Install and enable the extension](install.md)
+* Create a template database, where you create the extension in this database
+
+```ini
+# postgresql.conf, server restart required
+shared_preload_libraries = pg_tde
+````
+
+```sql
+create database my_template
+\c my_template
+create extension pg_tde
 ```
+
+Modify the `template1` database:
+
+```sql
 psql -d template1 -c 'CREATE EXTENSION pg_tde;'
 ```
 
 !!! note
-
     You can use external key providers to manage encryption keys. The recommended approach is to use the Key Management Store (KMS). See the next step on how to configure the KMS.
 
 ## Next steps
