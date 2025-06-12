@@ -13,3 +13,146 @@ extra_css:
 markdown_extensions:
   pymdownx.tabbed: {}
   admonition: {}
+
+# Theme settings
+theme:
+  name: material
+  logo: _images/postgresql-mark.svg
+  favicon: _images/postgresql-fav.svg
+  custom_dir: _resourcepdf/overrides/
+  font:
+    text: Roboto
+  palette:
+    - media: "(prefers-color-scheme)"
+      toggle:
+        icon: material/brightness-auto
+        name: Color theme set to Automatic. Click to change
+    - media: "(prefers-color-scheme: light)"
+      scheme: percona-light
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/brightness-7
+        name: Color theme set to Light Mode. Click to change
+    - media: "(prefers-color-scheme: dark)"
+      scheme: percona-dark
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/brightness-4
+        name: Color theme set to Dark Mode. Click to change
+
+extra_css:
+  - https://unicons.iconscout.com/release/v3.0.3/css/line.css
+  - https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.4.0/css/font-awesome.min.css
+  - css/percona.css
+  - css/design.css
+  - css/osano.css
+  - css/postgresql.css
+  - css/landing.css
+
+extra_javascript:
+  - js/version-select.js
+  - js/promptremover.js
+  - js/consent.js
+
+plugins:
+  - search:
+      separator: '[\s\-,:!=\[\]()"/]+|(?!\b)(?=[A-Z][a-z])|\.(?!\d)|&[lg]t;'
+  - open-in-new-tab:
+  - git-revision-date-localized:
+      enable_creation_date: true
+      enabled: !ENV [ENABLED_GIT_REVISION_DATE, True]
+  - meta-descriptions:
+      export_csv: false
+      quiet: false
+      enable_checks: false
+      min_length: 50
+      max_length: 160
+  - section-index # Adds links to nodes - comment out when creating PDF
+#  - htmlproofer # Uncomment to check links - but extends build time significantly
+  - glightbox
+  - macros:
+      include_yaml:
+        - 'variables.yml' # Use in markdown as '{{ VAR }}'
+  - with-pdf: # https://github.com/orzih/mkdocs-with-pdf
+      output_path: '_pdf/PerconaTDE.pdf'
+      cover_title: 'Percona Transparent Data Encryption'
+      cover_subtitle: Release Candidate (2025-03-27)
+      author: 'Percona Technical Documentation Team'
+      cover_logo: docs/_images/Percona_Logo_Color.png
+      debug_html: false
+      two_columns_level: 3
+      custom_template_path: _resource/templates
+      enabled_if_env: ENABLE_PDF_EXPORT
+  - print-site:
+      add_to_navigation: false
+      print_page_title: 'Percona Transparent Data Encryption 1.0 documentation'
+      add_print_site_banner: false
+      # Table of contents
+      add_table_of_contents: true
+      toc_title: 'Table of Contents'
+      toc_depth: 2
+      # Content-related
+      add_full_urls: false
+      enumerate_headings: false
+      enumerate_headings_depth: 1
+      enumerate_figures: true
+      add_cover_page: true
+      cover_page_template: "docs/assets/templates/pdf_cover_page.tpl"
+      path_to_pdf: ""
+      include_css: true
+      enabled: true
+
+nav:
+  - index.md
+  - get-help.md
+  - features.md 
+  - Overview:
+    - What is Transparent Data Encryption (TDE)?:
+      - index/index.md
+      - index/how-tde-helps.md
+      - index/how-does-tde-work.md
+      - index/tde-encrypts.md
+      - index/table-access-method.md
+    - index/tde-limitations.md
+    - index/supported-versions.md
+  - Get Started:
+    - install.md
+    - apt.md
+    - yum.md   
+    - setup.md
+    - Configure Key Management (KMS): 
+      - global-key-provider-configuration/index.md
+      - global-key-provider-configuration/kmip-server.md
+      - global-key-provider-configuration/kmip-fortanix.md  
+      - global-key-provider-configuration/vault.md
+      - global-key-provider-configuration/kmip-thales.md
+      - global-key-provider-configuration/keyring.md
+    - global-key-provider-configuration/set-principal-key.md
+    - test.md
+    - wal-encryption.md
+  - Technical Reference:
+    - advanced-topics/index.md
+    - architecture/index.md
+    - variables.md
+    - functions.md
+  - TDE Operations:
+    - pg_tde CLI Tools:
+      - command-line-tools/index.md
+      - command-line-tools/pg-tde-change-key-provider.md
+      - command-line-tools/pg-waldump.md
+      - command-line-tools/pg-tde-checksums.md 
+    - how-to/uninstall.md
+    - how-to/multi-tenant-setup.md
+    - how-to/decrypt.md
+  - faq.md
+  - Release Notes:
+    - release-notes/release-notes.md
+    - release-notes/rc2.md
+    - release-notes/rc.md
+    - release-notes/beta2.md
+    - release-notes/beta.md
+    - release-notes/alpha1.md
+    - release-notes/mvp.md
+  - contribute.md
