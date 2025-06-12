@@ -979,7 +979,7 @@ drop type cube;  -- fail, extension cube requires it
 ERROR:  cannot drop type cube because extension cube requires it
 HINT:  You can drop extension cube instead.
 -- list what's installed
-\dT
+\dT public.*
                                              List of data types
  Schema | Name |                                         Description                                         
 --------+------+---------------------------------------------------------------------------------------------

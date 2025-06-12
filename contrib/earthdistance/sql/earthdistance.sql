@@ -313,7 +313,7 @@ drop extension earthdistance;
 drop type cube;  -- fail, extension cube requires it
 
 -- list what's installed
-\dT
+\dT public.*
 
 create table foo (f1 cube, f2 int);
 
