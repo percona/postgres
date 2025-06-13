@@ -1,5 +1,5 @@
 CREATE EXTENSION IF NOT EXISTS pg_tde;
-SELECT pg_tde_add_global_key_provider_file('file-keyring-010', '/tmp/pg_tde_test_keyring010.per');
+SELECT pg_tde_add_global_key_provider_file('file-keyring-010', '/tmp/wal_encrypt.per');
  pg_tde_add_global_key_provider_file 
 -------------------------------------
  
@@ -19,6 +19,7 @@ SELECT pg_tde_set_server_key_using_global_key_provider('server-key', 'file-keyri
  
 (1 row)
 
+psql:<stdin>:1: WARNING:  The WAL encryption feature is currently in beta and may be unstable. Do not use it in production environments!
 SELECT pg_tde_verify_server_key();
  pg_tde_verify_server_key 
 --------------------------

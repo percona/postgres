@@ -27,7 +27,6 @@
 #include "catalog/tde_principal_key.h"
 #include "keyring/keyring_api.h"
 #include "pg_tde.h"
-#include "pg_tde_guc.h"
 
 #ifndef FRONTEND
 #include "access/genam.h"
@@ -38,6 +37,7 @@
 #include "lib/dshash.h"
 #include "storage/lwlock.h"
 #include "storage/shmem.h"
+#include "pg_tde_guc.h"
 #else
 #include "pg_tde_fe.h"
 #endif
@@ -497,6 +497,9 @@ pg_tde_set_server_key_using_global_key_provider(PG_FUNCTION_ARGS)
 	char	   *principal_key_name = PG_ARGISNULL(0) ? NULL : text_to_cstring(PG_GETARG_TEXT_PP(0));
 	char	   *provider_name = PG_ARGISNULL(1) ? NULL : text_to_cstring(PG_GETARG_TEXT_PP(1));
 	bool		ensure_new_key = PG_GETARG_BOOL(2);
+
+	ereport(WARNING,
+			errmsg("The WAL encryption feature is currently in beta and may be unstable. Do not use it in production environments!"));
 
 	/* Using a global provider for the global (wal) database */
 	pg_tde_set_principal_key_internal(GLOBAL_DATA_TDE_OID, GLOBAL_DATA_TDE_OID, principal_key_name, provider_name, ensure_new_key);
