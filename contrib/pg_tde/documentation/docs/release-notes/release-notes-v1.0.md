@@ -1,4 +1,4 @@
-# pg_tde 1.0 ({{date.1.0}})
+# pg_tde 1.0 ({{date.GA10}})
 
 `pg_tde` extension brings in [Transparent Data Encryption (TDE)](../index/index.md) to PostgreSQL and enables you to keep sensitive data safe and secure.
 
