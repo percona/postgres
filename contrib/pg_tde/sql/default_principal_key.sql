@@ -1,5 +1,7 @@
-CREATE EXTENSION IF NOT EXISTS pg_tde;
-CREATE EXTENSION IF NOT EXISTS pg_buffercache;
+\! rm -f '/tmp/pg_tde_regression_default_key.per'
+
+CREATE EXTENSION pg_tde;
+CREATE EXTENSION pg_buffercache;
 
 SELECT pg_tde_add_global_key_provider_file('file-provider','/tmp/pg_tde_regression_default_key.per');
 
@@ -10,7 +12,8 @@ SELECT pg_tde_verify_default_key();
 SELECT provider_id, provider_name, key_name
 		FROM pg_tde_default_key_info();
 
-SELECT pg_tde_set_default_key_using_global_key_provider('default-key', 'file-provider', false);
+SELECT pg_tde_create_key_using_global_key_provider('default-key', 'file-provider');
+SELECT pg_tde_set_default_key_using_global_key_provider('default-key', 'file-provider');
 SELECT pg_tde_verify_default_key();
 
 SELECT provider_id, provider_name, key_name
@@ -68,7 +71,8 @@ SELECT  provider_id, provider_name, key_name
 
 CHECKPOINT;
 
-SELECT pg_tde_set_default_key_using_global_key_provider('new-default-key', 'file-provider', false);
+SELECT pg_tde_create_key_using_global_key_provider('new-default-key', 'file-provider');
+SELECT pg_tde_set_default_key_using_global_key_provider('new-default-key', 'file-provider');
 
 SELECT  provider_id, provider_name, key_name
 		FROM pg_tde_key_info();

@@ -1,6 +1,10 @@
-CREATE EXTENSION IF NOT EXISTS pg_tde;
+\! rm -f '/tmp/pg_tde_test_keyring.per'
+
+CREATE EXTENSION pg_tde;
 
 SELECT pg_tde_add_global_key_provider_file('file-provider','/tmp/pg_tde_test_keyring.per');
+SELECT pg_tde_create_key_using_global_key_provider('defalut-key','file-provider');
+SELECT pg_tde_create_key_using_global_key_provider('test-db-key','file-provider');
 
 -- Set the local key and delete it without any encrypted tables
 -- Should succeed: nothing used the key

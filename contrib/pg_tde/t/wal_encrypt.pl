@@ -19,7 +19,7 @@ $node->append_conf('postgresql.conf', "wal_level = 'logical'");
 #$node->append_conf('postgresql.conf', "pg_tde.wal_encrypt = 1"});
 $node->start;
 
-PGTDE::psql($node, 'postgres', "CREATE EXTENSION IF NOT EXISTS pg_tde;");
+PGTDE::psql($node, 'postgres', "CREATE EXTENSION pg_tde;");
 
 PGTDE::psql($node, 'postgres',
 	"SELECT pg_tde_add_global_key_provider_file('file-keyring-010', '/tmp/wal_encrypt.per');"
@@ -31,6 +31,9 @@ PGTDE::psql($node, 'postgres',
 	'SELECT key_name, provider_name, provider_id FROM pg_tde_server_key_info();'
 );
 
+PGTDE::psql($node, 'postgres',
+	"SELECT pg_tde_create_key_using_global_key_provider('server-key', 'file-keyring-010');"
+);
 PGTDE::psql($node, 'postgres',
 	"SELECT pg_tde_set_server_key_using_global_key_provider('server-key', 'file-keyring-010');"
 );
