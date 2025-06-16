@@ -16,7 +16,7 @@ $node->init;
 $node->append_conf('postgresql.conf', "shared_preload_libraries = 'pg_tde'");
 $node->start;
 
-PGTDE::psql($node, 'postgres', 'CREATE EXTENSION IF NOT EXISTS pg_tde;');
+PGTDE::psql($node, 'postgres', 'CREATE EXTENSION pg_tde;');
 
 # Only whitelisted C or security definer functions are granted to public by default
 PGTDE::psql(
@@ -44,6 +44,10 @@ PGTDE::psql($node, 'postgres',
 
 PGTDE::psql($node, 'postgres',
 	"SELECT pg_tde_add_database_key_provider_file('file-vault', '/tmp/pg_tde_test_001_basic.per');"
+);
+
+PGTDE::psql($node, 'postgres',
+	"SELECT pg_tde_create_key_using_database_key_provider('test-db-key', 'file-vault');"
 );
 
 PGTDE::psql($node, 'postgres',

@@ -20,15 +20,21 @@ shared_preload_libraries = 'pg_tde'
 });
 $node->start;
 
-PGTDE::psql($node, 'postgres', 'CREATE EXTENSION IF NOT EXISTS pg_tde;');
+PGTDE::psql($node, 'postgres', 'CREATE EXTENSION pg_tde;');
 PGTDE::psql($node, 'postgres',
 	"SELECT pg_tde_add_global_key_provider_file('global_keyring', '/tmp/crash_recovery.per');"
+);
+PGTDE::psql($node, 'postgres',
+	"SELECT pg_tde_create_key_using_global_key_provider('wal_encryption_key', 'global_keyring');"
 );
 PGTDE::psql($node, 'postgres',
 	"SELECT pg_tde_set_server_key_using_global_key_provider('wal_encryption_key', 'global_keyring');"
 );
 PGTDE::psql($node, 'postgres',
 	"SELECT pg_tde_add_database_key_provider_file('db_keyring', '/tmp/crash_recovery.per');"
+);
+PGTDE::psql($node, 'postgres',
+	"SELECT pg_tde_create_key_using_database_key_provider('db_key', 'db_keyring');"
 );
 PGTDE::psql($node, 'postgres',
 	"SELECT pg_tde_set_key_using_database_key_provider('db_key', 'db_keyring');"
@@ -52,7 +58,13 @@ $node->start;
 
 PGTDE::append_to_result_file("-- rotate wal key");
 PGTDE::psql($node, 'postgres',
+	"SELECT pg_tde_create_key_using_global_key_provider('wal_encryption_key_1', 'global_keyring');"
+);
+PGTDE::psql($node, 'postgres',
 	"SELECT pg_tde_set_server_key_using_global_key_provider('wal_encryption_key_1', 'global_keyring');"
+);
+PGTDE::psql($node, 'postgres',
+	"SELECT pg_tde_create_key_using_database_key_provider('db_key_1', 'db_keyring');"
 );
 PGTDE::psql($node, 'postgres',
 	"SELECT pg_tde_set_key_using_database_key_provider('db_key_1', 'db_keyring');"
@@ -68,7 +80,13 @@ $node->start;
 
 PGTDE::append_to_result_file("-- rotate wal key");
 PGTDE::psql($node, 'postgres',
+	"SELECT pg_tde_create_key_using_global_key_provider('wal_encryption_key_2', 'global_keyring');"
+);
+PGTDE::psql($node, 'postgres',
 	"SELECT pg_tde_set_server_key_using_global_key_provider('wal_encryption_key_2', 'global_keyring');"
+);
+PGTDE::psql($node, 'postgres',
+	"SELECT pg_tde_create_key_using_database_key_provider('db_key_2', 'db_keyring');"
 );
 PGTDE::psql($node, 'postgres',
 	"SELECT pg_tde_set_key_using_database_key_provider('db_key_2', 'db_keyring');"
