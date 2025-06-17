@@ -12,6 +12,7 @@ The `pg_tde` extension requires additional shared memory. You need to configure 
 You can configure the `shared_preload_libraries` parameter in two ways:
 
 * Add the following line to the `shared_preload_libraries` file:
+AÅ: Which file?
 
     ```bash
     shared_preload_libraries = 'pg_tde'

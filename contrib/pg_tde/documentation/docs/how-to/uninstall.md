@@ -4,6 +4,8 @@ If you no longer wish to use TDE in your deployment, you can remove the `pg_tde`
 
 Here's how to do it:
 
+AÅ: We don't think that anyone would like to drop the extension, but keep their data? Ie. should this document mention decryption of tables before dropping rather than only how to drop the tables?
+
 1. Drop the extension using the `DROP EXTENSION` command:
 
     ```sql

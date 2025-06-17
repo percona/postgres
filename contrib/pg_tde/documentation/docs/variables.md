@@ -3,6 +3,7 @@
 The `pg_tde` extension provides GUC variables to configure the behaviour of the extension:
 
 ## pg_tde.wal_encrypt
+AÅ: Note that this shouldn't be enabled for production systems
 
 **Type** - boolean <br>
 **Default** - off

@@ -53,6 +53,7 @@ Here is how you can set the new default table access method:
 1. Add the access method to the `default_table_access_method` parameter:
 
     === "via the SQL statement"
+AÅ: I think "the" shouldn't be here, should it? It's also weird that it's called a "statement" here but "command" below. Maybe "via ALTER SYSTEM" is a better heading?
 
         Use the `ALTER SYSTEM` command. This requires superuser or ALTER SYSTEM privileges.
         

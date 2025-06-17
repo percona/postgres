@@ -1,5 +1,7 @@
 # pg_waldump
 
+AÅ: We should probably include a notice about WAL encrypting being BETA and this information is subject to change
+
 [`pg_waldump` :octicons-link-external-16:](https://www.postgresql.org/docs/current/pgwaldump.html) is a tool to display a human-readable rendering of the Write-Ahead Log (WAL) of a PostgreSQL database cluster.
 
 To read encrypted WAL records, `pg_waldump` supports the following additional arguments:

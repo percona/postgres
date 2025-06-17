@@ -9,6 +9,7 @@ The extension is tightly integrated with Percona Server for PostgreSQL to delive
 By using our PostgreSQL distribution, you get:
 
 - **Full encryption support** through the `tde_heap` access method, including tables, indexes, WAL data, and logical replication.
+AÅ: Logical replication?
 - **Enhanced performance and enterprise-ready features** not available in community builds.
 - **Regular updates and security patches** backed by Percona’s expert support team.
 - **Professional support** and guidance for secure PostgreSQL deployments.

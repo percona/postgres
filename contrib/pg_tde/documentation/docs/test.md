@@ -30,6 +30,7 @@ After enabling the `pg_tde` extension for a database, you can begin encrypting d
     ```
 
     The function returns `t` if the table is encrypted and `f` - if not.
+AÅ: The function returns `true` or `false`. the psql client specifically renders them as `t` or `f` however.
 
 3. (Optional) Rotate the principal key.
 

@@ -10,6 +10,7 @@ However, database owners can run the “view keys” and “set principal key”
 
 * `GRANT EXECUTE`
 * `REVOKE EXECUTE`
+AÅ: This should probably say `GRANT EXECUTE ON FUNCTION` and similar for revoke
 
 ## Key provider management
 
@@ -51,6 +52,8 @@ When you change a provider, the referred name must exist in the database local o
 The `change` functions require the same parameters as the `add` functions. They overwrite the setting for every parameter except for the name, which can't be changed.
 
 Provider specific parameters differ for each implementation. Refer to the  respective subsection for details.
+
+AÅ: We should probably have a notice here about the modified provider settings will need to be able to provide the exact same principal keys as the original settings.
 
 **Some provider specific parameters contain sensitive information, such as passwords. Never specify these directly, use the remote configuration option instead.**
 
@@ -231,6 +234,7 @@ These functions list the details of all key providers for the current database o
 ## Principal key management
 
 Use these functions to create a new principal key at a given keyprover, and to use those keys for a specific scope such as a current database, a global or default scope. You can also use them to start using a different existing key for a specific scope.
+AÅ: "keyprover"?
 
 Princial keys are stored on key providers by the name specified in this function - for example, when using the Vault provider, after creating a key named "foo", a key named "foo" will be visible on the Vault server at the specified mount point.
 
@@ -281,6 +285,7 @@ SELECT pg_tde_set_key_using_global_key_provider(
 ### pg_tde_set_server_key_using_global_key_provider
 
 Sets or rotates the server principal key using the specified global key provider. Use this function to set a principal key for WAL encryption.
+AÅ: Note that WAL encryption is not yet production ready
 
 ```sql
 SELECT pg_tde_set_server_key_using_global_key_provider(

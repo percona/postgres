@@ -4,6 +4,8 @@
 
 Let's break down what it means.
 
+AÅ: We need to make it clear that this file are the ambitions for pg_tde, because a lot of this is not yet in there.
+
 **Customizable** means that `pg_tde` aims to support many different use cases:
 
 * Encrypting either every table in every database or only some tables in some databases
@@ -349,8 +351,10 @@ In this case existing references to global providers, or the global default prin
 ## Typical setup scenarios
 
 ### Simple "one principal key" encryption
+AÅ: I'm no linguist, but since these are instructions for someone to follow the progressive tense doesn't seem right to me. Even weirder that step 5 and 6 does not use the progressive tense but the rest does.
 
 1. Passing the option from the postgres config file the extension: `shared_preload_libraries=‘pg_tde’`
+AÅ: The above sentence makes no sense to me
 2. `CREATE EXTENSION pg_tde;` in `template1`
 3. Adding a global key provider
 4. Adding a default principal key using the same global provider
@@ -371,6 +375,7 @@ encryption is managed by the admins, normal users only have to create tables wit
    specific databases HAVE to use the global key provider
 
 Note: setting the `default_table_access_method` to `tde_heap` is possible, but instead of `ALTER SYSTEM` only per database using `ALTER DATABASE`, after a principal key is configured for that specific database.
+AÅ: Above language seems a bit awkward here to me
 
 Alternatively `ALTER SYSTEM` is possible, but table creation in the database will fail if there's no principal key for the database, that has to be created first.
 
@@ -382,5 +387,6 @@ Alternatively `ALTER SYSTEM` is possible, but table creation in the database wil
 4. Changing the WAL encryption to use the proper global key provider
 
 No default configuration: key providers / principal keys are configured as a per database level, permissions are managed per database
+AÅ: what does "configured as a per database level" mean?
 
 Same note about `default_table_access_method` as above - but in a multi tenant setup, `ALTER SYSTEM` doesn't make much sense.

@@ -82,6 +82,7 @@ You must do these steps for every database where you have created the extension.
     === "With HashiCorp Vault"
 
         The Vault server setup is out of scope of this document.
+        AÅ: Why doesn't KMIP have a similar comment? Is KMIP more in scope than vault? Why isn't OpenBao mentioned here?
 
         ```sql
         SELECT pg_tde_add_database_key_provider_vault_v2('provider-name', 'url', 'mount', 'secret_token_path', 'ca_path');
@@ -144,6 +145,7 @@ You must do these steps for every database where you have created the extension.
 
     * `name-of-the-key` is the name of the principal key. You will use this name to identify the key.
     * `provider-name` is the name of the key provider you added before. The principal key will be associated with this provider.
+    AÅ: It will not only be "associated" with it, it is where the key will be stored and fetched from.
 
     <i warning>:material-information: Warning:</i> This example is for testing purposes only:
 

@@ -87,6 +87,7 @@ The initial decision on what file to encrypt is based on the table access method
 The principal key is used to encrypt the internal keys. The principal key is stored in the key management store. When you query the table, the principal key is retrieved from the key store to decrypt the table. Then the internal key for that table is used to decrypt the data.
 
 ### WAL encryption
+AÅ: We should mention this is a BETA feature and subject to change.
 
 WAL encryption is done globally for the entire database cluster. All modifications to any database within a PostgreSQL cluster are written to the same WAL to maintain data consistency and integrity and ensure that PostgreSQL cluster can be restored to a consistent state. Therefore, WAL is encrypted globally.
 
@@ -117,6 +118,7 @@ The support of other encryption mechanisms such as AES256 is planned for future 
 ## Is post-quantum encryption supported?
 
 No, it's not yet supported. In our implementation we reply on OpenSSL libraries that don't yet support post-quantum encryption.
+AÅ: Afaik newer versions of openssl support post-quantum algorithms. Maybe we should use some better excuse or mention what version we use?
 
 ## Can I encrypt an existing table?
 
@@ -134,6 +136,7 @@ You must restart the database in the following cases to apply the changes:
 
 * after you enabled the `pg_tde` extension
 * to turn on / off the WAL encryption
+AÅ: WAL encrytion is not yet production ready and should probably not be casually mentioned as something you can "turn on".
 
 After that, no database restart is required. When you create or alter the table using the `tde_heap` access method, the files are marked as those that require encryption. The encryption happens at the storage manager level, before a transaction is written to disk. Read more about [how tde_heap works](index/table-access-method.md#how-tde_heap-works).
 
@@ -150,6 +153,7 @@ In `pg_tde`, multi-tenancy is supported via a separate principal key per databas
 To control user access to the databases, you can use role-based access control (RBAC).
 
 WAL files are encrypted globally across the entire PostgreSQL cluster using the same encryption keys. Users don't interact with WAL files as these are used by the database management system to ensure data integrity and durability.
+AÅ: Again, WAL encryption hould probably not be mentioned as if it was a feature already.
 
 ## Are my backups safe? Can I restore from them?
 
