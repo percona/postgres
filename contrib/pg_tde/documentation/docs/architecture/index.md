@@ -2,12 +2,14 @@
 
 `pg_tde` is a **customizable, complete, data at rest encryption extension** for PostgreSQL.
 
-Let's break down what it means.
+This topic outlines the long-term architectural goals and intended design for `pg_tde`. While many of the described components are implemented, however some features are still under active development and may not yet be available in the current release.
+
+Let's break down the key building blocks of this design.
 
 **Customizable** means that `pg_tde` aims to support many different use cases:
 
 * Encrypting either every table in every database or only some tables in some databases
-* Encryption keys can be stored on various external key storage servers including Hashicorp Vault, KMIP servers.
+* Encryption keys can be stored on various external key storage servers including HashiCorp Vault, KMIP servers.
 * Using one key for everything or different keys for different databases
 * Storing every key on the same key storage, or using different storages for different databases
 * Handling permissions: who can manage database specific or global permissions, who can create encrypted or not encrypted tables
@@ -20,7 +22,7 @@ Let's break down what it means.
 * Indexes
 * Sequences
 * Temporary tables
-* Write Ahead Log (WAL)
+* Write Ahead Log (WAL), still in beta. **Do not enable this feature in production environments**.
 
 **Extension** means that `pg_tde` should be implemented only as an extension, possibly compatible with any PostgreSQL distribution, including the open source community version. This requires changes in the PostgreSQL core to make it more extensible. Therefore, `pg_tde` currently works only with the [Percona Server for PostgreSQL](https://docs.percona.com/postgresql/17/index.html) - a binary replacement of community PostgreSQL and included in Percona Distribution for PostgreSQL.
 
@@ -82,11 +84,14 @@ Later decisions are made using a slightly modified Storage Manager (SMGR) API: w
 
 ### WAL encryption
 
+!!! note
+    The WAL encryption feature is currently in beta and is not effective unless explicitly enabled. It is not yet production ready. **Do not enable this feature in production environments**.
+
 WAL encryption is controlled globally via a global GUC variable, `pg_tde.wal_encrypt`, that requires a server restart.
 
 WAL keys also contain the [LSN](https://www.postgresql.org/docs/17/wal-internals.html) of the first WAL write after key creation. This allows `pg_tde` to know which WAL ranges are encrypted or not and with which key.
 
-The setting only controls writes so that only WAL writes are encrypted when WAL encryption is enabled. This means that WAL files can contain both encrypted and unencrpyted data, depending on what the status of this variable was when writing the data.
+The setting only controls writes so that only WAL writes are encrypted when WAL encryption is enabled. This means that WAL files can contain both encrypted and unencrypted data, depending on what the status of this variable was when writing the data.
 
 `pg_tde` keeps track of the encryption status of WAL records using internal keys. When the server is restarted it writes a new internal key if WAL encryption is enabled, or if it is disabled and was previously enabled it writes a dummy key signalling that WAL encryption ended.
 
@@ -156,7 +161,7 @@ With these details `pg_tde` does the following based on user operations:
 * Uploads a new principal key to it after this key is created
 * Retrieves the principal key from the service when it is required for decryption
 
-Retreival of the principal key is cached so it only happens when necessary.
+Retrieval of the principal key is cached so it only happens when necessary.
 
 ### Key provider management
 
@@ -340,47 +345,51 @@ CREATE TABLE t1(a INT) USING tde_heap;
 ALTER TABLE t1 SET ACCESS METHOD tde_heap;
 ```
 
-### Changing the `pg_tde.inherit_global_keys` setting
+### Changing the pg_tde.inherit_global_keys setting
 
-It is possible for users to use `pg_tde` with `inherit_global_keys = on`, refer to global keys / keyrings in databases, and then change this setting to `off`.
+It is possible to use `pg_tde` with `inherit_global_keys = on`, refer to the global keys or keyrings in databases, and then change this setting to `off`.
 
-In this case existing references to global providers, or the global default principal key will remain working as before, but new references to the global scope can't be made.
+In this case, existing references to global providers or the global default principal key keep working as before, but new references to the global scope cannot be made.
 
 ## Typical setup scenarios
 
 ### Simple "one principal key" encryption
 
-1. Passing the option from the postgres config file the extension: `shared_preload_libraries=‘pg_tde’`
-2. `CREATE EXTENSION pg_tde;` in `template1`
-3. Adding a global key provider
-4. Adding a default principal key using the same global provider
-5. Enable WAL encryption to use the default principal key using `ALTER SYSTEM SET pg_tde.wal_encrypt=‘ON’`
-6. Restart the server
-7. Optionally: setting the `default_table_access_method` to `tde_heap` so that tables are encrypted by default
+1. Set the extension in postgresql.conf:
 
-Database users don't need permissions to any of the encryption functions:
-encryption is managed by the admins, normal users only have to create tables with encryption, which requires no specific permissions.
+```ini
+shared_preload_libraries=‘pg_tde’
+```
+
+2. Run: `CREATE EXTENSION pg_tde;` in `template1`
+3. Add a global key provider
+4. Add a default principal key using the same global provider
+5. Enable WAL encryption to use the default principal key: `ALTER SYSTEM SET pg_tde.wal_encrypt=‘ON’`
+6. Restart the server
+7. Optional: set the `default_table_access_method` to `tde_heap` so that tables are encrypted by default
+
+!!! note
+    Encryption is handled by database administrators. Regular users do not need access to encryption functions, they can create encrypted tables without any special permissions.
 
 ### One key storage, but different keys per database
 
-1. Installing the extension: `shared_preload_libraries` + `pg_tde.wal_encrypt`
-2. `CREATE EXTENSION pg_tde;` in `template1`
-3. Adding a global key provider
-4. Changing the WAL encryption to use the proper global key provider
+1. Install the extensions: `shared_preload_libraries` and `pg_tde.wal_encrypt`
+2. Run: `CREATE EXTENSION pg_tde;` in `template1`
+3. Add a global key provider
+4. Change the WAL encryption to use the proper global key provider
 5. Giving users that are expected to manage database keys permissions for database specific key management, but not database specific key provider management:
    specific databases HAVE to use the global key provider
 
-Note: setting the `default_table_access_method` to `tde_heap` is possible, but instead of `ALTER SYSTEM` only per database using `ALTER DATABASE`, after a principal key is configured for that specific database.
+!!! note
+    Setting the `default_table_access_method` to `tde_heap` is possible, but instead of `ALTER SYSTEM` only per database using `ALTER DATABASE`, after a principal key is configured for that specific database.Alternatively `ALTER SYSTEM` is possible, but table creation in the database will fail if there's no principal key for the database, that has to be created first.
 
-Alternatively `ALTER SYSTEM` is possible, but table creation in the database will fail if there's no principal key for the database, that has to be created first.
+### Complete multi-tenancy
 
-### Complete multi tenancy
-
-1. Installing the extension: `shared_preload_libraries` + `pg_tde.wal_encrypt` (that's not multi tenant currently)
-2. `CREATE EXTENSION pg_tde;` in any database
-3. Adding a global key provider for WAL
-4. Changing the WAL encryption to use the proper global key provider
+1. Install the extensions: `shared_preload_libraries` and `pg_tde.wal_encrypt` (that's not multi-tenant currently)
+2. Run: `CREATE EXTENSION pg_tde;` in any database
+3. Add a global key provider for WAL
+4. Change the WAL encryption to use the proper global key provider
 
 No default configuration: key providers / principal keys are configured as a per database level, permissions are managed per database
 
-Same note about `default_table_access_method` as above - but in a multi tenant setup, `ALTER SYSTEM` doesn't make much sense.
+Same note about `default_table_access_method` as above - but in a multi-tenant setup, `ALTER SYSTEM` doesn't make much sense.
