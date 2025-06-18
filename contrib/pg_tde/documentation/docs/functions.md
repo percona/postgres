@@ -52,9 +52,6 @@ The `change` functions require the same parameters as the `add` functions. They 
 
 Provider specific parameters differ for each implementation. Refer to the  respective subsection for details.
 
-!!! warning
-    Some provider specific parameters contain sensitive information, such as passwords. **Never** specify these directly, use the file paths instead.
-
 !!! note
     The updated provider must be able to retrieve the same principal keys as the original configuration.
     If the new configuration cannot access existing keys, encrypted data and backups will become unreadable.
@@ -170,7 +167,7 @@ where:
 !!! note
     The specified access parameters require permission to read and write keys at the server.
 
-### Add or modify local keyfile providers
+### Add or modify local key file providers
 
 This provider manages database keys using a local key file.
 
@@ -229,9 +226,6 @@ These functions list the details of all key providers for the current database o
 
 * `pg_tde_list_all_database_key_providers()`
 * `pg_tde_list_all_global_key_providers()`
-
-!!! warning
-    All configuration values include possibly sensitive values, such as passwords. **Never** specify these directly, use the remote configuration option instead.
 
 ## Principal key management
 
