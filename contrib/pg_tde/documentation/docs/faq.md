@@ -80,6 +80,7 @@ You can use the following KMSs:
 
 !!! note
     HashiCorp Vault can also act as a KMIP server, managing cryptographic keys for clients that use the KMIP protocol.
+    *(KMIP functionality is available in Vault's enterprise edition.)*
 
 Let's break the encryption down into two parts:
 
@@ -166,3 +167,7 @@ To restore from an encrypted backup, you must have the same principal encryption
 ## I'm using OpenSSL in FIPS mode and need to use pg_tde. Does pg_tde comply with FIPS requirements? Can I use my own FIPS-mode OpenSSL library with pg_tde?
 
 Yes. `pg_tde` works with the FIPS-compliant version of OpenSSL, whether it is provided by your operating system or if you use your own OpenSSL libraries. If you use your own libraries, make sure they are FIPS certified.
+
+## Is post-quantum encryption supported?
+
+No. Post-quantum encryption is not currently supported.
