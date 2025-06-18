@@ -53,7 +53,7 @@ The `change` functions require the same parameters as the `add` functions. They 
 Provider specific parameters differ for each implementation. Refer to the  respective subsection for details.
 
 !!! warning
-    Some provider specific parameters contain sensitive information, such as passwords. **Never** specify these directly, use the remote configuration option instead.
+    Some provider specific parameters contain sensitive information, such as passwords. **Never** specify these directly, use the file paths instead.
 
 !!! note
     The updated provider must be able to retrieve the same principal keys as the original configuration.
@@ -172,14 +172,14 @@ where:
 
 ### Add or modify local keyfile providers
 
-This provider manages database keys using a local keyfile.
+This provider manages database keys using a local key file.
 
 This function is intended for development or quick testing, and stores the keys unencrypted in the specified data file.
 
 !!! important
-    Local keyfile providers are **not recommended** for production environments, they lack the security and manageability of external key management systems.
+    Local key file providers are **not recommended** for production environments, they lack the security and manageability of external key management systems.
 
-Add a local keyfile provider:
+Add a local key file provider:
 
 ```sql
 SELECT pg_tde_add_database_key_provider_file(
@@ -193,7 +193,7 @@ SELECT pg_tde_add_global_key_provider_file(
 );
 ```
 
-Change a local keyfile provider:
+Change a local key file provider:
 
 ```sql
 SELECT pg_tde_change_database_key_provider_file(
