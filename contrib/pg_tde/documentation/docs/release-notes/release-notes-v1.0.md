@@ -8,11 +8,11 @@
 
 This release provides the following features and improvements:
 
-* **Type Release Highhlights here**
+* **Type Release Highlights here**
 
 ## Upgrade considerations
 
-`pg_tde` 1.0 is not backward compatible with previous `pg_tde` versions (like Release Candidate 2) due to significant changes in code. This means you cannot directly upgrade from one version to another. You must [uninstall](../how-to/uninstall.md) `pg_tde` first and then [install](../install.md) and configure the new 1.0 version.
+`pg_tde` {{tdeversion}} is not backward compatible with previous `pg_tde` versions (like Release Candidate 2) due to significant changes in code. This means you cannot directly upgrade from one version to another. You must do **a clean installation** of `pg_tde`.
 
 ## Known issues
 
