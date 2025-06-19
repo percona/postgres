@@ -19,6 +19,7 @@
 #include "catalog/tde_principal_key.h"
 #include "encryption/enc_aes.h"
 #include "encryption/enc_tde.h"
+#include "encryption/tde_keys.h"
 #include "keyring/keyring_api.h"
 
 #ifdef FRONTEND
@@ -73,21 +74,67 @@ static void finalize_key_rotation(const char *path_old, const char *path_new);
 static int	pg_tde_open_file_write(const char *tde_filename, const TDESignedPrincipalKeyInfo *signed_key_info, bool truncate, off_t *curr_pos);
 
 void
-pg_tde_save_smgr_key(RelFileLocator rel, const InternalKey *rel_key_data)
+pg_tde_save_smgr_key(RelFileLocator rel, const EncryptedTdeKey *encrypted_key)
 {
 	TDEPrincipalKey *principal_key;
 	LWLock	   *lock_pk = tde_lwlock_enc_keys();
+	char		db_map_path[MAXPGPATH];
+	int			map_fd;
+	off_t		curr_pos = 0;
+	TDEMapEntry write_map_entry;
+	TDESignedPrincipalKeyInfo signed_key_Info;
+
+	write_map_entry.spcOid = rel.spcOid;
+	write_map_entry.relNumber = rel.relNumber;
+	write_map_entry.type = TDE_KEY_TYPE_SMGR;
+	memcpy(write_map_entry.enc_key.key, encrypted_key->key_data, TDE_KEY_SIZE);
+	memcpy(write_map_entry.enc_key.base_iv, encrypted_key->key_iv, TDE_KEY_IV_SIZE);
+	write_map_entry.enc_key.type = TDE_KEY_TYPE_SMGR;
+	write_map_entry.enc_key.start_lsn = 0;
+	memcpy(write_map_entry.entry_iv, encrypted_key->iv, TDE_KEY_ENCRYPTION_IV_SIZE);
+	memcpy(write_map_entry.aead_tag, encrypted_key->aead_tag, TDE_KEY_ENCRYPTION_AEAD_TAG_SIZE);
+
+	pg_tde_set_db_file_path(rel.dbOid, db_map_path);
 
 	LWLockAcquire(lock_pk, LW_EXCLUSIVE);
+
 	principal_key = GetPrincipalKey(rel.dbOid, LW_EXCLUSIVE);
 	if (principal_key == NULL)
-	{
 		ereport(ERROR,
 				errmsg("principal key not configured"),
 				errhint("create one using pg_tde_set_key before using encrypted tables"));
+
+	pg_tde_sign_principal_key_info(&signed_key_Info, principal_key);
+
+	/* Open and validate file for basic correctness. */
+	map_fd = pg_tde_open_file_write(db_map_path, &signed_key_Info, false, &curr_pos);
+
+	/*
+	 * Read until we find an empty slot. Otherwise, read until end. This seems
+	 * to be less frequent than vacuum. So let's keep this function here
+	 * rather than overloading the vacuum process.
+	 */
+	while (1)
+	{
+		TDEMapEntry read_map_entry;
+		off_t		prev_pos = curr_pos;
+
+		if (!pg_tde_read_one_map_entry(map_fd, &read_map_entry, &curr_pos))
+		{
+			curr_pos = prev_pos;
+			break;
+		}
+
+		if (read_map_entry.type == MAP_ENTRY_EMPTY)
+		{
+			curr_pos = prev_pos;
+			break;
+		}
 	}
 
-	pg_tde_write_key_map_entry(&rel, rel_key_data, principal_key);
+	pg_tde_write_one_map_entry(map_fd, &write_map_entry, &curr_pos, db_map_path);
+
+	CloseTransientFile(map_fd);
 	LWLockRelease(lock_pk);
 }
 
@@ -268,7 +315,7 @@ pg_tde_initialize_map_entry(TDEMapEntry *map_entry, const TDEPrincipalKey *princ
 
 	AesGcmEncrypt(principal_key->keyData,
 				  map_entry->entry_iv, MAP_ENTRY_IV_SIZE,
-				  (unsigned char *) map_entry, offsetof(TDEMapEntry, enc_key),
+				  (uint8 *) rlocator, sizeof(RelFileLocator),
 				  rel_key_data->key, INTERNAL_KEY_LEN,
 				  map_entry->enc_key.key,
 				  map_entry->aead_tag, MAP_ENTRY_AEAD_TAG_SIZE);
@@ -725,13 +772,19 @@ tde_decrypt_rel_key(TDEPrincipalKey *principal_key, TDEMapEntry *map_entry)
 {
 	InternalKey *rel_key_data = palloc_object(InternalKey);
 
+	RelFileLocator rlocator = {
+		.dbOid = principal_key->keyInfo.databaseId,
+		.relNumber = map_entry->relNumber,
+		.spcOid = map_entry->spcOid,
+	};
+
 	Assert(principal_key);
 
 	*rel_key_data = map_entry->enc_key;
 
 	if (!AesGcmDecrypt(principal_key->keyData,
 					   map_entry->entry_iv, MAP_ENTRY_IV_SIZE,
-					   (unsigned char *) map_entry, offsetof(TDEMapEntry, enc_key),
+					   (uint8 *) &rlocator, sizeof(RelFileLocator),
 					   map_entry->enc_key.key, INTERNAL_KEY_LEN,
 					   rel_key_data->key,
 					   map_entry->aead_tag, MAP_ENTRY_AEAD_TAG_SIZE))
@@ -925,16 +978,15 @@ pg_tde_has_smgr_key(RelFileLocator rel)
 }
 
 /*
- * Reads the map entry of the relation and decrypts the key.
+ * Reads the map entry of the relation and returns the encrypted key.
  */
-InternalKey *
+EncryptedTdeKey *
 pg_tde_get_smgr_key(RelFileLocator rel)
 {
 	TDEMapEntry map_entry;
-	TDEPrincipalKey *principal_key;
-	LWLock	   *lock_pk = tde_lwlock_enc_keys();
 	char		db_map_path[MAXPGPATH];
-	InternalKey *rel_key;
+	EncryptedTdeKey *encrypted_key;
+	bool		found_map_entry;
 
 	Assert(rel.relNumber != InvalidRelFileNumber);
 
@@ -943,37 +995,20 @@ pg_tde_get_smgr_key(RelFileLocator rel)
 	if (access(db_map_path, F_OK) == -1)
 		return NULL;
 
-	LWLockAcquire(lock_pk, LW_SHARED);
+	LWLockAcquire(tde_lwlock_enc_keys(), LW_SHARED);
+	found_map_entry = pg_tde_find_map_entry(&rel, TDE_KEY_TYPE_SMGR, db_map_path, &map_entry);
+	LWLockRelease(tde_lwlock_enc_keys());
 
-	if (!pg_tde_find_map_entry(&rel, TDE_KEY_TYPE_SMGR, db_map_path, &map_entry))
-	{
-		LWLockRelease(lock_pk);
+	if (!found_map_entry)
 		return NULL;
-	}
 
-	/*
-	 * Get/generate a principal key, create the key for relation and get the
-	 * encrypted key with bytes to write
-	 *
-	 * We should hold the lock until the internal key is loaded to be sure the
-	 * retrieved key was encrypted with the obtained principal key. Otherwise,
-	 * the next may happen: - GetPrincipalKey returns key "PKey_1". - Some
-	 * other process rotates the Principal key and re-encrypt an Internal key
-	 * with "PKey_2". - We read the Internal key and decrypt it with "PKey_1"
-	 * (that's what we've got). As the result we return an invalid Internal
-	 * key.
-	 */
-	principal_key = GetPrincipalKey(rel.dbOid, LW_SHARED);
-	if (principal_key == NULL)
-		ereport(ERROR,
-				errmsg("principal key not configured"),
-				errhint("create one using pg_tde_set_key before using encrypted tables"));
+	encrypted_key = palloc0_object(EncryptedTdeKey);
+	memcpy(encrypted_key->key_data, map_entry.enc_key.key, TDE_KEY_SIZE);
+	memcpy(encrypted_key->key_iv, map_entry.enc_key.base_iv, TDE_KEY_ENCRYPTION_IV_SIZE);
+	memcpy(encrypted_key->iv, map_entry.entry_iv, TDE_KEY_IV_SIZE);
+	memcpy(encrypted_key->aead_tag, map_entry.aead_tag, TDE_KEY_ENCRYPTION_AEAD_TAG_SIZE);
 
-	rel_key = tde_decrypt_rel_key(principal_key, &map_entry);
-
-	LWLockRelease(lock_pk);
-
-	return rel_key;
+	return encrypted_key;
 }
 
 /*

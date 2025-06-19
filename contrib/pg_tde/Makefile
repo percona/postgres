@@ -29,6 +29,7 @@ endif
 
 OBJS = src/encryption/enc_tde.o \
 src/encryption/enc_aes.o \
+src/encryption/tde_keys.o \
 src/access/pg_tde_tdemap.o \
 src/access/pg_tde_xlog.o \
 src/access/pg_tde_xlog_smgr.o \
