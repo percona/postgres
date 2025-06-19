@@ -9,6 +9,7 @@ The following features are available for the extension:
     * Data tables
     * Index data for encrypted tables
     * TOAST tables
+    * Temporary tables
 
 !!! note
     Metadata of those tables is not encrypted.
