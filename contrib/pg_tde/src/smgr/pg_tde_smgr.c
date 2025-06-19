@@ -10,6 +10,7 @@
 #include "access/pg_tde_xlog.h"
 #include "encryption/enc_aes.h"
 #include "encryption/enc_tde.h"
+#include "encryption/tde_keys.h"
 #include "pg_tde_event_capture.h"
 #include "smgr/pg_tde_smgr.h"
 
@@ -46,13 +47,14 @@ typedef struct TDESMgrRelation
 	struct _MdfdVec *md_seg_fds[MAX_FORKNUM + 1];
 
 	TDEMgrRelationEncryptionStatus encryption_status;
-	InternalKey relKey;
+	EncryptedTdeKey encrypted_key;
+	DecryptedTdeKey *decrypted_key;
 } TDESMgrRelation;
 
 typedef struct
 {
 	RelFileLocator rel;
-	InternalKey key;
+	EncryptedTdeKey key;
 } TempRelKeyEntry;
 
 #define INIT_TEMP_RELS 16
@@ -64,25 +66,38 @@ static HTAB *TempRelKeys = NULL;
 
 static SMgrId OurSMgrId = MaxSMgrId;
 
-static void tde_smgr_save_temp_key(const RelFileLocator *newrlocator, const InternalKey *key);
-static InternalKey *tde_smgr_get_temp_key(const RelFileLocator *rel);
+static void tde_smgr_save_temp_key(const RelFileLocator *newrlocator, const EncryptedTdeKey *key);
+static EncryptedTdeKey *tde_smgr_get_temp_key(const RelFileLocator *rel);
 static bool tde_smgr_has_temp_key(const RelFileLocator *rel);
 static void tde_smgr_remove_temp_key(const RelFileLocator *rel);
 static void CalcBlockIv(ForkNumber forknum, BlockNumber bn, const unsigned char *base_iv, unsigned char *iv);
 
-static InternalKey *
+static EncryptedTdeKey *
 tde_smgr_create_key(const RelFileLocatorBackend *smgr_rlocator)
 {
-	InternalKey *key = palloc_object(InternalKey);
+	EncryptedTdeKey *encrypted_key;
+	TDEPrincipalKey *principal_key;
 
-	pg_tde_generate_internal_key(key, TDE_KEY_TYPE_SMGR);
+	LWLockAcquire(tde_lwlock_enc_keys(), LW_SHARED);
+
+	principal_key = GetPrincipalKey(smgr_rlocator->locator.dbOid, LW_SHARED);
+	if (principal_key == NULL)
+		ereport(ERROR,
+				errmsg("principal key not configured"),
+				errhint("create one using pg_tde_set_key before using encrypted tables"));
+
+	encrypted_key = tde_keys_new_encrypted_key(principal_key->keyData,
+											   (uint8 *) &smgr_rlocator->locator,
+											   sizeof(RelFileLocator));
+
+	LWLockRelease(tde_lwlock_enc_keys());
 
 	if (RelFileLocatorBackendIsTemp(*smgr_rlocator))
-		tde_smgr_save_temp_key(&smgr_rlocator->locator, key);
+		tde_smgr_save_temp_key(&smgr_rlocator->locator, encrypted_key);
 	else
-		pg_tde_save_smgr_key(smgr_rlocator->locator, key);
+		pg_tde_save_smgr_key(smgr_rlocator->locator, encrypted_key);
 
-	return key;
+	return encrypted_key;
 }
 
 static void
@@ -100,14 +115,17 @@ tde_smgr_log_create_key(const RelFileLocatorBackend *smgr_rlocator)
 void
 tde_smgr_create_key_redo(const RelFileLocator *rlocator)
 {
-	InternalKey key;
+	EncryptedTdeKey *encrypted_key;
+	RelFileLocatorBackend smgr_rlocator = {
+		.locator = *rlocator,
+		.backend = INVALID_PROC_NUMBER,
+	};
 
 	if (pg_tde_has_smgr_key(*rlocator))
 		return;
 
-	pg_tde_generate_internal_key(&key, TDE_KEY_TYPE_SMGR);
-
-	pg_tde_save_smgr_key(*rlocator, &key);
+	encrypted_key = tde_smgr_create_key(&smgr_rlocator);
+	pfree(encrypted_key);
 }
 
 static void
@@ -139,13 +157,66 @@ tde_smgr_is_encrypted(const RelFileLocatorBackend *smgr_rlocator)
 		return pg_tde_has_smgr_key(smgr_rlocator->locator);
 }
 
-static InternalKey *
+static EncryptedTdeKey *
 tde_smgr_get_key(const RelFileLocatorBackend *smgr_rlocator)
 {
 	if (RelFileLocatorBackendIsTemp(*smgr_rlocator))
 		return tde_smgr_get_temp_key(&smgr_rlocator->locator);
 	else
 		return pg_tde_get_smgr_key(smgr_rlocator->locator);
+}
+
+static DecryptedTdeKey *
+tde_smgr_get_decrypted_key(TDESMgrRelation *tdereln)
+{
+	TDEPrincipalKey *principal_key;
+
+	if (tdereln->decrypted_key)
+		return tdereln->decrypted_key;
+
+	for (int i = 0; i < 2; i++)
+	{
+		if (tdereln->encryption_status == RELATION_KEY_NOT_AVAILABLE)
+		{
+			EncryptedTdeKey *encrypted_key = tde_smgr_get_key(&tdereln->reln.smgr_rlocator);
+
+			tdereln->encrypted_key = *encrypted_key;
+			tdereln->encryption_status = RELATION_KEY_AVAILABLE;
+			pfree(encrypted_key);
+		}
+
+		LWLockAcquire(tde_lwlock_enc_keys(), LW_SHARED);
+
+		principal_key = GetPrincipalKey(tdereln->reln.smgr_rlocator.locator.dbOid, LW_SHARED);
+		if (principal_key == NULL)
+			ereport(ERROR,
+					errmsg("principal key not configured"),
+					errhint("create one using pg_tde_set_key before using encrypted tables"));
+
+		tdereln->decrypted_key = tde_keys_decrypt_key(&tdereln->encrypted_key,
+											 principal_key->keyData,
+											 (uint8 *) &tdereln->reln.smgr_rlocator.locator,
+											 sizeof(RelFileLocator));
+
+		LWLockRelease(tde_lwlock_enc_keys());
+
+		/*
+		 * If the principal key has been rotated we need to load the encrypted
+		 * key from file again.
+		 */
+		if (tdereln->decrypted_key)
+			return tdereln->decrypted_key;
+		else
+		{
+			tdereln->encryption_status = RELATION_KEY_NOT_AVAILABLE;
+			tdereln->decrypted_key = NULL;
+		}
+	}
+
+	/* The problem was not a rotated principal key apparently. */
+	ereport(ERROR,
+			errmsg("Failed to decrypt key, incorrect principal key or corrupted key file"));
+
 }
 
 static void
@@ -211,15 +282,7 @@ tde_mdwritev(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
 	{
 		unsigned char *local_blocks = palloc_aligned(BLCKSZ * nblocks, PG_IO_ALIGN_SIZE, 0);
 		void	  **local_buffers = palloc_array(void *, nblocks);
-
-		if (tdereln->encryption_status == RELATION_KEY_NOT_AVAILABLE)
-		{
-			InternalKey *int_key = tde_smgr_get_key(&reln->smgr_rlocator);
-
-			tdereln->relKey = *int_key;
-			tdereln->encryption_status = RELATION_KEY_AVAILABLE;
-			pfree(int_key);
-		}
+		DecryptedTdeKey *key = tde_smgr_get_decrypted_key(tdereln);
 
 		for (int i = 0; i < nblocks; ++i)
 		{
@@ -228,9 +291,9 @@ tde_mdwritev(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
 
 			local_buffers[i] = &local_blocks[i * BLCKSZ];
 
-			CalcBlockIv(forknum, bn, tdereln->relKey.base_iv, iv);
+			CalcBlockIv(forknum, bn, key->iv, iv);
 
-			AesEncrypt(tdereln->relKey.key, iv, ((unsigned char **) buffers)[i], BLCKSZ, local_buffers[i]);
+			AesEncrypt(key->data, iv, ((unsigned char **) buffers)[i], BLCKSZ, local_buffers[i]);
 		}
 
 		mdwritev(reln, forknum, blocknum,
@@ -282,19 +345,11 @@ tde_mdextend(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
 	{
 		unsigned char *local_blocks = palloc_aligned(BLCKSZ, PG_IO_ALIGN_SIZE, 0);
 		unsigned char iv[16];
+		DecryptedTdeKey *key = tde_smgr_get_decrypted_key(tdereln);
 
-		if (tdereln->encryption_status == RELATION_KEY_NOT_AVAILABLE)
-		{
-			InternalKey *int_key = tde_smgr_get_key(&reln->smgr_rlocator);
+		CalcBlockIv(forknum, blocknum, key->iv, iv);
 
-			tdereln->relKey = *int_key;
-			tdereln->encryption_status = RELATION_KEY_AVAILABLE;
-			pfree(int_key);
-		}
-
-		CalcBlockIv(forknum, blocknum, tdereln->relKey.base_iv, iv);
-
-		AesEncrypt(tdereln->relKey.key, iv, ((unsigned char *) buffer), BLCKSZ, local_blocks);
+		AesEncrypt(key->data, iv, ((unsigned char *) buffer), BLCKSZ, local_blocks);
 
 		mdextend(reln, forknum, blocknum, local_blocks, skipFsync);
 
@@ -307,19 +362,14 @@ tde_mdreadv(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
 			void **buffers, BlockNumber nblocks)
 {
 	TDESMgrRelation *tdereln = (TDESMgrRelation *) reln;
+	DecryptedTdeKey *key;
 
 	mdreadv(reln, forknum, blocknum, buffers, nblocks);
 
 	if (tdereln->encryption_status == RELATION_NOT_ENCRYPTED)
 		return;
-	else if (tdereln->encryption_status == RELATION_KEY_NOT_AVAILABLE)
-	{
-		InternalKey *int_key = tde_smgr_get_key(&reln->smgr_rlocator);
 
-		tdereln->relKey = *int_key;
-		tdereln->encryption_status = RELATION_KEY_AVAILABLE;
-		pfree(int_key);
-	}
+	key = tde_smgr_get_decrypted_key(tdereln);
 
 	for (int i = 0; i < nblocks; ++i)
 	{
@@ -347,9 +397,9 @@ tde_mdreadv(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
 		if (allZero)
 			continue;
 
-		CalcBlockIv(forknum, bn, tdereln->relKey.base_iv, iv);
+		CalcBlockIv(forknum, bn, key->iv, iv);
 
-		AesDecrypt(tdereln->relKey.key, iv, ((unsigned char **) buffers)[i], BLCKSZ, ((unsigned char **) buffers)[i]);
+		AesDecrypt(key->data, iv, ((unsigned char **) buffers)[i], BLCKSZ, ((unsigned char **) buffers)[i]);
 	}
 }
 
@@ -357,7 +407,7 @@ static void
 tde_mdcreate(RelFileLocator relold, SMgrRelation reln, ForkNumber forknum, bool isRedo)
 {
 	TDESMgrRelation *tdereln = (TDESMgrRelation *) reln;
-	InternalKey *key;
+	EncryptedTdeKey *key;
 
 	/* Copied from mdcreate() in md.c */
 	if (isRedo && tdereln->md_num_open_segs[forknum] > 0)
@@ -422,7 +472,8 @@ tde_mdcreate(RelFileLocator relold, SMgrRelation reln, ForkNumber forknum, bool 
 	}
 
 	tdereln->encryption_status = RELATION_KEY_AVAILABLE;
-	tdereln->relKey = *key;
+	tdereln->encrypted_key = *key;
+	tdereln->decrypted_key = NULL;
 	pfree(key);
 }
 
@@ -443,10 +494,29 @@ tde_mdopen(SMgrRelation reln)
 	if (tde_smgr_is_encrypted(&reln->smgr_rlocator))
 	{
 		tdereln->encryption_status = RELATION_KEY_NOT_AVAILABLE;
+		tdereln->decrypted_key = NULL;
 	}
 	else
 	{
 		tdereln->encryption_status = RELATION_NOT_ENCRYPTED;
+	}
+}
+
+static void
+tde_mdclose(SMgrRelation reln, ForkNumber forknum)
+{
+	TDESMgrRelation *tdereln = (TDESMgrRelation *) reln;
+
+	mdclose(reln, forknum);
+
+	if (tdereln->encryption_status == RELATION_NOT_ENCRYPTED)
+		return;
+
+	/* TODO: We should probably do something with forknum here to avoid excessive free/alloc of decrypted keys. */
+	if (tdereln->decrypted_key)
+	{
+		tde_keys_free_decrypted_key(tdereln->decrypted_key);
+		tdereln->decrypted_key = NULL;
 	}
 }
 
@@ -455,7 +525,7 @@ static const struct f_smgr tde_smgr = {
 	.smgr_init = mdinit,
 	.smgr_shutdown = NULL,
 	.smgr_open = tde_mdopen,
-	.smgr_close = mdclose,
+	.smgr_close = tde_mdclose,
 	.smgr_create = tde_mdcreate,
 	.smgr_exists = mdexists,
 	.smgr_unlink = tde_mdunlink,
@@ -481,7 +551,7 @@ RegisterStorageMgr(void)
 }
 
 static void
-tde_smgr_save_temp_key(const RelFileLocator *newrlocator, const InternalKey *key)
+tde_smgr_save_temp_key(const RelFileLocator *newrlocator, const EncryptedTdeKey *key)
 {
 	TempRelKeyEntry *entry;
 	bool		found;
@@ -506,7 +576,7 @@ tde_smgr_save_temp_key(const RelFileLocator *newrlocator, const InternalKey *key
 	entry->key = *key;
 }
 
-static InternalKey *
+static EncryptedTdeKey *
 tde_smgr_get_temp_key(const RelFileLocator *rel)
 {
 	TempRelKeyEntry *entry;
@@ -518,7 +588,7 @@ tde_smgr_get_temp_key(const RelFileLocator *rel)
 
 	if (entry)
 	{
-		InternalKey *key = palloc_object(InternalKey);
+		EncryptedTdeKey *key = palloc0_object(EncryptedTdeKey);
 
 		*key = entry->key;
 		return key;

@@ -10,6 +10,7 @@ pg_tde_sources = files(
   'src/common/pg_tde_utils.c',
   'src/encryption/enc_aes.c',
   'src/encryption/enc_tde.c',
+  'src/encryption/tde_keys.c',
   'src/keyring/keyring_api.c',
   'src/keyring/keyring_curl.c',
   'src/keyring/keyring_file.c',

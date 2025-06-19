@@ -5,6 +5,7 @@
 #include "storage/relfilelocator.h"
 #include "catalog/tde_principal_key.h"
 #include "common/pg_tde_utils.h"
+#include "encryption/tde_keys.h"
 
 typedef enum
 {
@@ -84,9 +85,9 @@ pg_tde_set_db_file_path(Oid dbOid, char *path)
 	join_path_components(path, pg_tde_get_data_dir(), psprintf(PG_TDE_MAP_FILENAME, dbOid));
 }
 
-extern void pg_tde_save_smgr_key(RelFileLocator rel, const InternalKey *key);
+extern void pg_tde_save_smgr_key(RelFileLocator rel, const EncryptedTdeKey *key);
 extern bool pg_tde_has_smgr_key(RelFileLocator rel);
-extern InternalKey *pg_tde_get_smgr_key(RelFileLocator rel);
+extern EncryptedTdeKey *pg_tde_get_smgr_key(RelFileLocator rel);
 extern void pg_tde_free_key_map_entry(RelFileLocator rel);
 
 extern int	pg_tde_count_relations(Oid dbOid);
