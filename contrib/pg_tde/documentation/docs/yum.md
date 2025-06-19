@@ -8,10 +8,12 @@ Make sure you check the [list of supported platforms](install.md#__tabbed_1_1) b
 
 The `pg_tde` uses memory locks (mlocks) to keep internal encryption keys in RAM, both for WAL and for user data.  
 
-A memory lock (`mlock`) is a system call to lock a specified memory range in RAM for a process. The maximum amount of memory that can be locked differs between systems. You can check the current setting with this command:
+A memory lock (`mlock`) is a system call that prevents specified memory ranges from being swapped to disk. Some libraries, such as OpenSSL, may use `mlock` internally to protect sensitive data like encryption keys. However, `pg_tde` does not directly invoke `mlock` in its own code.
+
+You can check the current system limits for locked memory using:
 
 ```bash
-    ulimit -a 
+ulimit -a
 ```
 
 Memory locking is done only in memory pages. This means that when a process uses `mlocks`, it locks the entire memory page.
