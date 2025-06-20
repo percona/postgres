@@ -21,6 +21,10 @@ SELECT pg_tde_add_global_key_provider_file(
 );
 ```
 
+For more information on related functions, see the link below:
+
+[Percona pg_tde Function Reference](../functions.md){.md-button}
+
 ## Next steps
 
 [Global Principal Key Configuration :material-arrow-right:](set-principal-key.md){.md-button}
