@@ -172,48 +172,47 @@ tde_smgr_get_decrypted_key(TDESMgrRelation *tdereln)
 	DecryptedTdeKey *decrypted_key;
 	TDEPrincipalKey *principal_key;
 
-	LWLockAcquire(tde_lwlock_enc_keys(), LW_SHARED);
-
-	if (tdereln->encryption_status == RELATION_KEY_NOT_AVAILABLE)
+	for (int i = 0; i < 2; i++)
 	{
-		EncryptedTdeKey *encrypted_key = tde_smgr_get_key(&tdereln->reln.smgr_rlocator);
+		if (tdereln->encryption_status == RELATION_KEY_NOT_AVAILABLE)
+		{
+			EncryptedTdeKey *encrypted_key = tde_smgr_get_key(&tdereln->reln.smgr_rlocator);
 
-		tdereln->relKey = *encrypted_key;
-		tdereln->encryption_status = RELATION_KEY_AVAILABLE;
-		pfree(encrypted_key);
-	}
+			tdereln->relKey = *encrypted_key;
+			tdereln->encryption_status = RELATION_KEY_AVAILABLE;
+			pfree(encrypted_key);
+		}
 
-	principal_key = GetPrincipalKey(tdereln->reln.smgr_rlocator.locator.dbOid, LW_SHARED);
-	if (principal_key == NULL)
-		ereport(ERROR,
-				errmsg("principal key not configured"),
-				errhint("create one using pg_tde_set_key before using encrypted tables"));
+		LWLockAcquire(tde_lwlock_enc_keys(), LW_SHARED);
 
-	decrypted_key = tde_keys_decrypt_key(&tdereln->relKey,
-										 principal_key->keyData,
-										 (uint8 *) &tdereln->reln.smgr_rlocator.locator,
-										 sizeof(RelFileLocator));
+		principal_key = GetPrincipalKey(tdereln->reln.smgr_rlocator.locator.dbOid, LW_SHARED);
+		if (principal_key == NULL)
+			ereport(ERROR,
+					errmsg("principal key not configured"),
+					errhint("create one using pg_tde_set_key before using encrypted tables"));
 
-	LWLockRelease(tde_lwlock_enc_keys());
+		decrypted_key = tde_keys_decrypt_key(&tdereln->relKey,
+											 principal_key->keyData,
+											 (uint8 *) &tdereln->reln.smgr_rlocator.locator,
+											 sizeof(RelFileLocator));
 
-	if (!decrypted_key)
-	{
+		LWLockRelease(tde_lwlock_enc_keys());
+
 		/*
 		 * If the principal key has been rotated we need to load the encrypted
 		 * key from file again.
 		 */
-		tdereln->encryption_status = RELATION_KEY_NOT_AVAILABLE;
-		decrypted_key = tde_smgr_get_decrypted_key(tdereln);
+		if (decrypted_key)
+			return decrypted_key;
+		else
+			tdereln->encryption_status = RELATION_KEY_NOT_AVAILABLE;
 
-		if (!decrypted_key)
-		{
-			/* The problem was not a rotated principal key apparently. */
-			ereport(ERROR,
-					errmsg("Failed to decrypt key, incorrect principal key or corrupted key file"));
-		}
 	}
 
-	return decrypted_key;
+	/* The problem was not a rotated principal key apparently. */
+	ereport(ERROR,
+			errmsg("Failed to decrypt key, incorrect principal key or corrupted key file"));
+
 }
 
 static void
