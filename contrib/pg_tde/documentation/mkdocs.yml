@@ -190,15 +190,17 @@ nav:
     - "Architecture": architecture/index.md
     - "GUC variables": variables.md
     - "Functions": functions.md
-  - "TDE operations":
-    - "pg_tde CLI tools":
-      - "CLI overview": command-line-tools/index.md
+    - "Streaming Replication with tde_heap": replication.md
+  - "TDE Operations":
+    - "pg_tde CLI Tools":
+      - "CLI Overview": command-line-tools/index.md
       - "pg_tde_change_key_provider": command-line-tools/pg-tde-change-key-provider.md
       - "pg_waldump": command-line-tools/pg-waldump.md
       - "pg_checksums": command-line-tools/pg-tde-checksums.md 
     - "Uninstall pg_tde": how-to/uninstall.md
-    - "Configure multi-tenancy": how-to/multi-tenant-setup.md
-    - "Decrypt an encrypted table": how-to/decrypt.md
+    - "Configure Multi-tenancy": how-to/multi-tenant-setup.md
+    - "Encryption Enforcement": how-to/enforcement.md
+    - "Decrypt an Encrypted Table": how-to/decrypt.md
   - faq.md
   - "Release notes":
     - "pg_tde release notes": release-notes/release-notes.md
