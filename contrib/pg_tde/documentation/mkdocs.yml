@@ -178,8 +178,8 @@ nav:
     - "3. Validate Encryption with pg_tde": test.md
     - "4. Configure WAL Encryption (tech preview)": wal-encryption.md
   - "Technical Reference":
-    - "Overview": advanced-topics/adv-top-overview.md
-    - "Architecture": architecture/architecture.md
+    - "Overview": advanced-topics/index.md
+    - "Architecture": architecture/index.md
     - "GUC Variables": variables.md
     - "Functions": functions.md
   - "TDE Operations":

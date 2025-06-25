@@ -88,4 +88,4 @@ Before turning WAL encryption on, you must follow the steps below to create your
 Now WAL files start to be encrypted for both encrypted and unencrypted tables.
 
 For more technical references related to architecture, variables or functions, see:
-[Technical Reference](advanced-topics/adv-top-overview.md){.md-button}
+[Technical Reference](advanced-topics/index.md){.md-button}
