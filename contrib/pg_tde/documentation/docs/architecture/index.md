@@ -353,7 +353,7 @@ In this case, existing references to global providers or the global default prin
 
 ### Simple "one principal key" encryption
 
-1. Install the extensions: `shared_preload_libraries` and `pg_tde.wal_encrypt`
+1. Install the extensions: `shared_preload_libraries`
 2. Run: `CREATE EXTENSION pg_tde;` in `template1`
 3. Add a global key provider
 4. Add a default principal key using the same global provider
