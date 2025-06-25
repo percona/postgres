@@ -22,7 +22,10 @@ To enforce encryption cluster-wide, set the [`pg_tde.enforce_encryption`](../var
 pg_tde.enforce_encryption = on
 ```
 
-This ensures that no user, including superusers, can create unencrypted tables unless they explicitly override the variable in a session (see below).
+!!! note
+    **Only** superusers can set or change this variable.
+
+This ensures that no user, including superusers, can create unencrypted tables. Superusers can however explicitly [override the variable in their session](#override-enforcement-for-trusted-sessions).
 
 ### 2. Enforce encryption for a specific database
 
@@ -46,7 +49,7 @@ This ensures that the user `example_user` cannot create unencrypted tables, rega
 
 ### Override enforcement for trusted sessions
 
-Superusers (such as DBAs) can override the variable at the session level:
+Superusers can override the variable at the session level:
 
 ```sql
 SET pg_tde.enforce_encryption = off;
