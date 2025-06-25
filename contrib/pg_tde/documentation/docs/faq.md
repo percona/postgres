@@ -61,7 +61,7 @@ Thus, to protect your sensitive data, consider using TDE to encrypt it at the ta
 * Regular monitoring and auditing
 * Additional data protection for sensitive fields (e.g., application-layer encryption)
 
-## How does `pg_tde` make my data safe?
+## How does pg_tde make my data safe?
 
 `pg_tde` uses two keys to encrypt data:
 
@@ -106,7 +106,7 @@ Consider encrypting only tables that store sensitive data. You can decide what t
 
 We advise encrypting the whole database only if all your data is sensitive, like PII, or if there is no other way to comply with data safety requirements.
 
-## What cipher mechanisms are used by `pg_tde`?
+## What cipher mechanisms are used by pg_tde?
 
 `pg_tde` currently uses a AES-CBC-128 algorithm. First the internal keys in the datafile are encrypted using the principal key with AES-CBC-128, then the file data itself is again encrypted using AES-CBC-128 with the internal key.
 
@@ -133,17 +133,17 @@ Since the `SET ACCESS METHOD` command drops hint bits and this may affect the pe
 You must restart the database in the following cases to apply the changes:
 
 * after you enabled the `pg_tde` extension
-* to turn WAL encryption on or off
+* to turn on / off the WAL encryption
 
 After that, no database restart is required. When you create or alter the table using the `tde_heap` access method, the files are marked as those that require encryption. The encryption happens at the storage manager level, before a transaction is written to disk. Read more about [how tde_heap works](index/table-access-method.md#how-tde_heap-works).
 
 ## What happens to my data if I lose a principal key?
 
-If you lose encryption keys, especially the principal key, the data is **lost**. It is critical to back up your encryption keys securely and use the Key Management service for key management. For more information, see the [Configure Key Management (KMS)](../docs/global-key-provider-configuration/index.md) topic.
+If you lose encryption keys, especially, the principal key, the data is lost. That's why it's critical to back up your encryption keys securely and use the Key Management service for key management.
 
-## Can I use `pg_tde` in a multi-tenant setup?
+## Can I use pg_tde in a multi-tenant setup?
 
-Yes. Multi-tenancy is the type of architecture where multiple users, or tenants, share the same resource. It can be a database, a schema or an entire cluster.
+Multi-tenancy is the type of architecture where multiple users, or tenants, share the same resource. It can be a database, a schema or an entire cluster.
 
 In `pg_tde`, multi-tenancy is supported via a separate principal key per database. This means that a database owner can decide what tables to encrypt within a database. The same database can have both encrypted and non-encrypted tables.
 
@@ -157,16 +157,8 @@ WAL files are encrypted globally across the entire PostgreSQL cluster using the 
 
 Since the encryption happens on the database level, it makes no difference for your tools and applications. They work with the data in the same way.
 
-To restore from an encrypted backup, you must have the same principal encryption key, which was used to encrypt files in your backup. See the [Restore an encrypted pg_tde backup](../docs/how-to/restore-backups.md) topic for more details.
+To restore from an encrypted backup, you must have the same principal encryption key, which was used to encrypt files in your backup.  
 
-## What if the address of the key provider changed for one of my old backups?
-
-You can use the [pg_tde_change_key_provider](../docs/command-line-tools/pg-tde-change-key-provider.md) tool to correct the configuration.
-
-## How can I store an old key securely?
-
-To store an old key securely, see the [Configure Key Management (KMS)](../docs/global-key-provider-configuration/index.md) topic.
-
-## I'm using OpenSSL in FIPS mode and need to use `pg_tde`. Does `pg_tde` comply with FIPS requirements? Can I use my own FIPS-mode OpenSSL library with `pg_tde`?
+## I'm using OpenSSL in FIPS mode and need to use pg_tde. Does pg_tde comply with FIPS requirements? Can I use my own FIPS-mode OpenSSL library with pg_tde?
 
 Yes. `pg_tde` works with the FIPS-compliant version of OpenSSL, whether it is provided by your operating system or if you use your own OpenSSL libraries. If you use your own libraries, make sure they are FIPS certified.
