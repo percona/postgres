@@ -1,7 +1,14 @@
-CREATE EXTENSION IF NOT EXISTS pg_tde;
+\! rm -f '/tmp/pg_tde_test_keyring.per'
+CREATE EXTENSION pg_tde;
 SELECT pg_tde_add_database_key_provider_file('file-vault','/tmp/pg_tde_test_keyring.per');
  pg_tde_add_database_key_provider_file 
 ---------------------------------------
+ 
+(1 row)
+
+SELECT pg_tde_create_key_using_database_key_provider('test-db-key','file-vault');
+ pg_tde_create_key_using_database_key_provider 
+-----------------------------------------------
  
 (1 row)
 
@@ -67,5 +74,17 @@ SELECT relid, parentrelid, level FROM pg_partition_tree('concur_reindex_part_ind
 (5 rows)
 
 DROP TABLE concur_reindex_part;
+SELECT pg_tde_delete_key();
+ pg_tde_delete_key 
+-------------------
+ 
+(1 row)
+
+SELECT pg_tde_delete_database_key_provider('file-vault');
+ pg_tde_delete_database_key_provider 
+-------------------------------------
+ 
+(1 row)
+
 DROP EXTENSION pg_tde;
 RESET default_table_access_method;

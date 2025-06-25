@@ -1,41 +1,36 @@
-/*-------------------------------------------------------------------------
- *
- * tde_keyring.c
- *      Deals with the tde keyring configuration
- *      routines.
- *
- * IDENTIFICATION
- *    contrib/pg_tde/src/catalog/tde_keyring.c
- *
- *-------------------------------------------------------------------------
+/*
+ * Deals with the tde keyring configuration routines.
  */
+
 #include "postgres.h"
+
+#include "access/skey.h"
 #include "access/xlog.h"
 #include "access/xloginsert.h"
+#include "miscadmin.h"
+#include "storage/fd.h"
+#include "utils/builtins.h"
+#include "utils/fmgroids.h"
+#include "utils/lsyscache.h"
+#include "utils/memutils.h"
+#include "utils/snapmgr.h"
+
 #include "access/pg_tde_xlog.h"
 #include "catalog/tde_global_space.h"
 #include "catalog/tde_keyring.h"
 #include "catalog/tde_principal_key.h"
-#include "access/skey.h"
-#include "utils/lsyscache.h"
-#include "utils/memutils.h"
-#include "utils/snapmgr.h"
-#include "utils/fmgroids.h"
 #include "common/pg_tde_utils.h"
-#include "miscadmin.h"
-#include "storage/fd.h"
-#include "unistd.h"
-#include "utils/builtins.h"
 #include "pg_tde.h"
 
 #ifndef FRONTEND
 #include "access/heapam.h"
-#include "common/pg_tde_shmem.h"
 #include "funcapi.h"
 #include "access/relscan.h"
 #include "access/relation.h"
+#include "access/relscan.h"
 #include "catalog/namespace.h"
 #include "executor/spi.h"
+#include "funcapi.h"
 #else
 #include "fe_utils/simple_list.h"
 #include "pg_tde_fe.h"
@@ -83,12 +78,10 @@ PG_FUNCTION_INFO_V1(pg_tde_list_all_global_key_providers);
 
 static const char *get_keyring_provider_typename(ProviderType p_type);
 static List *GetAllKeyringProviders(Oid dbOid);
-static Size initialize_shared_state(void *start_address);
 static Datum pg_tde_add_key_provider_internal(PG_FUNCTION_ARGS, Oid dbOid);
 static Datum pg_tde_change_key_provider_internal(PG_FUNCTION_ARGS, Oid dbOid);
 static Datum pg_tde_delete_key_provider_internal(PG_FUNCTION_ARGS, Oid dbOid);
 static Datum pg_tde_list_all_key_providers_internal(PG_FUNCTION_ARGS, const char *fname, Oid dbOid);
-static Size required_shared_mem_size(void);
 static List *scan_key_provider_file(ProviderScanType scanType, void *scanKey, Oid dbOid);
 static void save_new_key_provider_info(KeyringProviderRecord *provider, Oid databaseId);
 static void modify_key_provider_info(KeyringProviderRecord *provider, Oid databaseId);
@@ -97,47 +90,19 @@ static void check_provider_record(KeyringProviderRecord *provider_record);
 
 #define PG_TDE_LIST_PROVIDERS_COLS 4
 
-typedef struct TdeKeyProviderInfoSharedState
-{
-	LWLockPadded *Locks;
-} TdeKeyProviderInfoSharedState;
-
-TdeKeyProviderInfoSharedState *sharedPrincipalKeyState = NULL;	/* Lives in shared state */
-
-static const TDEShmemSetupRoutine key_provider_info_shmem_routine = {
-	.init_shared_state = initialize_shared_state,
-	.init_dsa_area_objects = NULL,
-	.required_shared_mem_size = required_shared_mem_size,
-	.shmem_kill = NULL
-};
-
-static Size
-required_shared_mem_size(void)
-{
-	return MAXALIGN(sizeof(TdeKeyProviderInfoSharedState));
-}
-
-static Size
-initialize_shared_state(void *start_address)
-{
-	sharedPrincipalKeyState = (TdeKeyProviderInfoSharedState *) start_address;
-	sharedPrincipalKeyState->Locks = GetNamedLWLockTranche(TDE_TRANCHE_NAME);
-
-	return sizeof(TdeKeyProviderInfoSharedState);
-}
+static LWLockPadded *tdeLocks = NULL;	/* Lives in shared state */
 
 static inline LWLock *
 tde_provider_info_lock(void)
 {
-	Assert(sharedPrincipalKeyState);
-	return &sharedPrincipalKeyState->Locks[TDE_LWLOCK_PI_FILES].lock;
+	Assert(tdeLocks);
+	return &tdeLocks[TDE_LWLOCK_PI_FILES].lock;
 }
 
 void
-InitializeKeyProviderInfo(void)
+KeyProviderShmemInit(void)
 {
-	ereport(LOG, errmsg("initializing TDE key provider info"));
-	RegisterShmemRequest(&key_provider_info_shmem_routine);
+	tdeLocks = GetNamedLWLockTranche(TDE_TRANCHE_NAME);
 }
 
 void

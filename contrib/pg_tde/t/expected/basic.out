@@ -1,4 +1,4 @@
-CREATE EXTENSION IF NOT EXISTS pg_tde;
+CREATE EXTENSION pg_tde;
 		SELECT
 			pg_proc.oid::regprocedure
 		FROM
@@ -20,7 +20,7 @@ CREATE EXTENSION IF NOT EXISTS pg_tde;
 SELECT extname, extversion FROM pg_extension WHERE extname = 'pg_tde';
  extname | extversion 
 ---------+------------
- pg_tde  | 1.0-rc
+ pg_tde  | 1.0
 (1 row)
 
 CREATE TABLE test_enc (id SERIAL, k INTEGER, PRIMARY KEY (id)) USING tde_heap;
@@ -29,6 +29,12 @@ HINT:  create one using pg_tde_set_key before using encrypted tables
 SELECT pg_tde_add_database_key_provider_file('file-vault', '/tmp/pg_tde_test_001_basic.per');
  pg_tde_add_database_key_provider_file 
 ---------------------------------------
+ 
+(1 row)
+
+SELECT pg_tde_create_key_using_database_key_provider('test-db-key', 'file-vault');
+ pg_tde_create_key_using_database_key_provider 
+-----------------------------------------------
  
 (1 row)
 

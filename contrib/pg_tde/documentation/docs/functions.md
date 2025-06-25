@@ -15,7 +15,7 @@ However, database owners can run the “view keys” and “set principal key”
 
 A key provider is a system or service responsible for managing encryption keys. `pg_tde` supports the following key providers:
 
-* local file (not for production use)
+* local file (not recommended for production use)
 * Hashicorp Vault / OpenBao
 * KMIP compatible providers
 
@@ -26,7 +26,7 @@ Key provider management includes the following operations:
 * deleting a key provider,
 * listing key providers.
 
-### Add a provider
+### Add a key provider
 
 You can add a new key provider using the provided functions, which are implemented for each provider type.
 
@@ -35,7 +35,7 @@ There are two functions to add a key provider: one function adds it for the curr
 * `pg_tde_add_database_key_provider_<type>('provider-name', <provider specific parameters>)`
 * `pg_tde_add_global_key_provider_<type>('provider-name', <provider specific parameters>)`
 
-When you add a new provider, the provider name must be unqiue in the scope. But a local database provider and a global provider can have the same name.
+When you add a new provider, the provider name must be unique in the scope. But a local database provider and a global provider can have the same name.
 
 ### Change an existing provider
 
@@ -63,15 +63,17 @@ Use the following functions to add the Vault provider:
 ```sql
 SELECT pg_tde_add_database_key_provider_vault_v2(
   'provider-name',
+  'url',
+  'mount',
   'secret_token_path',
-  'url','mount',
   'ca_path'
 );
 
 SELECT pg_tde_add_global_key_provider_vault_v2(
   'provider-name',
+  'url',
+  'mount',
   'secret_token_path',
-  'url','mount',
   'ca_path'
 );
 ```
@@ -81,17 +83,17 @@ These functions change the Vault provider:
 ```sql
 SELECT pg_tde_change_database_key_provider_vault_v2(
   'provider-name',
-  'secret_token_path',
   'url',
   'mount',
+  'secret_token_path',
   'ca_path'
 );
 
 SELECT pg_tde_change_global_key_provider_vault_v2(
   'provider-name',
-  'secret_token_path',
   'url',
   'mount',
+  'secret_token_path',
   'ca_path'
 );
 ```
@@ -104,8 +106,6 @@ where:
 * `secret_token_path` is a path to the file that contains an access token with read and write access to the above mount point
 * **[optional]** `ca_path` is the path of the CA file used for SSL verification
 
-
-
 #### Adding or modifying KMIP providers
 
 The KMIP provider uses a remote KMIP server.
@@ -115,19 +115,19 @@ Use these functions to add a KMIP provider:
 ```sql
 SELECT pg_tde_add_database_key_provider_kmip(
   'provider-name',
-  'kmip-addr', 
-  `port`, 
-  '/path_to/server_certificate.pem', 
-  '/path_to/client_cert.pem', 
-  '/path_to/client_key.pem'
+  'kmip-addr',
+  port,
+  '/path_to/client_cert.pem',
+  '/path_to/client_key.pem',
+  '/path_to/server_certificate.pem'
 );
 SELECT pg_tde_add_global_key_provider_kmip(
   'provider-name',
-  'kmip-addr', 
-  `port`, 
-  '/path_to/server_certificate.pem', 
-  '/path_to/client_certificate.pem', 
-  '/path_to/client_key.pem'
+  'kmip-addr',
+  port,
+  '/path_to/client_certificate.pem',
+  '/path_to/client_key.pem',
+  '/path_to/server_certificate.pem'
 );
 ```
 
@@ -136,19 +136,19 @@ These functions change the KMIP provider:
 ```sql
 SELECT pg_tde_change_database_key_provider_kmip(
   'provider-name',
-  'kmip-addr', 
-  `port`, 
-  '/path_to/server_certificate.pem', 
-  '/path_to/client_cert.pem', 
-  '/path_to/client_key.pem'
+  'kmip-addr',
+  port,
+  '/path_to/client_cert.pem',
+  '/path_to/client_key.pem',
+  '/path_to/server_certificate.pem'
 );
 SELECT pg_tde_change_global_key_provider_kmip(
   'provider-name',
-  'kmip-addr', 
-  `port`, 
-  '/path_to/server_certificate.pem', 
-  '/path_to/client_certificate.pem', 
-  '/path_to/client_key.pem'
+  'kmip-addr',
+  port,
+  '/path_to/client_certificate.pem',
+  '/path_to/client_key.pem',
+  '/path_to/server_certificate.pem'
 );
 ```
 
@@ -164,7 +164,6 @@ where:
 
 !!! note
     The specified access parameters require permission to read and write keys at the server.
-
 
 ### Adding or modifying local keyfile providers
 
@@ -208,7 +207,6 @@ where:
 * `provider-name` is the name of the provider. You can specify any name, it's for you to identify the provider.
 * `/path/to/the/key/provider/data.file` is the path to the key provider file.
 
-
 ### Delete a provider
 
 These functions delete an existing provider in the current database or in the global scope:
@@ -232,84 +230,77 @@ These functions list the details of all key providers for the current database o
 
 ## Principal key management
 
-Use these functions to create a new principal key for a specific scope such as a current database, a global or default scope. You can also use them to start using a different existing key for a specific scope.
+Use these functions to create a new principal key at a given keyprover, and to use those keys for a specific scope such as a current database, a global or default scope. You can also use them to start using a different existing key for a specific scope.
 
 Princial keys are stored on key providers by the name specified in this function - for example, when using the Vault provider, after creating a key named "foo", a key named "foo" will be visible on the Vault server at the specified mount point.
 
+### pg_tde_creates_key_using_database_key_provider
+
+Creates a principal key at a database local key provider with the given name. For later use with pg_tde_set_key_using_database_key_provider().
+
+```sql
+SELECT pg_tde_create_key_using_database_key_provider(
+  'key-name',
+  'provider-name'
+);
+```
+### pg_tde_create_key_using_global_key_provider
+
+Creates a principal key at a global  key provider with the given name. For later use with pg_tde_set_ series of functions.
+
+```sql
+SELECT pg_tde_create_key_using_global_key_provider(
+  'key-name',
+  'provider-name'
+);
+```
+
 ### pg_tde_set_key_using_database_key_provider
 
-Creates or reuses a principal key for the **current** database, using the specified local key provider. It also rotates internal encryption keys to use the specified principal key.
+Sets the principal key for the **current** database, using the specified local key provider. It also rotates internal encryption keys to use the specified principal key.
 
 This function is typically used when working with per-database encryption through a local key provider.
 
 ```sql
 SELECT pg_tde_set_key_using_database_key_provider(
   'key-name',
-  'provider-name',
-  'false' -- or 'true'
+  'provider-name'
 );
 ```
-
-For the third parameter (`true`, `false`, or omitted):
-
-* `true`: Requires the key to be newly created. If a key with the same name already exists, the function fails.
-* `false` (default if omitted): Reuses the existing key with that name, if present. If the key does not exist, a new key is created.
-
 ### pg_tde_set_key_using_global_key_provider
 
-Creates or rotates the global principal key using the specified global key provider and the key name. This key is used for global settings like WAL encryption.
+Sets or rotates the global principal key using the specified global key provider and the key name. This key is used for global settings like WAL encryption.
 
 ```sql
 SELECT pg_tde_set_key_using_global_key_provider(
   'key-name',
-  'provider-name',
-  'ensure_new_key'
+  'provider-name'
 );
 ```
 
- The `ensure_new_key` parameter instructs the function how to handle a principal key during key rotation:
-
-* If set to `true`, a new key must be unique.
-  If the provider already stores a key by that name, the function returns an error.
-* If set to `false` (default), an existing principal key may be reused.
-
 ### pg_tde_set_server_key_using_global_key_provider
 
-Creates or rotates the server principal key using the specified global key provider. Use this function to set a principal key for WAL encryption.
+Sets or rotates the server principal key using the specified global key provider. Use this function to set a principal key for WAL encryption.
 
 ```sql
 SELECT pg_tde_set_server_key_using_global_key_provider(
   'key-name',
-  'provider-name',
-  'ensure_new_key'
+  'provider-name'
 );
 ```
 
-The `ensure_new_key` parameter instructs the function how to handle a principal key during key rotation:
-
-* If set to `true`, a new key must be unique.
-  If the provider already stores a key by that name, the function returns an error.
-* If set to `false` (default), an existing principal key may be reused.
-
 ### pg_tde_set_default_key_using_global_key_provider
 
-Creates or rotates the default principal key for the server using the specified global key provider.
+Sets or rotates the default principal key for the server using the specified global key provider.
 
-The default key is automatically used as a principal key  by any database that doesn't have an individual key provider and key configuration.
+The default key is automatically used as a principal key by any database that doesn't have an individual key provider and key configuration.
 
 ```sql
 SELECT pg_tde_set_default_key_using_global_key_provider(
   'key-name',
-  'provider-name',
-  'ensure_new_key'
+  'provider-name'
 );
 ```
-
-The `ensure_new_key` parameter instructs the function how to handle a principal key during key rotation:
-
-* If set to `true`, a new key must be unique.
-  If the provider already stores a key by that name, the function returns an error.
-* If set to `false` (default), an existing principal key may be reused.
 
 ## Encryption status check
 

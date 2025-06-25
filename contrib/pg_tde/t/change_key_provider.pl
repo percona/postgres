@@ -18,13 +18,16 @@ $node->init;
 $node->append_conf('postgresql.conf', "shared_preload_libraries = 'pg_tde'");
 $node->start;
 
-PGTDE::psql($node, 'postgres', 'CREATE EXTENSION IF NOT EXISTS pg_tde;');
+PGTDE::psql($node, 'postgres', 'CREATE EXTENSION pg_tde;');
 
 PGTDE::psql($node, 'postgres',
 	"SELECT pg_tde_add_database_key_provider_file('file-vault', '/tmp/change_key_provider_1.per');"
 );
 PGTDE::psql($node, 'postgres',
 	"SELECT * FROM pg_tde_list_all_database_key_providers();");
+PGTDE::psql($node, 'postgres',
+	"SELECT pg_tde_create_key_using_database_key_provider('test-key', 'file-vault');"
+);
 PGTDE::psql($node, 'postgres',
 	"SELECT pg_tde_set_key_using_database_key_provider('test-key', 'file-vault');"
 );

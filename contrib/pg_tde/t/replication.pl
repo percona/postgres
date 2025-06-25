@@ -9,6 +9,8 @@ use pgtde;
 
 PGTDE::setup_files_dir(basename($0));
 
+unlink('/tmp/replication.per');
+
 my $primary = PostgreSQL::Test::Cluster->new('primary');
 $primary->init(allows_streaming => 1);
 $primary->append_conf(
@@ -26,9 +28,12 @@ $replica->start;
 
 PGTDE::append_to_result_file("-- At primary");
 
-PGTDE::psql($primary, 'postgres', 'CREATE EXTENSION IF NOT EXISTS pg_tde;');
+PGTDE::psql($primary, 'postgres', 'CREATE EXTENSION pg_tde;');
 PGTDE::psql($primary, 'postgres',
-	"SELECT pg_tde_add_database_key_provider_file('file-vault', '/tmp/unlogged_tables.per');"
+	"SELECT pg_tde_add_database_key_provider_file('file-vault', '/tmp/replication.per');"
+);
+PGTDE::psql($primary, 'postgres',
+	"SELECT pg_tde_create_key_using_database_key_provider('test-key', 'file-vault');"
 );
 PGTDE::psql($primary, 'postgres',
 	"SELECT pg_tde_set_key_using_database_key_provider('test-key', 'file-vault');"
@@ -64,6 +69,9 @@ PGTDE::psql($primary, 'postgres',
 	"SELECT pg_tde_add_global_key_provider_file('file-vault', '/tmp/unlogged_tables.per');"
 );
 PGTDE::psql($primary, 'postgres',
+	"SELECT pg_tde_create_key_using_global_key_provider('test-global-key', 'file-vault');"
+);
+PGTDE::psql($primary, 'postgres',
 	"SELECT pg_tde_set_server_key_using_global_key_provider('test-global-key', 'file-vault');"
 );
 
@@ -74,10 +82,10 @@ PGTDE::psql($primary, 'postgres',
 
 PGTDE::psql($primary, 'postgres',
 	"ALTER SYSTEM SET pg_tde.wal_encrypt = 'on';");
-PGTDE::kill9_until_dead($primary);
+$primary->kill9;
 
 PGTDE::append_to_result_file("-- primary start");
-$primary->start;
+PGTDE::poll_start($primary);
 $primary->wait_for_catchup('replica');
 
 PGTDE::psql($replica, 'postgres', "SELECT * FROM test_enc2 ORDER BY x;");

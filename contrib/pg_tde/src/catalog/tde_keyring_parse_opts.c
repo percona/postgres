@@ -1,17 +1,11 @@
-/*-------------------------------------------------------------------------
- *
- * tde_keyring_parse_opts.c
- *      Parser routines for the keyring JSON options
+/*
+ * Parser routines for the keyring JSON options
  *
  * We expect one-dimentional JSON object with scalar fields
- *
- * IDENTIFICATION
- *    contrib/pg_tde/src/catalog/tde_keyring_parse_opts.c
- *
- *-------------------------------------------------------------------------
  */
 
 #include "postgres.h"
+
 #include "common/jsonapi.h"
 #include "mb/pg_wchar.h"
 #include "utils/jsonfuncs.h"

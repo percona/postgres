@@ -1,8 +1,14 @@
 -- At primary
-CREATE EXTENSION IF NOT EXISTS pg_tde;
-SELECT pg_tde_add_database_key_provider_file('file-vault', '/tmp/unlogged_tables.per');
+CREATE EXTENSION pg_tde;
+SELECT pg_tde_add_database_key_provider_file('file-vault', '/tmp/replication.per');
  pg_tde_add_database_key_provider_file 
 ---------------------------------------
+ 
+(1 row)
+
+SELECT pg_tde_create_key_using_database_key_provider('test-key', 'file-vault');
+ pg_tde_create_key_using_database_key_provider 
+-----------------------------------------------
  
 (1 row)
 
@@ -62,12 +68,19 @@ SELECT pg_tde_add_global_key_provider_file('file-vault', '/tmp/unlogged_tables.p
  
 (1 row)
 
+SELECT pg_tde_create_key_using_global_key_provider('test-global-key', 'file-vault');
+ pg_tde_create_key_using_global_key_provider 
+---------------------------------------------
+ 
+(1 row)
+
 SELECT pg_tde_set_server_key_using_global_key_provider('test-global-key', 'file-vault');
  pg_tde_set_server_key_using_global_key_provider 
 -------------------------------------------------
  
 (1 row)
 
+psql:<stdin>:1: WARNING:  The WAL encryption feature is currently in beta and may be unstable. Do not use it in production environments!
 CREATE TABLE test_enc2 (x int PRIMARY KEY) USING tde_heap;
 INSERT INTO test_enc2 (x) VALUES (1), (2);
 ALTER SYSTEM SET pg_tde.wal_encrypt = 'on';

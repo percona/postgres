@@ -1,43 +1,35 @@
-/*-------------------------------------------------------------------------
- *
- * pg_tde.c
- *      Main file: setup GUCs, shared memory, hooks and other general-purpose
- *      routines.
- *
- * IDENTIFICATION
- *    contrib/pg_tde/src/pg_tde.c
- *
- *-------------------------------------------------------------------------
+/*
+ * Main file: setup GUCs, shared memory, hooks and other general-purpose
+ * routines.
  */
 
 #include "postgres.h"
+
+#include "access/tableam.h"
+#include "access/xlog.h"
+#include "access/xloginsert.h"
 #include "funcapi.h"
-#include "pg_tde.h"
 #include "miscadmin.h"
 #include "storage/ipc.h"
 #include "storage/lwlock.h"
 #include "storage/shmem.h"
+#include "utils/builtins.h"
+#include "utils/percona.h"
+
+#include "access/pg_tde_tdemap.h"
 #include "access/pg_tde_xlog.h"
 #include "access/pg_tde_xlog_smgr.h"
-#include "encryption/enc_aes.h"
-#include "access/pg_tde_tdemap.h"
-#include "access/xlog.h"
-#include "access/xloginsert.h"
-#include "keyring/keyring_api.h"
-#include "common/pg_tde_shmem.h"
-#include "catalog/tde_principal_key.h"
-#include "keyring/keyring_file.h"
-#include "keyring/keyring_vault.h"
-#include "keyring/keyring_kmip.h"
-#include "utils/builtins.h"
-#include "smgr/pg_tde_smgr.h"
 #include "catalog/tde_global_space.h"
+#include "catalog/tde_principal_key.h"
+#include "encryption/enc_aes.h"
+#include "keyring/keyring_api.h"
+#include "keyring/keyring_file.h"
+#include "keyring/keyring_kmip.h"
+#include "keyring/keyring_vault.h"
+#include "pg_tde.h"
 #include "pg_tde_event_capture.h"
-#include "utils/percona.h"
 #include "pg_tde_guc.h"
-#include "access/tableam.h"
-
-#include <sys/stat.h>
+#include "smgr/pg_tde_smgr.h"
 
 PG_MODULE_MAGIC;
 
@@ -53,15 +45,16 @@ PG_FUNCTION_INFO_V1(pg_tdeam_handler);
 static void
 tde_shmem_request(void)
 {
-	Size		sz = TdeRequiredSharedMemorySize();
-	int			required_locks = TdeRequiredLocksCount();
+	Size		sz = 0;
 
+	sz = add_size(sz, PrincipalKeyShmemSize());
 	sz = add_size(sz, TDEXLogEncryptStateSize());
 
 	if (prev_shmem_request_hook)
 		prev_shmem_request_hook();
+
 	RequestAddinShmemSpace(sz);
-	RequestNamedLWLockTranche(TDE_TRANCHE_NAME, required_locks);
+	RequestNamedLWLockTranche(TDE_TRANCHE_NAME, TDE_LWLOCK_COUNT);
 	ereport(LOG, errmsg("tde_shmem_request: requested %ld bytes", sz));
 }
 
@@ -71,7 +64,8 @@ tde_shmem_startup(void)
 	if (prev_shmem_startup_hook)
 		prev_shmem_startup_hook();
 
-	TdeShmemInit();
+	KeyProviderShmemInit();
+	PrincipalKeyShmemInit();
 	TDEXLogShmemInit();
 	TDEXLogSmgrInit();
 }
@@ -97,8 +91,6 @@ _PG_init(void)
 	AesInit();
 	TdeGucInit();
 	TdeEventCaptureInit();
-	InitializePrincipalKeyInfo();
-	InitializeKeyProviderInfo();
 	InstallFileKeyring();
 	InstallVaultV2Keyring();
 	InstallKmipKeyring();
@@ -147,9 +139,7 @@ extension_install_redo(XLogExtensionInstall *xlrec)
 static void
 pg_tde_init_data_dir(void)
 {
-	struct stat st;
-
-	if (stat(PG_TDE_DATA_DIR, &st) < 0)
+	if (access(PG_TDE_DATA_DIR, F_OK) == -1)
 	{
 		if (MakePGDirectory(PG_TDE_DATA_DIR) < 0)
 			ereport(ERROR,

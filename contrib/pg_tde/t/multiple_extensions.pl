@@ -17,6 +17,8 @@ if (index(lc($PG_VERSION_STRING), lc("Percona Distribution")) == -1)
 	  "pg_tde test case only for PPG server package install with extensions.";
 }
 
+unlink('/tmp/keyring_data_file');
+
 open my $conf2, '>>', "/tmp/datafile-location";
 print $conf2 "/tmp/keyring_data_file\n";
 close $conf2;
@@ -48,10 +50,8 @@ ok($cmdret == 0, "Reset PGSM EXTENSION");
 PGTDE::append_to_debug_file($stdout);
 
 # Create pg_tde extension
-($cmdret, $stdout, $stderr) = $node->psql(
-	'postgres',
-	'CREATE EXTENSION IF NOT EXISTS pg_tde;',
-	extra_params => ['-a']);
+($cmdret, $stdout, $stderr) =
+  $node->psql('postgres', 'CREATE EXTENSION pg_tde;', extra_params => ['-a']);
 ok($cmdret == 0, "CREATE PGTDE EXTENSION");
 PGTDE::append_to_result_file($stdout);
 
@@ -120,6 +120,10 @@ PGTDE::append_to_debug_file($stdout);
 $node->psql(
 	'postgres',
 	"SELECT pg_tde_add_database_key_provider_file('file-provider', json_object('type' VALUE 'file', 'path' VALUE '/tmp/datafile-location'));",
+	extra_params => ['-a']);
+$node->psql(
+	'postgres',
+	"SELECT pg_tde_create_key_using_database_key_provider('test-db-key', 'file-provider');",
 	extra_params => ['-a']);
 $node->psql(
 	'postgres',

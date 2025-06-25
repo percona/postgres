@@ -1,20 +1,12 @@
-/*-------------------------------------------------------------------------
- *
- * pg_tde_guc.c
- *	  GUC variables for pg_tde
- *
- *
- * IDENTIFICATION
- *	  src/pg_tde_guc.c
- *
- *-------------------------------------------------------------------------
+/*
+ * GUC variables for pg_tde
  */
 
-#include "pg_tde_guc.h"
 #include "postgres.h"
+
 #include "utils/guc.h"
 
-#ifndef FRONTEND
+#include "pg_tde_guc.h"
 
 bool		AllowInheritGlobalProviders = true;
 bool		EncryptXLog = false;
@@ -60,5 +52,3 @@ TdeGucInit(void)
 		);
 
 }
-
-#endif

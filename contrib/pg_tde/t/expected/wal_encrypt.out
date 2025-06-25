@@ -1,5 +1,5 @@
-CREATE EXTENSION IF NOT EXISTS pg_tde;
-SELECT pg_tde_add_global_key_provider_file('file-keyring-010', '/tmp/pg_tde_test_keyring010.per');
+CREATE EXTENSION pg_tde;
+SELECT pg_tde_add_global_key_provider_file('file-keyring-010', '/tmp/wal_encrypt.per');
  pg_tde_add_global_key_provider_file 
 -------------------------------------
  
@@ -7,10 +7,16 @@ SELECT pg_tde_add_global_key_provider_file('file-keyring-010', '/tmp/pg_tde_test
 
 SELECT pg_tde_verify_server_key();
 psql:<stdin>:1: ERROR:  principal key not configured for current database
-SELECT key_name, key_provider_name, key_provider_id FROM pg_tde_server_key_info();
- key_name | key_provider_name | key_provider_id 
-----------+-------------------+-----------------
-          |                   |                
+SELECT key_name, provider_name, provider_id FROM pg_tde_server_key_info();
+ key_name | provider_name | provider_id 
+----------+---------------+-------------
+          |               |            
+(1 row)
+
+SELECT pg_tde_create_key_using_global_key_provider('server-key', 'file-keyring-010');
+ pg_tde_create_key_using_global_key_provider 
+---------------------------------------------
+ 
 (1 row)
 
 SELECT pg_tde_set_server_key_using_global_key_provider('server-key', 'file-keyring-010');
@@ -19,16 +25,17 @@ SELECT pg_tde_set_server_key_using_global_key_provider('server-key', 'file-keyri
  
 (1 row)
 
+psql:<stdin>:1: WARNING:  The WAL encryption feature is currently in beta and may be unstable. Do not use it in production environments!
 SELECT pg_tde_verify_server_key();
  pg_tde_verify_server_key 
 --------------------------
  
 (1 row)
 
-SELECT key_name, key_provider_name, key_provider_id FROM pg_tde_server_key_info();
-  key_name  | key_provider_name | key_provider_id 
-------------+-------------------+-----------------
- server-key | file-keyring-010  |              -1
+SELECT key_name, provider_name, provider_id FROM pg_tde_server_key_info();
+  key_name  |  provider_name   | provider_id 
+------------+------------------+-------------
+ server-key | file-keyring-010 |          -1
 (1 row)
 
 ALTER SYSTEM SET pg_tde.wal_encrypt = on;

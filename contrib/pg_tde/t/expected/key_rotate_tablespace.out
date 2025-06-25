@@ -1,9 +1,15 @@
 SET allow_in_place_tablespaces = true; CREATE TABLESPACE test_tblspace LOCATION '';
 CREATE DATABASE tbc TABLESPACE = test_tblspace;
-CREATE EXTENSION IF NOT EXISTS pg_tde;
-SELECT pg_tde_add_database_key_provider_file('file-vault', '/tmp/pg_tde_test_keyring.per');
+CREATE EXTENSION pg_tde;
+SELECT pg_tde_add_database_key_provider_file('file-vault', '/tmp/key_rotate_tablespace.per');
  pg_tde_add_database_key_provider_file 
 ---------------------------------------
+ 
+(1 row)
+
+SELECT pg_tde_create_key_using_database_key_provider('test-db-key', 'file-vault');
+ pg_tde_create_key_using_database_key_provider 
+-----------------------------------------------
  
 (1 row)
 
@@ -29,6 +35,12 @@ SELECT * FROM country_table;
           2 | UK           | Europe
           3 | USA          | North America
 (3 rows)
+
+SELECT pg_tde_create_key_using_database_key_provider('new-k', 'file-vault');
+ pg_tde_create_key_using_database_key_provider 
+-----------------------------------------------
+ 
+(1 row)
 
 SELECT pg_tde_set_key_using_database_key_provider('new-k', 'file-vault');
  pg_tde_set_key_using_database_key_provider 

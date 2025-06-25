@@ -9,6 +9,8 @@ use pgtde;
 
 PGTDE::setup_files_dir(basename($0));
 
+unlink('/tmp/wal_encrypt.per');
+
 my $node = PostgreSQL::Test::Cluster->new('main');
 $node->init;
 $node->append_conf('postgresql.conf', "shared_preload_libraries = 'pg_tde'");
@@ -17,18 +19,21 @@ $node->append_conf('postgresql.conf', "wal_level = 'logical'");
 #$node->append_conf('postgresql.conf', "pg_tde.wal_encrypt = 1"});
 $node->start;
 
-PGTDE::psql($node, 'postgres', "CREATE EXTENSION IF NOT EXISTS pg_tde;");
+PGTDE::psql($node, 'postgres', "CREATE EXTENSION pg_tde;");
 
 PGTDE::psql($node, 'postgres',
-	"SELECT pg_tde_add_global_key_provider_file('file-keyring-010', '/tmp/pg_tde_test_keyring010.per');"
+	"SELECT pg_tde_add_global_key_provider_file('file-keyring-010', '/tmp/wal_encrypt.per');"
 );
 
 PGTDE::psql($node, 'postgres', 'SELECT pg_tde_verify_server_key();');
 
 PGTDE::psql($node, 'postgres',
-	'SELECT key_name, key_provider_name, key_provider_id FROM pg_tde_server_key_info();'
+	'SELECT key_name, provider_name, provider_id FROM pg_tde_server_key_info();'
 );
 
+PGTDE::psql($node, 'postgres',
+	"SELECT pg_tde_create_key_using_global_key_provider('server-key', 'file-keyring-010');"
+);
 PGTDE::psql($node, 'postgres',
 	"SELECT pg_tde_set_server_key_using_global_key_provider('server-key', 'file-keyring-010');"
 );
@@ -36,7 +41,7 @@ PGTDE::psql($node, 'postgres',
 PGTDE::psql($node, 'postgres', 'SELECT pg_tde_verify_server_key();');
 
 PGTDE::psql($node, 'postgres',
-	'SELECT key_name, key_provider_name, key_provider_id FROM pg_tde_server_key_info();'
+	'SELECT key_name, provider_name, provider_id FROM pg_tde_server_key_info();'
 );
 
 PGTDE::psql($node, 'postgres', 'ALTER SYSTEM SET pg_tde.wal_encrypt = on;');
