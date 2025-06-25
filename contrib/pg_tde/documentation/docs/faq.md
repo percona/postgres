@@ -159,6 +159,6 @@ Since the encryption happens on the database level, it makes no difference for y
 
 To restore from an encrypted backup, you must have the same principal encryption key, which was used to encrypt files in your backup.  
 
-## I'm using OpenSSL in FIPS mode and need to use pg_tde. Does pg_tde comply with FIPS requirements? Can I use my own FIPS-mode OpenSSL library with pg_tde?
+## I'm using OpenSSL in FIPS mode and need to use `pg_tde`. Does `pg_tde` comply with FIPS requirements? Can I use my own FIPS-mode OpenSSL library with `pg_tde`?
 
 Yes. `pg_tde` works with the FIPS-compliant version of OpenSSL, whether it is provided by your operating system or if you use your own OpenSSL libraries. If you use your own libraries, make sure they are FIPS certified.
