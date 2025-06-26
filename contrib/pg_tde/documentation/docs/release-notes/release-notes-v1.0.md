@@ -8,11 +8,19 @@
 
 This release provides the following features and improvements:
 
-* **Type Release Highlights here**
+* **Major documentation updates**
+
+The `pg_tde` documentation has received significant updates, which include:
+
+- New KMS configuration guides for Fortanix, Vault, KMIP and OpenBAO
+- Reorganized and expanded topics for Architecture, GUC, Functions and FAQ
+- Extensive and numerous refinements and clarifications across the entire site
+
+Explore the full documentation [in the official `pg_tde` documentations](https://docs.percona.com/pg-tde/index.html).
 
 ## Upgrade considerations
 
-`pg_tde` {{tdeversion}} is not backward compatible with previous `pg_tde` versions (like Release Candidate 2) due to significant changes in code. This means you cannot directly upgrade from one version to another. You must do **a clean installation** of `pg_tde`.
+`pg_tde` {{tdeversion}} is **not** backward compatible with previous `pg_tde` versions, like Release Candidate 2, due to significant changes in code. This means you **cannot** directly upgrade from one version to another. You must do **a clean installation** of `pg_tde`.
 
 ## Known issues
 
