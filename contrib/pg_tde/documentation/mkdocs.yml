@@ -177,6 +177,7 @@ nav:
     - "2. Configure pg_tde": setup.md
     - "2.1 Configure Key Management (KMS)": 
       - "2.1 Configure Key Management (KMS)": global-key-provider-configuration/index.md
+<<<<<<< pg-tde-release-notes-1.0
       - "KMIP configuration": global-key-provider-configuration/kmip-server.md
       - "Fortanix configuration": global-key-provider-configuration/kmip-fortanix.md  
       - "Vault configuration": global-key-provider-configuration/vault.md
@@ -187,6 +188,18 @@ nav:
     - "4. Configure WAL encryption (tech preview)": wal-encryption.md
   - "Technical reference":
     - "Technical reference": advanced-topics/index.md
+=======
+      - "KMIP Configuration": global-key-provider-configuration/kmip-server.md
+      - "Fortanix Configuration": global-key-provider-configuration/kmip-fortanix.md  
+      - "Vault Configuration": global-key-provider-configuration/vault.md
+      - "Thales Configuration": global-key-provider-configuration/kmip-thales.md
+      - "Keyring File Configuration": global-key-provider-configuration/keyring.md
+    - "2.2 Global Principal Key Configuration": global-key-provider-configuration/set-principal-key.md
+    - "3. Validate Encryption with pg_tde": test.md
+    - "4. Configure WAL Encryption (tech preview)": wal-encryption.md
+  - "Technical Reference":
+    - "Overview": advanced-topics/index.md
+>>>>>>> release-17.5.2
     - "Architecture": architecture/index.md
     - "GUC variables": variables.md
     - "Functions": functions.md
@@ -201,6 +214,7 @@ nav:
     - "Configure Multi-tenancy": how-to/multi-tenant-setup.md
     - "Encryption Enforcement": how-to/enforcement.md
     - "Decrypt an Encrypted Table": how-to/decrypt.md
+    - "Restore an encrypted pg_tde backup": how-to/restore-backups.md
   - faq.md
   - "Release notes":
     - "pg_tde release notes": release-notes/release-notes.md
