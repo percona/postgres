@@ -17,7 +17,7 @@ To uninstall `pg_tde`, follow these steps:
     alter table <table name> set access method heap;
     ```
 
-    - To discard data: drop the encrypted tables
+    - To discard data, drop the encrypted tables.
 
 2. Drop the extension using the `DROP EXTENSION` command:
 
