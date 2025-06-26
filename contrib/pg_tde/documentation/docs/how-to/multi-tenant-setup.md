@@ -102,7 +102,8 @@ You must do these steps for every database where you have created the extension.
         ```sql
         SELECT pg_tde_add_database_key_provider_vault_v2(
             'provider-name', 
-            'url', 'mount', 
+            'url', 
+            'mount', 
             'secret_token_path', 
             'ca_path'
             );
