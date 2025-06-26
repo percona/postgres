@@ -9,9 +9,14 @@ To uninstall `pg_tde`, follow these steps:
 
 1. Decrypt or drop encrypted tables:
 
-    Before removing the extension, you must either **decrypt** or **drop** all encrypted tables. `pg_tde` does not support decrypting tables in-place yet. Therefore:
+    Before removing the extension, you must either **decrypt** or **drop** all encrypted tables:
 
-    - To preserve the data: manually copy it into unencrypted tables
+    - To decrypt a table, run:
+
+    ```sql
+    alter table <table name> set access method heap;
+    ```
+
     - To discard data: drop the encrypted tables
 
 2. Drop the extension using the `DROP EXTENSION` command:
