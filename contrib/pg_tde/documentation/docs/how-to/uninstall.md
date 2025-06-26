@@ -14,7 +14,7 @@ To uninstall `pg_tde`, follow these steps:
     - To decrypt a table, run:
 
     ```sql
-    alter table <table name> set access method heap;
+    ALTER TABLE <table name> SET ACCESS METHOD heap;
     ```
 
     - To discard data, drop the encrypted tables.
