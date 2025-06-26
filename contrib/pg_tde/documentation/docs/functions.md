@@ -309,6 +309,22 @@ The `ensure_new_key` parameter instructs the function how to handle a principal 
   If the provider already stores a key by that name, the function returns an error.
 * If set to `false` (default), an existing principal key may be reused.
 
+### pg_tde_delete_key
+
+Deletes the principal key for the current database. If the current database has any encrypted tables, and there isn’t a default principal key configured, it reports an error instead. If there are encrypted tables, but there’s also a default principal key, internal keys will be encrypted with the default key.
+
+```sql
+SELECT pg_tde_delete_key();
+```
+
+### pg_tde_delete_default_key
+
+Deletes default principal key. It's possible only if no database uses default principal key.
+
+```sql
+SELECT pg_tde_delete_default_key();
+```
+
 ## Encryption status check
 
 ### pg_tde_is_encrypted
