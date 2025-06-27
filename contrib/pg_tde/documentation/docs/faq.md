@@ -27,7 +27,7 @@ Using TDE helps you avoid the following risks:
 
 If to translate sensitive data to files stored in your database, these are user data in tables, temporary files, WAL files. TDE has you covered encrypting all these files.
 
-`pg_tde` does not encrypt system catalogs yet. This means that statistics data and database metadata are not encrypted. The encryption of system catalogs is planned for future releases.
+`pg_tde` does not encrypt system catalogs yet. This means that statistics data and database metadata are not encrypted.
 
 ## I use disk-level encryption. Why should I care about TDE?
 
@@ -111,8 +111,6 @@ We advise encrypting the whole database only if all your data is sensitive, like
 `pg_tde` currently uses a AES-CBC-128 algorithm. First the internal keys in the datafile are encrypted using the principal key with AES-CBC-128, then the file data itself is again encrypted using AES-CBC-128 with the internal key.
 
 For WAL encryption, AES-CTR-128 is used.
-
-The support of other encryption mechanisms such as AES256 is planned for future releases. Reach out to us with your requirements and usage scenarios of other encryption methods are needed.
 
 ## Is post-quantum encryption supported?
 
