@@ -257,52 +257,96 @@ SELECT pg_tde_create_key_using_global_key_provider(
 
 ### pg_tde_set_key_using_database_key_provider
 
-Sets the principal key for the **current** database, using the specified local key provider. It also rotates internal encryption keys to use the specified principal key.
+Creates or reuses a principal key for the **current** database, using the specified local key provider. It also rotates internal encryption keys to use the specified principal key.
 
 This function is typically used when working with per-database encryption through a local key provider.
 
 ```sql
 SELECT pg_tde_set_key_using_database_key_provider(
   'key-name',
-  'provider-name'
+  'provider-name',
+  'false' -- or 'true'
 );
 ```
+
+For the third parameter (`true`, `false`, or omitted):
+
+* `true`: Requires the key to be newly created. If a key with the same name already exists, the function fails.
+* `false` (default if omitted): Reuses the existing key with that name, if present. If the key does not exist, a new key is created.
+
 ### pg_tde_set_key_using_global_key_provider
 
-Sets or rotates the global principal key using the specified global key provider and the key name. This key is used for global settings like WAL encryption.
+Creates or rotates the global principal key using the specified global key provider and the key name. This key is used for global settings like WAL encryption.
 
 ```sql
 SELECT pg_tde_set_key_using_global_key_provider(
   'key-name',
-  'provider-name'
+  'provider-name',
+  'ensure_new_key'
 );
 ```
 
+ The `ensure_new_key` parameter instructs the function how to handle a principal key during key rotation:
+
+* If set to `true`, a new key must be unique.
+  If the provider already stores a key by that name, the function returns an error.
+* If set to `false` (default), an existing principal key may be reused.
+
 ### pg_tde_set_server_key_using_global_key_provider
 
-Sets or rotates the server principal key using the specified global key provider. Use this function to set a principal key for WAL encryption.
+Creates or rotates the server principal key using the specified global key provider. Use this function to set a principal key for WAL encryption.
 
 ```sql
 SELECT pg_tde_set_server_key_using_global_key_provider(
   'key-name',
-  'provider-name'
+  'provider-name',
+  'ensure_new_key'
 );
 ```
 
 !!! warning
     The WAL encryption feature is currently in beta and is not effective unless explicitly enabled. It is not yet production ready. **Do not enable this feature in production environments**.
+=======
+The `ensure_new_key` parameter instructs the function how to handle a principal key during key rotation:
+
+* If set to `true`, a new key must be unique.
+  If the provider already stores a key by that name, the function returns an error.
+* If set to `false` (default), an existing principal key may be reused.
 
 ### pg_tde_set_default_key_using_global_key_provider
 
-Sets or rotates the default principal key for the server using the specified global key provider.
+Creates or rotates the default principal key for the server using the specified global key provider.
 
-The default key is automatically used as a principal key by any database that doesn't have an individual key provider and key configuration.
+The default key is automatically used as a principal key  by any database that doesn't have an individual key provider and key configuration.
 
 ```sql
 SELECT pg_tde_set_default_key_using_global_key_provider(
   'key-name',
-  'provider-name'
+  'provider-name',
+  'ensure_new_key'
 );
+```
+
+The `ensure_new_key` parameter instructs the function how to handle a principal key during key rotation:
+
+* If set to `true`, a new key must be unique.
+  If the provider already stores a key by that name, the function returns an error.
+* If set to `false` (default), an existing principal key may be reused.
+
+### pg_tde_delete_key
+
+Deletes the principal key for the current database. If the current database has any encrypted tables, and there isn’t a default principal key configured, it reports an error instead. If there are encrypted tables, but there’s also a default principal key, internal keys will be encrypted with the default key.
+
+```sql
+SELECT pg_tde_delete_key();
+```
+
+### pg_tde_delete_default_key
+
+Deletes default principal key. It's possible only if no database uses default principal key.
+
+```sql
+SELECT pg_tde_delete_default_key();
 ```
 
 ## Encryption status check
