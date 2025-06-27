@@ -31,8 +31,8 @@ The following example is for testing purposes only. Use secure tokens and proper
 
 ```sql
 SELECT pg_tde_add_global_key_provider_vault_v2(
-    'my-vault',
-    'https://vault.vault.svc.cluster.local:8200',
+    'my-openbao-provider',
+    'https://openbao.example.com:8200',
     'secret/data',
     '/path/to/token_file',
     '/path/to/ca_cert.pem'
