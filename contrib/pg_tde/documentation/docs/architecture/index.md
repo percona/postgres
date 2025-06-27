@@ -9,7 +9,7 @@ The following sections break down the key architectural components of this desig
 **Customizable** means that `pg_tde` aims to support many different use cases:
 
 * Encrypting either every table in every database or only some tables in some databases
-* Encryption keys can be stored on various external key storage servers including HashiCorp Vault, KMIP servers.
+* Encryption keys can be stored on various external key storage servers including HashiCorp Vault and KMIP servers.
 * Using one key for everything or different keys for different databases
 * Storing every key on the same key storage, or using different storages for different databases
 * Handling permissions: who can manage database specific or global permissions, who can create encrypted or not encrypted tables
@@ -223,9 +223,6 @@ pg_tde_change_database_key_provider_<TYPE>('provider_name', ... details ...)
 
 These functions also allow changing the type of a provider but **do not** migrate any data. They are expected to be used during infrastructure migration, for example when the address of a server changes.
 
-!!! note
-    These functions do not verify the parameters. To verify them, see [`pg_tde_verify_key`](../functions.md#pg_tde_verify_key).
-
 ### Change providers from the command line
 
 To change a provider from a command line, `pg_tde` provides the `pg_tde_change_key_provider` command line tool.
@@ -236,26 +233,23 @@ This tool work similarly to the above functions, with the following syntax:
 pg_tde_change_key_provider <dbOid> <providerType> ... details ...
 ```
 
-Note that since this tool is expected to be offline, it bypasses all permission checks!
+!!! note
+    Since this tool is expected to be offline, it bypasses all permission checks. This is also the reason why it requires a `dbOid` instead of a name, as it has no way to process the catalog and look up names.
 
-This is also the reason why it requires a `dbOid` instead of a name, as it has no way to process the catalog and look up names.
+    This tool does not validate any parameters.
 
 ### Delete providers
 
-Providers can be deleted by using the
+Providers can be deleted by using the following functions:
 
 ```sql
 pg_tde_delete_database_key_provider(provider_name)
 pg_tde_delete_global_key_provider(provider_name)
 ```
 
-functions.
-
 For database specific providers, the function first checks if the provider is used or not, and the provider is only deleted if it's not used.
 
 For global providers, the function checks if the provider is used anywhere, WAL or any specific database, and returns an error if it is.
-
-This somewhat goes against the principle that `pg_tde` should not interact with other databases than the one the user is connected to, but on the other hand, it only does this lookup in the internal `pg_tde` metadata, not in Postgres catalogs, so it is a gray zone. Making this check makes more sense than potentially making some databases inaccessible.
 
 ### List/query providers
 
@@ -348,42 +342,3 @@ ALTER TABLE t1 SET ACCESS METHOD tde_heap;
 It is possible to use `pg_tde` with `inherit_global_keys = on`, refer to the global keys or keyrings in databases, and then change this setting to `off`.
 
 In this case, existing references to global providers or the global default principal key keep working as before, but new references to the global scope cannot be made.
-
-## Typical setup scenarios
-
-### Simple "one principal key" encryption
-
-1. Install the extensions: `shared_preload_libraries`
-2. Run: `CREATE EXTENSION pg_tde;` in `template1`
-3. Add a global key provider
-4. Add a default principal key using the same global provider
-5. Enable WAL encryption to use the default principal key: `ALTER SYSTEM SET pg_tde.wal_encrypt=‘ON’`
-6. Restart the server
-7. Optional: set the `default_table_access_method` to `tde_heap` so that tables are encrypted by default
-
-!!! note
-    Encryption is handled by database administrators. Regular users do not need access to encryption functions, they can create encrypted tables without any special permissions.
-
-### One key storage, but different keys per database
-
-1. Install the extensions: `shared_preload_libraries` and `pg_tde.wal_encrypt`
-2. Run: `CREATE EXTENSION pg_tde;` in `template1`
-3. Add a global key provider
-4. Change the WAL encryption to use the proper global key provider
-5. Assign permissions to designated users for managing database-level principal keys, while restricting access to key provider configurations. Each database is required to use the **same** global key provider defined by the administrator.
-
-!!! note
-    You can set `default_table_access_method` to `tde_heap`, but we recommend doing it per database using `ALTER DATABASE` and only after a principal key has been configured for that database.
-    Alternatively, you can use `ALTER SYSTEM` to apply it globally, but be aware: table creation will fail in any database that does not already have a principal key defined.
-
-### Complete multi-tenancy
-
-1. Install the extensions: `shared_preload_libraries` and `pg_tde.wal_encrypt` (that's not multi-tenant currently)
-2. Run: `CREATE EXTENSION pg_tde;` in any database
-3. Add a global key provider for WAL
-4. Change the WAL encryption to use the proper global key provider
-
-There is no default configuration for multi-tenancy. Key providers and principal keys must be configured individually for each database, with permissions also managed on a per-database basis.
-
-!!! note
-    We recommend setting `default_table_access_method = 'tde_heap'` at the database level (not system-wide), but only after a principal key has been configured for that database. Using `ALTER SYSTEM` is **not recommended** in multi-tenant environments.
