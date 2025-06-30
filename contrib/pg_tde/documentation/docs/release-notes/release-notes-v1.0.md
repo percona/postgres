@@ -10,35 +10,9 @@ The `pg_tde` by Percona extension brings in [Transparent Data Encryption (TDE)](
 
 And **stable** for encrypting relational data in PostgreSQL using [Transparent Data Encryption (TDE)](../index/index.md). This milestone brings production-level data protection to PostgreSQL workloads.
 
-* **Streaming and logical replication compatibility**
+* **WAL encryption is still in Beta**
 
-You can now use `pg_tde` in replication setups.
-
-* **Improved performance testing & automation**
-
-Bare-metal fuzz testing, performance benchmarking with CI/CD pipelines, and daily reporting integrations with Grafana and InfluxDB help ensure robustness and transparency.
-
-* **Key management enhancements**
-
-Added SQL-level functions and CLI tools for rotating, validating, and managing encryption keys. Now more compliant with PostgreSQL standards.
-
-* **Better developer experience**
-
-Contributor guides, PostgreSQL-style CLI, static analysis integration (Clang), and extensive refactoring improve maintainability and onboarding for new contributors.
-
-* **Security hardened**
-
-Sensitive metadata redaction, improved error messages, proper SQLSTATE codes, and stricter key validation increase security and clarity.
-
-* **Major documentation updates**
-
-The `pg_tde` documentation has received significant updates, which include:
-
-- New configuration guides for Fortanix, Vault, KMIP and OpenBAO
-- Reorganized and expanded topics for Architecture, GUC, Functions, TDE Operations and FAQ
-- Extensive and numerous refinements and clarifications across the entire site
-
-Explore the full documentation [in the official `pg_tde` documentations](https://docs.percona.com/pg-tde/index.html).
+The WAL encryption feature is currently still in beta and is not effective unless explicitly enabled. **It is not yet production ready.** Do **not** enable this feature in production environments.
 
 ## Upgrade considerations
 
@@ -61,20 +35,14 @@ Adjust the limits with caution since it affects other processes running in your 
 
 - [PG-802](https://perconadev.atlassian.net/browse/PG-802) – Documented setting up streaming replication with `pg_tde`
 - [PG-829](https://perconadev.atlassian.net/browse/PG-829) – Refactored and simplified key map code  
-- [PG-836](https://perconadev.atlassian.net/browse/PG-836) – Added custom wait events to writing to key files and key provider files  
 - [PG-1257](https://perconadev.atlassian.net/browse/PG-1257) – Added SQL function to remove the current principal key  
 - [PG-1292](https://perconadev.atlassian.net/browse/PG-1292) – Added a CI/CD performance test job in PSP GH repo
 - [PG-1316](https://perconadev.atlassian.net/browse/PG-1316) – Integrated daily automated Performance Results with InfluxDB and Grafana  
-- [PG-1351](https://perconadev.atlassian.net/browse/PG-1351) – Documented how to decrypt old backups after the principal key was rotated
-- [PG-1443](https://perconadev.atlassian.net/browse/PG-1443) – Made `pg_tde_change_key_provider` CLI utility follow PostgreSQL coding style  
-- [PG-1448](https://perconadev.atlassian.net/browse/PG-1448) – `pg_tde` now uses jsonc instead of the internal json API
+- [PG-1351](https://perconadev.atlassian.net/browse/PG-1351) – Documented how to decrypt old backups after the principal key was rotated 
 - [PG-1464](https://perconadev.atlassian.net/browse/PG-1464) – Integrated the clang static analyzer for `pg_tde`
 
 ### Improvements
 
-- [PG-953](https://perconadev.atlassian.net/browse/PG-953) – The tdemap code now allows the creation of duplicate keys
-- [PG-1435](https://perconadev.atlassian.net/browse/PG-1435) – Improved error message explanations  
-- [PG-1499](https://perconadev.atlassian.net/browse/PG-1499) – Enhanced encryption metadata visibility in `pg_tde`
 - [PG-1527](https://perconadev.atlassian.net/browse/PG-1527) – Added proper error codes for error messages in `pg_tde`
 - [PG-1617](https://perconadev.atlassian.net/browse/PG-1617) – Removed relation key cache
 - [PG-1635](https://perconadev.atlassian.net/browse/PG-1635) – User-facing TDE functions now return void
