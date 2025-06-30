@@ -6,7 +6,7 @@ The `pg_tde` by Percona extension brings in [Transparent Data Encryption (TDE)](
 
 ## Release Highlights
 
-* **`pg_tde` 1.0 is now **GA (Generally Available)**
+* **`pg_tde` 1.0 is now GA (Generally Available)**
 
 And **stable** for encrypting relational data in PostgreSQL using [Transparent Data Encryption (TDE)](../index/index.md). This milestone brings production-level data protection to PostgreSQL workloads.
 
