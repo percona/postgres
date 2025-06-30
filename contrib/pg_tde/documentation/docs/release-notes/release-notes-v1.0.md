@@ -39,6 +39,7 @@ Adjust the limits with caution since it affects other processes running in your 
 
 - [PG-1617](https://perconadev.atlassian.net/browse/PG-1617) – Removed relation key cache
 - [PG-1635](https://perconadev.atlassian.net/browse/PG-1635) – User-facing TDE functions now return void
+- [PG-1605](https://perconadev.atlassian.net/browse/PG-1605) – Removed undeclared dependencies for `pg_tde_grant_database_key_management_to_role()`
 
 ### Bugs Fixed
 
@@ -48,11 +49,10 @@ Adjust the limits with caution since it affects other processes running in your 
 - [PG-1592](https://perconadev.atlassian.net/browse/PG-1592) – Improve error logs when Server Key Info is requested without being created  
 - [PG-1593](https://perconadev.atlassian.net/browse/PG-1593) – Fixed runtime failures when invalid Vault tokens are allowed during key provider creation
 - [PG-1600](https://perconadev.atlassian.net/browse/PG-1600) – Fixed Postmaster error when dropping a table with an unavailable key provider  
-- [PG-1605](https://perconadev.atlassian.net/browse/PG-1605) – Fixed the creation of undeclared dependencies for `pg_tde_grant_database_key_management_to_role()`
 - [PG-1606](https://perconadev.atlassian.net/browse/PG-1606) – Fixed missing superuser check in role grant function leads to misleading errors  
-- [PG-1607](https://perconadev.atlassian.net/browse/PG-1607) – Made CA parameter optional when Vault server runs without SSL  
+- [PG-1607](https://perconadev.atlassian.net/browse/PG-1607) – Improved CA parameter order and surrounding documentation for clearer interpretation
 - [PG-1608](https://perconadev.atlassian.net/browse/PG-1608) – Updated and fixed global key configuration parameters in documentation  
-- [PG-1613](https://perconadev.atlassian.net/browse/PG-1613) – Fixed the `pg_tde_change_key_provider` CLI tool
+- [PG-1613](https://perconadev.atlassian.net/browse/PG-1613) – Tested and improved the `pg_tde_change_key_provider` CLI utility
 - [PG-1637](https://perconadev.atlassian.net/browse/PG-1637) – Fixed unused keys in key files which caused issues after OID wraparound  
 - [PG-1651](https://perconadev.atlassian.net/browse/PG-1651) – Fixed the CLI tool when working with Vault key export/import  
 - [PG-1652](https://perconadev.atlassian.net/browse/PG-1652) – Fixed when the server fails to find encryption keys after CLI-based provider change  
