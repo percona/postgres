@@ -1,8 +1,6 @@
 # Architecture
 
-This topic outlines the long-term architectural goals and intended design of `pg_tde`. While many components are already implemented, some features are still under active development and may not yet be available in the current release.
-
-The goal of `pg_tde` is to provide a **customizable, complete, data-at-rest encryption extension** for PostgreSQL.
+`pg_tde` is a **customizable, complete, data at rest encryption extension** for PostgreSQL.
 
 The following sections break down the key architectural components of this design.
 
