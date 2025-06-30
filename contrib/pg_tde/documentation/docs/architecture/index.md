@@ -271,15 +271,19 @@ pg_tde_REVOKE_database_key_management_FROM_role
 
 ### Create and rotate keys
 
-Principal keys can be created or rotated using the following functions:
+Principal keys can be created using the following functions:
 
 ```sql
-pg_tde_set_key_using_(global/database)_key_provider('key-name', 'provider-name', ensure_new_key)
-pg_tde_set_server_key_using_(global/database)_key_provider('key-name', 'provider-name', ensure_new_key)
-pg_tde_set_default_key_using_(global/database)_key_provider('key-name', 'provider-name', ensure_new_key)
+pg_tde_create_key_using_(global/database)_key_provider('key-name', 'provider-name')
 ```
 
-`ensure_new_key` is a boolean parameter defaulting to false. If it is `true` the function might return an error instead of setting the key if it already exists on the provider.
+Principal keys can be used or rotated using the following functions:
+
+```sql
+pg_tde_set_key_using_(global/database)_key_provider('key-name', 'provider-name')
+pg_tde_set_server_key_using_(global/database)_key_provider('key-name', 'provider-name')
+pg_tde_set_default_key_using_(global/database)_key_provider('key-name', 'provider-name')
+```
 
 ### Default principal key
 
@@ -291,7 +295,8 @@ With this feature, it is possible for the entire database server to easily use t
 
 You can manage a default key with the following functions:
 
-* `pg_tde_set_default_key_using_global_key_provider('key-name','provider-name','true/false')`
+* `pg_tde_create_key_using_global_key_provider('key-name','provider-name')`
+* `pg_tde_set_default_key_using_global_key_provider('key-name','provider-name')`
 * `pg_tde_delete_default_key()`
 
 !!! note
@@ -300,10 +305,10 @@ You can manage a default key with the following functions:
 
 #### Delete a key
 
-The `pg_tde_delete_key()` function removes the principal key for the current database. If the current database has any encrypted tables, and there isn’t a default principal key configured, it reports an error instead. If there are encrypted tables, but there’s also a default principal key, internal keys will be encrypted with the default key.
+The `pg_tde_delete_key()` function unsets the principal key for the current database. If the current database has any encrypted tables, and there isn’t a default principal key configured, it reports an error instead. If there are encrypted tables, but there’s also a default principal key, internal keys will be encrypted with the default key.
 
 !!! note
-    WAL keys **cannot** be deleted, as server keys are managed separately.
+    WAL keys **cannot** be unset, as server keys are managed separately.
 
 ### Current key details
 
