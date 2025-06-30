@@ -33,17 +33,10 @@ Adjust the limits with caution since it affects other processes running in your 
 
 ### New Features
 
-- [PG-802](https://perconadev.atlassian.net/browse/PG-802) – Documented setting up streaming replication with `pg_tde`
-- [PG-829](https://perconadev.atlassian.net/browse/PG-829) – Refactored and simplified key map code  
 - [PG-1257](https://perconadev.atlassian.net/browse/PG-1257) – Added SQL function to remove the current principal key  
-- [PG-1292](https://perconadev.atlassian.net/browse/PG-1292) – Added a CI/CD performance test job in PSP GH repo
-- [PG-1316](https://perconadev.atlassian.net/browse/PG-1316) – Integrated daily automated Performance Results with InfluxDB and Grafana  
-- [PG-1351](https://perconadev.atlassian.net/browse/PG-1351) – Documented how to decrypt old backups after the principal key was rotated 
-- [PG-1464](https://perconadev.atlassian.net/browse/PG-1464) – Integrated the clang static analyzer for `pg_tde`
 
 ### Improvements
 
-- [PG-1527](https://perconadev.atlassian.net/browse/PG-1527) – Added proper error codes for error messages in `pg_tde`
 - [PG-1617](https://perconadev.atlassian.net/browse/PG-1617) – Removed relation key cache
 - [PG-1635](https://perconadev.atlassian.net/browse/PG-1635) – User-facing TDE functions now return void
 
