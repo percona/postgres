@@ -1078,7 +1078,7 @@ pg_tde_fetch_wal_keys(XLogRecPtr start_lsn)
 		wal_rec = pg_tde_add_wal_key_to_cache(&stub_key, InvalidXLogRecPtr);
 
 #ifdef FRONTEND
-		/* The backen frees it after copying to the cache. */
+		/* The backend frees it after copying to the cache. */
 		pfree(principal_key);
 #endif
 		LWLockRelease(lock_pk);
