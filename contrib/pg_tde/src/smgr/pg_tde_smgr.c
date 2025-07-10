@@ -194,9 +194,9 @@ tde_smgr_get_decrypted_key(TDESMgrRelation *tdereln)
 					errhint("create one using pg_tde_set_key before using encrypted tables"));
 
 		tdereln->decrypted_key = tde_keys_decrypt_key(&tdereln->encrypted_key,
-											 principal_key->keyData,
-											 (uint8 *) &tdereln->reln.smgr_rlocator.locator,
-											 sizeof(RelFileLocator));
+													  principal_key->keyData,
+													  (uint8 *) &tdereln->reln.smgr_rlocator.locator,
+													  sizeof(RelFileLocator));
 
 		LWLockRelease(tde_lwlock_enc_keys());
 
@@ -512,7 +512,10 @@ tde_mdclose(SMgrRelation reln, ForkNumber forknum)
 	if (tdereln->encryption_status == RELATION_NOT_ENCRYPTED)
 		return;
 
-	/* TODO: We should probably do something with forknum here to avoid excessive free/alloc of decrypted keys. */
+	/*
+	 * TODO: We should probably do something with forknum here to avoid
+	 * excessive free/alloc of decrypted keys.
+	 */
 	if (tdereln->decrypted_key)
 	{
 		tde_keys_free_decrypted_key(tdereln->decrypted_key);
