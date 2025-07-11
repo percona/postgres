@@ -50,7 +50,7 @@ Load the `pg_tde` at startup time. The extension requires additional shared memo
 
 ## Key provider configuration
 
-You must do these steps for every database where you have created the extension. For more information on configurations, please see the [Configure Key Management (KMS)](../global-key-provider-configuration/index.md) topic.
+You must do these steps for every database where you have created the extension. For more information on configurations, please see the [Configure Key Management (KMS)](../global-key-provider-configuration/overview.md) topic.
 
 1. Set up a key provider.
 

@@ -19,4 +19,4 @@ The following features are available for the extension:
 * Table-level granularity for encryption and access control
 * Multiple Key management options
 
-[Overview](index/index.md){.md-button} [Get Started](install.md){.md-button}
+[Learn more about TDE and pg_tde :material-arrow-right:](index/about-tde.md){.md-button} [Get started with installation :material-arrow-right:](install.md){.md-button}
