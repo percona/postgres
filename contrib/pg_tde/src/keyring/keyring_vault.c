@@ -220,7 +220,7 @@ get_key_by_name(GenericKeyring *keyring, const char *key_name, KeyringReturnCode
 
 	if (!curl_perform(vault_keyring, url, &str, &httpCode, NULL))
 	{
-		*return_code = KEYRING_CODE_INVALID_KEY_SIZE;
+		*return_code = KEYRING_CODE_INVALID_KEY;
 		ereport(WARNING,
 				errmsg("HTTP(S) request to keyring provider \"%s\" failed",
 					   vault_keyring->keyring.provider_name));
@@ -253,6 +253,15 @@ get_key_by_name(GenericKeyring *keyring, const char *key_name, KeyringReturnCode
 		goto cleanup;
 	}
 
+	if (parse.key == NULL)
+	{
+		*return_code = KEYRING_CODE_INVALID_RESPONSE;
+		ereport(WARNING,
+				errmsg("HTTP(S) request to keyring provider \"%s\" returned no key",
+					   vault_keyring->keyring.provider_name));
+		goto cleanup;
+	}
+
 	responseKey = parse.key;
 
 #if KEYRING_DEBUG
@@ -266,7 +275,7 @@ get_key_by_name(GenericKeyring *keyring, const char *key_name, KeyringReturnCode
 
 	if (key->data.len > MAX_KEY_DATA_SIZE)
 	{
-		*return_code = KEYRING_CODE_INVALID_KEY_SIZE;
+		*return_code = KEYRING_CODE_INVALID_KEY;
 		ereport(WARNING,
 				errmsg("keyring provider \"%s\" returned invalid key size: %d",
 					   vault_keyring->keyring.provider_name, key->data.len));
@@ -438,5 +447,6 @@ json_resp_object_field_start(void *state, char *fname, bool isnull)
 			break;
 	}
 
+	pfree(fname);
 	return JSON_SUCCESS;
 }
