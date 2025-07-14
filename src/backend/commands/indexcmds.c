@@ -1170,7 +1170,7 @@ DefineIndex(Oid relationId,
 		constr_flags |= INDEX_CONSTR_CREATE_INIT_DEFERRED;
 
 	indexRelationId =
-		index_create(rel, indexRelationName, indexRelationId, parentIndexId,
+		index_create_percona(rel, indexRelationName, indexRelationId, parentIndexId,
 					 parentConstraintId,
 					 stmt->oldNumber, indexInfo, indexColNames,
 					 accessMethodId, tablespaceId,

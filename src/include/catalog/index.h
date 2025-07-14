@@ -85,8 +85,28 @@ extern Oid	index_create(Relation heapRelation,
 						 bits16 constr_flags,
 						 bool allow_system_table_mods,
 						 bool is_internal,
-						 Oid *constraintId,
-						 RelFileLocator *old_rlocator);
+						 Oid *constraintId);
+
+extern Oid	index_create_percona(Relation heapRelation,
+								 const char *indexRelationName,
+								 Oid indexRelationId,
+								 Oid parentIndexRelid,
+								 Oid parentConstraintId,
+								 RelFileNumber relFileNumber,
+								 IndexInfo *indexInfo,
+								 List *indexColNames,
+								 Oid accessMethodObjectId,
+								 Oid tableSpaceId,
+								 Oid *collationObjectId,
+								 Oid *classObjectId,
+								 int16 *coloptions,
+								 Datum reloptions,
+								 bits16 flags,
+								 bits16 constr_flags,
+								 bool allow_system_table_mods,
+								 bool is_internal,
+								 Oid *constraintId,
+								 RelFileLocator *old_rlocator);
 
 #define	INDEX_CONSTR_CREATE_MARK_AS_PRIMARY	(1 << 0)
 #define	INDEX_CONSTR_CREATE_DEFERRABLE		(1 << 1)

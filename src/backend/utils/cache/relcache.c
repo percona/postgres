@@ -3833,7 +3833,7 @@ RelationSetNewRelfilenumber(Relation relation, char persistence)
 		/* handle these directly, at least for now */
 		SMgrRelation srel;
 
-		srel = RelationCreateStorage(relation->rd_locator, newrlocator, persistence, true);
+		srel = RelationCreateStoragePercona(relation->rd_locator, newrlocator, persistence, true);
 		smgrclose(srel);
 	}
 	else
