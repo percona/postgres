@@ -103,6 +103,17 @@ AddPendingSync(const RelFileLocator *rlocator)
 	pending->is_truncated = false;
 }
 
+SMgrRelation
+RelationCreateStorage(RelFileLocator rlocator,
+					  char relpersistence,
+					  bool register_delete)
+{
+	if (!percona_allow_upstream_smgr_api)
+		elog(ERROR, "An extension is trying to use the traditional RelationCreateStorage method, while another loaded extension (pg_tde) requires the new API.");
+
+	return RelationCreateStoragePercona(rlocator, rlocator, relpersistence, register_delete);
+}
+
 /*
  * RelationCreateStorage
  *		Create physical storage for a relation.
@@ -117,8 +128,8 @@ AddPendingSync(const RelFileLocator *rlocator)
  * pass register_delete = false.
  */
 SMgrRelation
-RelationCreateStorage(RelFileLocator oldlocator, RelFileLocator rlocator, char relpersistence,
-					  bool register_delete)
+RelationCreateStoragePercona(RelFileLocator oldlocator, RelFileLocator rlocator, char relpersistence,
+							 bool register_delete)
 {
 	SMgrRelation srel;
 	BackendId	backend;
@@ -146,7 +157,7 @@ RelationCreateStorage(RelFileLocator oldlocator, RelFileLocator rlocator, char r
 	}
 
 	srel = smgropen(rlocator, backend);
-	smgrcreate(oldlocator, srel, MAIN_FORKNUM, false);
+	smgrcreate_percona(oldlocator, srel, MAIN_FORKNUM, false);
 
 	if (needs_wal)
 		log_smgrcreate(&srel->smgr_rlocator.locator, MAIN_FORKNUM);
@@ -994,7 +1005,7 @@ smgr_redo(XLogReaderState *record)
 		SMgrRelation reln;
 
 		reln = smgropen(xlrec->rlocator, InvalidBackendId);
-		smgrcreate(xlrec->rlocator, reln, xlrec->forkNum, true);
+		smgrcreate_percona(xlrec->rlocator, reln, xlrec->forkNum, true);
 	}
 	else if (info == XLOG_SMGR_TRUNCATE)
 	{
@@ -1015,7 +1026,7 @@ smgr_redo(XLogReaderState *record)
 		 * XLogReadBufferForRedo, we prefer to recreate the rel and replay the
 		 * log as best we can until the drop is seen.
 		 */
-		smgrcreate(xlrec->rlocator, reln, MAIN_FORKNUM, true);
+		smgrcreate_percona(xlrec->rlocator, reln, MAIN_FORKNUM, true);
 
 		/*
 		 * Before we perform the truncation, update minimum recovery point to

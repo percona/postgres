@@ -38,6 +38,8 @@ static Size LargestSMgrRelationSize = 0;
 
 SMgrId		storage_manager_id;
 
+bool		percona_allow_upstream_smgr_api = true;
+
 /*
  * Each backend has a hashtable that stores all extant SMgrRelation objects.
  * In addition, "unowned" SMgrRelation objects are chained together in a list.
@@ -368,6 +370,15 @@ smgrcloserellocator(RelFileLocatorBackend rlocator)
 		smgrclose(reln);
 }
 
+void
+smgrcreate(SMgrRelation reln, ForkNumber forknum, bool isRedo)
+{
+	if (!percona_allow_upstream_smgr_api)
+		elog(ERROR, "An extension is trying to use the traditional smgrcreate method, while another loaded extension (pg_tde) requires the new API.");
+
+	smgrcreate_percona(reln->smgr_rlocator.locator, reln, forknum, isRedo);
+}
+
 /*
  * smgrcreate() -- Create a new relation.
  *
@@ -376,7 +387,7 @@ smgrcloserellocator(RelFileLocatorBackend rlocator)
  * to be created.
  */
 void
-smgrcreate(RelFileLocator relold, SMgrRelation reln, ForkNumber forknum, bool isRedo)
+smgrcreate_percona(RelFileLocator relold, SMgrRelation reln, ForkNumber forknum, bool isRedo)
 {
 	smgrsw[reln->smgr_which].smgr_create(relold, reln, forknum, isRedo);
 }
