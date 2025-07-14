@@ -17205,7 +17205,7 @@ index_copy_data(Relation rel, RelFileLocator newrlocator)
 	 * NOTE: any conflict in relfilenumber value will be caught in
 	 * RelationCreateStorage().
 	 */
-	dstrel = RelationCreateStorage(rel->rd_locator, newrlocator, rel->rd_rel->relpersistence, true);
+	dstrel = RelationCreateStoragePercona(rel->rd_locator, newrlocator, rel->rd_rel->relpersistence, true);
 
 	/* copy main fork */
 	RelationCopyStorage(RelationGetSmgr(rel), dstrel, MAIN_FORKNUM,
@@ -17217,7 +17217,7 @@ index_copy_data(Relation rel, RelFileLocator newrlocator)
 	{
 		if (smgrexists(RelationGetSmgr(rel), forkNum))
 		{
-			smgrcreate(rel->rd_locator, dstrel, forkNum, false);
+			smgrcreate_percona(rel->rd_locator, dstrel, forkNum, false);
 
 			/*
 			 * WAL log creation if the relation is persistent, or this is the
