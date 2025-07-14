@@ -662,6 +662,37 @@ UpdateIndexRelation(Oid indexoid,
 	heap_freetuple(tuple);
 }
 
+Oid
+index_create(Relation heapRelation,
+			 const char *indexRelationName,
+			 Oid indexRelationId,
+			 Oid parentIndexRelid,
+			 Oid parentConstraintId,
+			 RelFileNumber relFileNumber,
+			 IndexInfo *indexInfo,
+			 List *indexColNames,
+			 Oid accessMethodObjectId,
+			 Oid tableSpaceId,
+			 Oid *collationObjectId,
+			 Oid *classObjectId,
+			 int16 *coloptions,
+			 Datum reloptions,
+			 bits16 flags,
+			 bits16 constr_flags,
+			 bool allow_system_table_mods,
+			 bool is_internal,
+			 Oid *constraintId)
+{
+	if (!percona_allow_upstream_smgr_api)
+		elog(ERROR, "An extension is trying to use the traditional index_create method, while another loaded extension (pg_tde) requires the new API.");
+
+	return index_create_percona(heapRelation, indexRelationName, indexRelationId,
+								parentIndexRelid, parentConstraintId, relFileNumber,
+								indexInfo, indexColNames, accessMethodObjectId, tableSpaceId,
+								collationObjectId, classObjectId, coloptions,
+								reloptions, flags, constr_flags,
+								allow_system_table_mods, is_internal, constraintId, NULL);
+}
 
 /*
  * index_create
@@ -718,7 +749,7 @@ UpdateIndexRelation(Oid indexoid,
  * indexInfo->ii_{Expressions,Predicate} depend on.
  */
 Oid
-index_create(Relation heapRelation,
+index_create_percona(Relation heapRelation,
 			 const char *indexRelationName,
 			 Oid indexRelationId,
 			 Oid parentIndexRelid,
@@ -1433,7 +1464,7 @@ index_concurrently_create_copy(Relation heapRelation, Oid oldIndexId,
 	 * ensure a consistent state at all times.  That is why parentIndexRelid
 	 * is not set here.
 	 */
-	newIndexId = index_create(heapRelation,
+	newIndexId = index_create_percona(heapRelation,
 							  newName,
 							  InvalidOid,	/* indexRelationId */
 							  InvalidOid,	/* parentIndexRelid */
@@ -3079,7 +3110,7 @@ index_build(Relation heapRelation,
 	if (indexRelation->rd_rel->relpersistence == RELPERSISTENCE_UNLOGGED &&
 		!smgrexists(RelationGetSmgr(indexRelation), INIT_FORKNUM))
 	{
-		smgrcreate(indexRelation->rd_locator, RelationGetSmgr(indexRelation), INIT_FORKNUM, false);
+		smgrcreate_percona(indexRelation->rd_locator, RelationGetSmgr(indexRelation), INIT_FORKNUM, false);
 		log_smgrcreate(&indexRelation->rd_locator, INIT_FORKNUM);
 		indexRelation->rd_indam->ambuildempty(indexRelation);
 	}
