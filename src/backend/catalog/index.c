@@ -675,6 +675,39 @@ UpdateIndexRelation(Oid indexoid,
 	heap_freetuple(tuple);
 }
 
+Oid
+index_create(Relation heapRelation,
+			 const char *indexRelationName,
+			 Oid indexRelationId,
+			 Oid parentIndexRelid,
+			 Oid parentConstraintId,
+			 RelFileNumber relFileNumber,
+			 IndexInfo *indexInfo,
+			 const List *indexColNames,
+			 Oid accessMethodId,
+			 Oid tableSpaceId,
+			 const Oid *collationIds,
+			 const Oid *opclassIds,
+			 const Datum *opclassOptions,
+			 const int16 *coloptions,
+			 const NullableDatum *stattargets,
+			 Datum reloptions,
+			 uint16 flags,
+			 uint16 constr_flags,
+			 bool allow_system_table_mods,
+			 bool is_internal,
+			 Oid *constraintId)
+{
+	if (!percona_allow_upstream_smgr_api)
+		elog(ERROR, "An extension is trying to use the traditional index_create method, while another loaded extension (pg_tde) requires the new API.");
+
+	return index_create_percona(heapRelation, indexRelationName, indexRelationId,
+								parentIndexRelid, parentConstraintId, relFileNumber,
+								indexInfo, indexColNames, accessMethodId, tableSpaceId,
+								collationIds, opclassIds, opclassOptions, coloptions,
+								stattargets, reloptions, flags, constr_flags,
+								allow_system_table_mods, is_internal, constraintId, NULL);
+}
 
 /*
  * index_create
@@ -733,28 +766,28 @@ UpdateIndexRelation(Oid indexoid,
  * indexInfo->ii_{Expressions,Predicate} depend on.
  */
 Oid
-index_create(Relation heapRelation,
-			 const char *indexRelationName,
-			 Oid indexRelationId,
-			 Oid parentIndexRelid,
-			 Oid parentConstraintId,
-			 RelFileNumber relFileNumber,
-			 IndexInfo *indexInfo,
-			 const List *indexColNames,
-			 Oid accessMethodId,
-			 Oid tableSpaceId,
-			 const Oid *collationIds,
-			 const Oid *opclassIds,
-			 const Datum *opclassOptions,
-			 const int16 *coloptions,
-			 const NullableDatum *stattargets,
-			 Datum reloptions,
-			 uint16 flags,
-			 uint16 constr_flags,
-			 bool allow_system_table_mods,
-			 bool is_internal,
-			 Oid *constraintId,
-			 RelFileLocator *old_rlocator)
+index_create_percona(Relation heapRelation,
+					 const char *indexRelationName,
+					 Oid indexRelationId,
+					 Oid parentIndexRelid,
+					 Oid parentConstraintId,
+					 RelFileNumber relFileNumber,
+					 IndexInfo *indexInfo,
+					 const List *indexColNames,
+					 Oid accessMethodId,
+					 Oid tableSpaceId,
+					 const Oid *collationIds,
+					 const Oid *opclassIds,
+					 const Datum *opclassOptions,
+					 const int16 *coloptions,
+					 const NullableDatum *stattargets,
+					 Datum reloptions,
+					 uint16 flags,
+					 uint16 constr_flags,
+					 bool allow_system_table_mods,
+					 bool is_internal,
+					 Oid *constraintId,
+					 RelFileLocator *old_rlocator)
 {
 	Oid			heapRelationId = RelationGetRelid(heapRelation);
 	Relation	pg_class;
@@ -1477,28 +1510,28 @@ index_create_copy(Relation heapRelation, uint16 flags,
 	 * ensure a consistent state at all times.  That is why parentIndexRelid
 	 * is not set here.
 	 */
-	newIndexId = index_create(heapRelation,
-							  newName,
-							  InvalidOid,	/* indexRelationId */
-							  InvalidOid,	/* parentIndexRelid */
-							  InvalidOid,	/* parentConstraintId */
-							  InvalidRelFileNumber, /* relFileNumber */
-							  newInfo,
-							  indexColNames,
-							  indexRelation->rd_rel->relam,
-							  tablespaceOid,
-							  indexRelation->rd_indcollation,
-							  indclass->values,
-							  opclassOptions,
-							  indcoloptions->values,
-							  stattargets,
-							  reloptionsDatum,
-							  flags,
-							  0,	/* constr_flags */
-							  true, /* allow table to be a system catalog? */
-							  false,	/* is_internal? */
-							  NULL,
-							  &indexRelation->rd_locator);
+	newIndexId = index_create_percona(heapRelation,
+									  newName,
+									  InvalidOid,	/* indexRelationId */
+									  InvalidOid,	/* parentIndexRelid */
+									  InvalidOid,	/* parentConstraintId */
+									  InvalidRelFileNumber, /* relFileNumber */
+									  newInfo,
+									  indexColNames,
+									  indexRelation->rd_rel->relam,
+									  tablespaceOid,
+									  indexRelation->rd_indcollation,
+									  indclass->values,
+									  opclassOptions,
+									  indcoloptions->values,
+									  stattargets,
+									  reloptionsDatum,
+									  flags,
+									  0,	/* constr_flags */
+									  true, /* allow table to be a system catalog? */
+									  false,	/* is_internal? */
+									  NULL,
+									  &indexRelation->rd_locator);
 
 	/* Close the relations used and clean up */
 	index_close(indexRelation, NoLock);
@@ -3140,7 +3173,7 @@ index_build(Relation heapRelation,
 	if (indexRelation->rd_rel->relpersistence == RELPERSISTENCE_UNLOGGED &&
 		!smgrexists(RelationGetSmgr(indexRelation), INIT_FORKNUM))
 	{
-		smgrcreate(indexRelation->rd_locator, RelationGetSmgr(indexRelation), INIT_FORKNUM, false);
+		smgrcreate_percona(indexRelation->rd_locator, RelationGetSmgr(indexRelation), INIT_FORKNUM, false);
 		log_smgrcreate(&indexRelation->rd_locator, INIT_FORKNUM);
 		indexRelation->rd_indam->ambuildempty(indexRelation);
 	}

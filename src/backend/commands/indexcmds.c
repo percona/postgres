@@ -1268,15 +1268,15 @@ DefineIndex(ParseState *pstate,
 		constr_flags |= INDEX_CONSTR_CREATE_WITHOUT_OVERLAPS;
 
 	indexRelationId =
-		index_create(rel, indexRelationName, indexRelationId, parentIndexId,
-					 parentConstraintId,
-					 stmt->oldNumber, indexInfo, indexColNames,
-					 accessMethodId, tablespaceId,
-					 collationIds, opclassIds, opclassOptions,
-					 coloptions, NULL, reloptions,
-					 flags, constr_flags,
-					 allowSystemTableMods, !check_rights,
-					 &createdConstraintId, NULL);
+		index_create_percona(rel, indexRelationName, indexRelationId, parentIndexId,
+							 parentConstraintId,
+							 stmt->oldNumber, indexInfo, indexColNames,
+							 accessMethodId, tablespaceId,
+							 collationIds, opclassIds, opclassOptions,
+							 coloptions, NULL, reloptions,
+							 flags, constr_flags,
+							 allowSystemTableMods, !check_rights,
+							 &createdConstraintId, NULL);
 
 	ObjectAddressSet(address, RelationRelationId, indexRelationId);
 

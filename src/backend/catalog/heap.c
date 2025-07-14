@@ -402,7 +402,7 @@ heap_create(const char *relname,
 											   relpersistence,
 											   relfrozenxid, relminmxid);
 		else if (RELKIND_HAS_STORAGE(rel->rd_rel->relkind))
-			RelationCreateStorage(prev_rlocator, new_rlocator, relpersistence, true);
+			RelationCreateStoragePercona(prev_rlocator, new_rlocator, relpersistence, true);
 		else
 			Assert(false);
 
