@@ -329,15 +329,15 @@ create_toast_table(Relation rel, Oid toastOid, Oid toastIndexOid,
 	 * Don't let index creation overwrite progress information for the command
 	 * that caused the TOAST table to be created.
 	 */
-	index_create(toast_rel, toast_idxname, toastIndexOid, InvalidOid,
-				 InvalidOid, InvalidOid,
-				 indexInfo,
-				 list_make2("chunk_id", "chunk_seq"),
-				 BTREE_AM_OID,
-				 rel->rd_rel->reltablespace,
-				 collationIds, opclassIds, NULL, coloptions, NULL, (Datum) 0,
-				 INDEX_CREATE_IS_PRIMARY | INDEX_CREATE_SUPPRESS_PROGRESS,
-				 0, true, true, NULL, NULL);
+	index_create_percona(toast_rel, toast_idxname, toastIndexOid, InvalidOid,
+						 InvalidOid, InvalidOid,
+						 indexInfo,
+						 list_make2("chunk_id", "chunk_seq"),
+						 BTREE_AM_OID,
+						 rel->rd_rel->reltablespace,
+						 collationIds, opclassIds, NULL, coloptions, NULL, (Datum) 0,
+						 INDEX_CREATE_IS_PRIMARY | INDEX_CREATE_SUPPRESS_PROGRESS,
+						 0, true, true, NULL, NULL);
 
 	table_close(toast_rel, NoLock);
 
