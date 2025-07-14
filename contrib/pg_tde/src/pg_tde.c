@@ -101,6 +101,8 @@ _PG_init(void)
 	shmem_request_hook = tde_shmem_request;
 	prev_shmem_startup_hook = shmem_startup_hook;
 	shmem_startup_hook = tde_shmem_startup;
+
+	allow_upstream_smgr_api = false;
 }
 
 static void

@@ -73,6 +73,8 @@ static Size LargestSMgrRelationSize = 0;
 char	   *storage_manager_string;
 SMgrId		storage_manager_id;
 
+bool allow_upstream_smgr_api = true;
+
 /*
  * Each backend has a hashtable that stores all extant SMgrRelation objects.
  * In addition, "unpinned" SMgrRelation objects are chained together in a list.
@@ -399,6 +401,15 @@ smgrexists(SMgrRelation reln, ForkNumber forknum)
 	return smgrsw[reln->smgr_which].smgr_exists(reln, forknum);
 }
 
+void smgrcreate(SMgrRelation reln, ForkNumber forknum, bool isRedo)
+{
+	if(!allow_upstream_smgr_api) {
+		elog(FATAL, "An extension is trying to use the traditional smgrcreate method, while another loaded extension (pg_tde) requires the new API.");
+	}
+
+	smgrcreate2(reln->smgr_rlocator.locator, reln, forknum, isRedo);
+}
+
 /*
  * smgrcreate() -- Create a new relation.
  *
@@ -407,7 +418,7 @@ smgrexists(SMgrRelation reln, ForkNumber forknum)
  * to be created.
  */
 void
-smgrcreate(RelFileLocator relold, SMgrRelation reln, ForkNumber forknum, bool isRedo)
+smgrcreate2(RelFileLocator relold, SMgrRelation reln, ForkNumber forknum, bool isRedo)
 {
 	smgrsw[reln->smgr_which].smgr_create(relold, reln, forknum, isRedo);
 }

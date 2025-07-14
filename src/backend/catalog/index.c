@@ -672,6 +672,35 @@ UpdateIndexRelation(Oid indexoid,
 	heap_freetuple(tuple);
 }
 
+extern Oid	index_create(Relation heapRelation,
+						 const char *indexRelationName,
+						 Oid indexRelationId,
+						 Oid parentIndexRelid,
+						 Oid parentConstraintId,
+						 RelFileNumber relFileNumber,
+						 IndexInfo *indexInfo,
+						 const List *indexColNames,
+						 Oid accessMethodId,
+						 Oid tableSpaceId,
+						 const Oid *collationIds,
+						 const Oid *opclassIds,
+						 const Datum *opclassOptions,
+						 const int16 *coloptions,
+						 const NullableDatum *stattargets,
+						 Datum reloptions,
+						 bits16 flags,
+						 bits16 constr_flags,
+						 bool allow_system_table_mods,
+						 bool is_internal,
+						 Oid *constraintId)
+{
+	if(!allow_upstream_smgr_api) {
+		elog(FATAL, "An extension is trying to use the traditional index_create method, while another loaded extension (pg_tde) requires the new API.");
+	}
+	return index_create2(heapRelation, indexRelationName, indexRelationId, parentIndexRelid, parentConstraintId, relFileNumber,
+		indexInfo, indexColNames, accessMethodId, tableSpaceId, collationIds, opclassIds, opclassOptions, coloptions, stattargets, reloptions, 
+		flags, constr_flags, allow_system_table_mods, is_internal, constraintId, NULL);
+}
 
 /*
  * index_create
@@ -721,7 +750,7 @@ UpdateIndexRelation(Oid indexoid,
  * Returns the OID of the created index.
  */
 Oid
-index_create(Relation heapRelation,
+index_create2(Relation heapRelation,
 			 const char *indexRelationName,
 			 Oid indexRelationId,
 			 Oid parentIndexRelid,
@@ -1441,7 +1470,7 @@ index_concurrently_create_copy(Relation heapRelation, Oid oldIndexId,
 	 * ensure a consistent state at all times.  That is why parentIndexRelid
 	 * is not set here.
 	 */
-	newIndexId = index_create(heapRelation,
+	newIndexId = index_create2(heapRelation,
 							  newName,
 							  InvalidOid,	/* indexRelationId */
 							  InvalidOid,	/* parentIndexRelid */
@@ -3030,7 +3059,7 @@ index_build(Relation heapRelation,
 	if (indexRelation->rd_rel->relpersistence == RELPERSISTENCE_UNLOGGED &&
 		!smgrexists(RelationGetSmgr(indexRelation), INIT_FORKNUM))
 	{
-		smgrcreate(indexRelation->rd_locator, RelationGetSmgr(indexRelation), INIT_FORKNUM, false);
+		smgrcreate2(indexRelation->rd_locator, RelationGetSmgr(indexRelation), INIT_FORKNUM, false);
 		log_smgrcreate(&indexRelation->rd_locator, INIT_FORKNUM);
 		indexRelation->rd_indam->ambuildempty(indexRelation);
 	}

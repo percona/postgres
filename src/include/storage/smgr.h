@@ -23,6 +23,7 @@ typedef uint8 SMgrId;
 #define MaxSMgrId UINT8_MAX
 
 extern PGDLLIMPORT SMgrId storage_manager_id;
+extern bool allow_upstream_smgr_api;
 
 /*
  * smgr.c maintains a table of SMgrRelation objects, which are essentially
@@ -130,7 +131,8 @@ extern void smgrdestroyall(void);
 extern void smgrrelease(SMgrRelation reln);
 extern void smgrreleaseall(void);
 extern void smgrreleaserellocator(RelFileLocatorBackend rlocator);
-extern void smgrcreate(RelFileLocator relold, SMgrRelation reln, ForkNumber forknum, bool isRedo);
+extern void smgrcreate(SMgrRelation reln, ForkNumber forknum, bool isRedo);
+extern void smgrcreate2(RelFileLocator relold, SMgrRelation reln, ForkNumber forknum, bool isRedo);
 extern void smgrdosyncall(SMgrRelation *rels, int nrels);
 extern void smgrdounlinkall(SMgrRelation *rels, int nrels, bool isRedo);
 extern void smgrextend(SMgrRelation reln, ForkNumber forknum,

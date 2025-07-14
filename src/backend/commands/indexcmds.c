@@ -1200,7 +1200,7 @@ DefineIndex(Oid tableId,
 		constr_flags |= INDEX_CONSTR_CREATE_INIT_DEFERRED;
 
 	indexRelationId =
-		index_create(rel, indexRelationName, indexRelationId, parentIndexId,
+		index_create2(rel, indexRelationName, indexRelationId, parentIndexId,
 					 parentConstraintId,
 					 stmt->oldNumber, indexInfo, indexColNames,
 					 accessMethodId, tablespaceId,

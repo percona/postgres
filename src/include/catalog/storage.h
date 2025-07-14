@@ -22,7 +22,10 @@
 /* GUC variables */
 extern PGDLLIMPORT int wal_skip_threshold;
 
-extern SMgrRelation RelationCreateStorage(RelFileLocator oldlocator,
+extern SMgrRelation RelationCreateStorage(RelFileLocator rlocator,
+										  char relpersistence,
+										  bool register_delete);
+extern SMgrRelation RelationCreateStorage2(RelFileLocator oldlocator,
 										  RelFileLocator rlocator,
 										  char relpersistence,
 										  bool register_delete);
