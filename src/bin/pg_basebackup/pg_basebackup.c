@@ -396,6 +396,12 @@ tablespace_list_append(const char *arg)
 static void
 usage(void)
 {
+#ifdef PERCONA_EXT
+#define WAL_METHODS "none|stream"
+#else
+#define WAL_METHODS "none|fetch|stream"
+#endif
+
 	printf(_("%s takes a base backup of a running PostgreSQL server.\n\n"),
 		   progname);
 	printf(_("Usage:\n"));
@@ -414,7 +420,7 @@ usage(void)
 	printf(_("  -T, --tablespace-mapping=OLDDIR=NEWDIR\n"
 			 "                         relocate tablespace in OLDDIR to NEWDIR\n"));
 	printf(_("      --waldir=WALDIR    location for the write-ahead log directory\n"));
-	printf(_("  -X, --wal-method=none|fetch|stream\n"
+	printf(_("  -X, --wal-method=" WAL_METHODS "\n"
 			 "                         include required WAL files with specified method\n"));
 	printf(_("  -z, --gzip             compress tar output\n"));
 	printf(_("  -Z, --compress=[{client|server}-]METHOD[:DETAIL]\n"
@@ -2548,6 +2554,9 @@ main(int argc, char **argv)
 				else if (strcmp(optarg, "f") == 0 ||
 						 strcmp(optarg, "fetch") == 0)
 				{
+#ifdef PERCONA_EXT
+					pg_fatal("\"fetch\" wal-method is not supported with Percona features, must be \"stream\" or \"none\"");
+#endif
 					includewal = FETCH_WAL;
 				}
 				else if (strcmp(optarg, "s") == 0 ||
