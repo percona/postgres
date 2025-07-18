@@ -54,7 +54,7 @@ SELECT pg_tde_set_default_key_using_global_key_provider(
 * `global_vault_provider` is the name of the global key provider you previously configured.
 
 !!! note
-    If no error is returned for a command, the operation completed successfully.
+    If no error is reported, the action completed successfully.
 
 ## How key generation works
 
