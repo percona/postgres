@@ -13,6 +13,18 @@ SELECT pg_tde_create_key_using_global_key_provider(
 );
 ```
 
+??? example Sample output
+    ```sql
+        postgres=# SELECT pg_tde_create_key_using_global_key_provider(
+            'keytest1',
+            'file-keyring'
+        );
+        pg_tde_create_key_using_global_key_provider
+        ---------------------------------------------
+
+        (1 row)
+    ```
+
 ## Configure a default principal key
 
 To configure a global principal key, run:
