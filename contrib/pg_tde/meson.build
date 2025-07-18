@@ -120,6 +120,7 @@ tap_tests = [
   't/pg_waldump_fullpage.pl',
   't/replication.pl',
   't/rotate_key.pl',
+  't/standby_source.pl',
   't/tde_heap.pl',
   't/unlogged_tables.pl',
   't/wal_encrypt.pl',
