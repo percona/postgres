@@ -185,7 +185,7 @@ nav:
       - "Keyring File Configuration": global-key-provider-configuration/keyring.md
     - "2.2 Global Principal Key Configuration": global-key-provider-configuration/set-principal-key.md
     - "3. Validate Encryption with pg_tde": test.md
-    - "4. Configure WAL Encryption (tech preview)": wal-encryption.md
+    - "4. Configure WAL Encryption": wal-encryption.md
   - "Technical Reference":
     - "Overview": advanced-topics/index.md
     - "Architecture": architecture/index.md

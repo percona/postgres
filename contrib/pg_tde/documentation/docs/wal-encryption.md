@@ -1,7 +1,4 @@
-# Configure WAL Encryption (tech preview)
-
-!!! warning
-    The WAL encryption feature is currently in beta and is not effective unless explicitly enabled. It is not yet production ready. **Do not enable this feature in production environments**.
+# Configure WAL Encryption
 
 Before enabling WAL encryption, follow the steps below to create a principal key and configure it for WAL:
 
@@ -15,7 +12,7 @@ Before enabling WAL encryption, follow the steps below to create a principal key
 
     === "With KMIP server"
 
-        Make sure you have obtained the root certificate for the KMIP server and the keypair for the client. The client key needs permissions to create / read keys on the server. Find the [configuration guidelines for the HashiCorp Vault Enterprise KMIP Secrets Engine](https://developer.hashicorp.com/vault/tutorials/enterprise/kmip-engine).
+        Make sure you have obtained the root certificate for the KMIP server and the keypair for the client. The client key needs permissions to create / read keys on the server. Find the [configuration guidelines for the HashiCorp Vault Enterprise KMIP Secrets Engine :octicons-link-external-16:](https://developer.hashicorp.com/vault/tutorials/enterprise/kmip-engine).
 
         For testing purposes, you can use the PyKMIP server which enables you to set up required certificates. To use a real KMIP server, make sure to obtain the valid certificates issued by the key management appliance.
 
@@ -118,3 +115,5 @@ Now WAL files start to be encrypted for both encrypted and unencrypted tables.
 
 For more technical references related to architecture, variables or functions, see:
 [Technical Reference](advanced-topics/index.md){.md-button}
+
+💬 Need help customizing this for your infrastructure? [Contact Percona support :octicons-link-external-16:](get-help.md)

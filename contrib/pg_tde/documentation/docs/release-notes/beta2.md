@@ -7,7 +7,7 @@
 !!! important
 
     This version of Percona Transparent Data Encryption extension **is 
-    not recommended for production environments yet**. We encourage you to test it and [give your feedback](https://forums.percona.com/c/postgresql/pg-tde-transparent-data-encryption-tde/82).
+    not recommended for production environments yet**. We encourage you to test it and [give your feedback :octicons-link-external-16:](https://forums.percona.com/c/postgresql/pg-tde-transparent-data-encryption-tde/82).
   
     This will help us improve the product and make it production-ready faster.
 

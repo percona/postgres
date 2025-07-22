@@ -22,7 +22,7 @@ The following sections break down the key architectural components of this desig
 * Temporary tables
 * Write Ahead Log (WAL), still in beta. **Do not enable this feature in production environments**.
 
-**Extension** means that `pg_tde` should be implemented only as an extension, possibly compatible with any PostgreSQL distribution, including the open source community version. This requires changes in the PostgreSQL core to make it more extensible. Therefore, `pg_tde` currently works only with the [Percona Server for PostgreSQL](https://docs.percona.com/postgresql/17/index.html) - a binary replacement of community PostgreSQL and included in Percona Distribution for PostgreSQL.
+**Extension** means that `pg_tde` should be implemented only as an extension, possibly compatible with any PostgreSQL distribution, including the open source community version. This requires changes in the PostgreSQL core to make it more extensible. Therefore, `pg_tde` currently works only with the [Percona Server for PostgreSQL :octicons-link-external-16:](https://docs.percona.com/postgresql/17/index.html) - a binary replacement of community PostgreSQL and included in Percona Distribution for PostgreSQL.
 
 ## Main components
 
@@ -30,7 +30,7 @@ The main components of `pg_tde` are the following:
 
 * **Core server changes** focus on making the server more extensible, allowing the main logic of `pg_tde` to remain separate, as an extension. Core changes also add encryption-awareness to some command line tools that have to work directly with encrypted tables or encrypted WAL files.
 
-    [Percona Server for PostgreSQL location](https://github.com/percona/postgres/tree/{{tdebranch}})
+    [Percona Server for PostgreSQL location :octicons-link-external-16:](https://github.com/percona/postgres/tree/{{tdebranch}})
 
 * The **`pg_tde` extension itself** implements the encryption code by hooking into the extension points introduced in the core changes, and the already existing extension points in the PostgreSQL server.
 
@@ -50,7 +50,7 @@ In the future these could be extracted into separate shared libraries with an op
 
 `pg_tde` uses one principal key per database. Every internal key for the given database is encrypted using this principal key.
 
-Internal keys are used for specific database files: each file with a different [Object Identifier (OID)](https://www.postgresql.org/docs/current/datatype-oid.html) has a different internal key.
+Internal keys are used for specific database files: each file with a different [Object Identifier (OID) :octicons-link-external-16:](https://www.postgresql.org/docs/current/datatype-oid.html) has a different internal key.
 
 This means that, for example, a table with 4 indexes will have at least 5 internal keys - one for the table, and one for each index.
 
@@ -82,12 +82,9 @@ Later decisions are made using a slightly modified Storage Manager (SMGR) API: w
 
 ### WAL encryption
 
-!!! note
-    The WAL encryption feature is currently in beta and is not effective unless explicitly enabled. It is not yet production ready. **Do not enable this feature in production environments**.
-
 WAL encryption is controlled globally via a global GUC variable, `pg_tde.wal_encrypt`, that requires a server restart.
 
-WAL keys also contain the [LSN](https://www.postgresql.org/docs/17/wal-internals.html) of the first WAL write after key creation. This allows `pg_tde` to know which WAL ranges are encrypted or not and with which key.
+WAL keys also contain the [LSN :octicons-link-external-16:](https://www.postgresql.org/docs/17/wal-internals.html) of the first WAL write after key creation. This allows `pg_tde` to know which WAL ranges are encrypted or not and with which key.
 
 The setting only controls writes so that only WAL writes are encrypted when WAL encryption is enabled. This means that WAL files can contain both encrypted and unencrypted data, depending on what the status of this variable was when writing the data.
 
@@ -147,8 +144,8 @@ Principal keys are stored externally in a Key Management Services (KMS). In `pg_
 
 The following key providers are supported:
 
-* [HashiCorp Vault](https://developer.hashicorp.com/vault/docs/what-is-vault) KV2 secrets engine
-* [OpenBao](https://openbao.org/) implementation of Vault
+* [HashiCorp Vault :octicons-link-external-16:](https://developer.hashicorp.com/vault/docs/what-is-vault) KV2 secrets engine
+* [OpenBao :octicons-link-external-16:](https://openbao.org/) implementation of Vault
 * KMIP compatible servers
 * A local file storage. This storage is intended only for development and testing and is not recommended for production use.
 
