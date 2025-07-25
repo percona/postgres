@@ -1,6 +1,6 @@
 # About Transparent Data Encryption
 
-Transparent Data Encryption (TDE) protects your data at rest by ensuring that even if the underlying storage is compromised, the data remains unreadable without the correct encryption keys. This is especially critical for environments handling sensitive, regulated, or high-value information.
+Transparent Data Encryption (TDE) protects your data at rest by ensuring that even if the underlying storage is compromised, the data remains unreadable without the correct decryption keys. This is especially critical for environments handling sensitive, regulated, or high-value information.
 
 This process runs transparently in the background, with minimal impact on database operations.
 
