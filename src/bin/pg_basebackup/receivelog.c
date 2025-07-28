@@ -1050,7 +1050,9 @@ ProcessXLogDataMsg(PGconn *conn, StreamCtl *stream, char *copybuf, int len,
 	int			bytes_left;
 	int			bytes_written;
 	int			hdr_len;
+#ifdef PERCONA_EXT
 	XLogSegNo 	segno;
+#endif
 
 	/*
 	 * Once we've decided we don't want to receive any more, just ignore any
@@ -1078,7 +1080,9 @@ ProcessXLogDataMsg(PGconn *conn, StreamCtl *stream, char *copybuf, int len,
 	/* Extract WAL location for this block */
 	xlogoff = XLogSegmentOffset(*blockpos, WalSegSz);
 
+#ifdef PERCONA_EXT
 	XLByteToSeg(*blockpos, segno, WalSegSz);
+#endif
 
 	/*
 	 * Verify that the initial location in the stream matches where we think

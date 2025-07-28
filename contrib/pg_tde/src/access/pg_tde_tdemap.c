@@ -44,6 +44,7 @@
 #define TDE_FILE_HEADER_SIZE	sizeof(TDEFileHeader)
 
 #define MaxXLogRecPtr (~(XLogRecPtr)0)
+#define MaxTimeLineID (~(TimeLineID)0)
 
 typedef struct TDEFileHeader
 {
@@ -369,13 +370,19 @@ pg_tde_delete_principal_key(Oid dbOid)
  * needs keyfile_path
  */
 void
-pg_tde_wal_last_key_set_lsn(XLogRecPtr lsn, const char *keyfile_path)
+pg_tde_wal_last_key_set_lsn(XLogRecPtr lsn, TimeLineID tli, const char *keyfile_path)
 {
 	LWLock	   *lock_pk = tde_lwlock_enc_keys();
 	int			fd;
 	off_t		read_pos,
 				write_pos,
 				last_key_idx;
+	struct
+	{
+			XLogRecPtr	start_lsn;
+			TimeLineID	tli;
+	} lsn_tli;
+	
 
 	LWLockAcquire(lock_pk, LW_EXCLUSIVE);
 
@@ -384,7 +391,10 @@ pg_tde_wal_last_key_set_lsn(XLogRecPtr lsn, const char *keyfile_path)
 	last_key_idx = ((lseek(fd, 0, SEEK_END) - TDE_FILE_HEADER_SIZE) / MAP_ENTRY_SIZE) - 1;
 	write_pos = TDE_FILE_HEADER_SIZE + (last_key_idx * MAP_ENTRY_SIZE) + offsetof(TDEMapEntry, enc_key) + offsetof(InternalKey, start_lsn);
 
-	if (pg_pwrite(fd, &lsn, sizeof(XLogRecPtr), write_pos) != sizeof(XLogRecPtr))
+	lsn_tli.start_lsn = lsn;
+	lsn_tli.tli = tli;
+
+	if (pg_pwrite(fd, &lsn_tli, sizeof(lsn_tli), write_pos) != sizeof(lsn_tli))
 	{
 		ereport(ERROR,
 				errcode_for_file_access(),
@@ -408,7 +418,7 @@ pg_tde_wal_last_key_set_lsn(XLogRecPtr lsn, const char *keyfile_path)
 					errmsg("could not read previous WAL key: %m"));
 		}
 
-		if (prev_map_entry.enc_key.start_lsn >= lsn)
+		if (prev_map_entry.enc_key.start_lsn >= lsn && prev_map_entry.enc_key.tli >= tli)
 		{
 			prev_map_entry.enc_key.type = TDE_KEY_TYPE_WAL_INVALID;
 
@@ -1071,6 +1081,7 @@ pg_tde_fetch_wal_keys(XLogRecPtr start_lsn)
 		WALKeyCacheRec *wal_rec;
 		InternalKey stub_key = {
 			.start_lsn = InvalidXLogRecPtr,
+			.tli = 0,
 		};
 
 		wal_rec = pg_tde_add_wal_key_to_cache(&stub_key, InvalidXLogRecPtr);
@@ -1132,8 +1143,10 @@ pg_tde_add_wal_key_to_cache(InternalKey *key, XLogRecPtr start_lsn)
 	MemoryContextSwitchTo(oldCtx);
 #endif
 
+	wal_rec->start_tli = key->tli;
 	wal_rec->start_lsn = start_lsn;
 	wal_rec->end_lsn = MaxXLogRecPtr;
+	wal_rec->end_tli = MaxTimeLineID;
 	wal_rec->key = *key;
 	wal_rec->crypt_ctx = NULL;
 	if (!tde_wal_key_last_rec)
@@ -1145,6 +1158,7 @@ pg_tde_add_wal_key_to_cache(InternalKey *key, XLogRecPtr start_lsn)
 	{
 		tde_wal_key_last_rec->next = wal_rec;
 		tde_wal_key_last_rec->end_lsn = wal_rec->start_lsn;
+		tde_wal_key_last_rec->end_tli = wal_rec->start_tli;
 		tde_wal_key_last_rec = wal_rec;
 	}
 

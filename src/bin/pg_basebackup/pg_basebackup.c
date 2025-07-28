@@ -634,9 +634,6 @@ StartLogStreamer(char *startpos, uint32 timeline, char *sysidentifier,
 	uint32		hi,
 				lo;
 	char		statusdir[MAXPGPATH];
-#ifdef PERCONA_EXT
-	char		tdedir[MAXPGPATH];
-#endif
 
 	param = pg_malloc0(sizeof(logstreamer_param));
 	param->timeline = timeline;
@@ -671,9 +668,13 @@ StartLogStreamer(char *startpos, uint32 timeline, char *sysidentifier,
 			 "pg_xlog" : "pg_wal");
 
 #ifdef PERCONA_EXT
+{
+	char		tdedir[MAXPGPATH];
+
 	snprintf(tdedir, sizeof(tdedir), "%s/%s", basedir, PG_TDE_DATA_DIR);
 	pg_tde_fe_init(tdedir);
 	TDEXLogSmgrInit();
+}
 #endif
 
 	/* Temporary replication slots are only supported in 10 and newer */

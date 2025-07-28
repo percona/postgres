@@ -34,6 +34,7 @@ use lib $FindBin::RealBin;
 use File::Copy;
 use PostgreSQL::Test::Cluster;
 use RewindTest;
+use pgtde;
 
 my $tmp_folder = PostgreSQL::Test::Utils::tempdir;
 
@@ -57,15 +58,19 @@ primary_psql("CHECKPOINT");
 # Set up node B and C, as cascaded standbys
 #
 # A (primary) <--- B (standby) <--- C (standby)
-$node_a->backup('my_backup');
+my $backup_name = 'my_backup';
+
+PGTDE::backup(node_a, $backup_name);
 $node_b = PostgreSQL::Test::Cluster->new('node_b');
-$node_b->init_from_backup($node_a, 'my_backup', has_streaming => 1);
+$node_b->init_from_backup($node_a, $backup_name, has_streaming => 1);
 $node_b->set_standby_mode();
 $node_b->start;
 
-$node_b->backup('my_backup');
+PostgreSQL::Test::RecursiveCopy::copypath($node_b->data_dir . '/pg_tde',
+	$node_b->backup_dir . '/'. $backup_name . '/pg_tde');
+PGTDE::backup(node_b, $backup_name);
 $node_c = PostgreSQL::Test::Cluster->new('node_c');
-$node_c->init_from_backup($node_b, 'my_backup', has_streaming => 1);
+$node_c->init_from_backup($node_b, $backup_name, has_streaming => 1);
 $node_c->set_standby_mode();
 $node_c->start;
 

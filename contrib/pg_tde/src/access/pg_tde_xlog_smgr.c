@@ -67,6 +67,7 @@ typedef struct EncryptionStateData
 {
 	char		db_map_path[MAXPGPATH];
 	pg_atomic_uint64 enc_key_lsn;	/* to sync with readers */
+	pg_atomic_uint64 enc_key_tli;	/* to sync with readers */
 } EncryptionStateData;
 
 static EncryptionStateData *EncryptionState = NULL;
@@ -83,6 +84,18 @@ static void
 TDEXLogSetEncKeyLsn(XLogRecPtr start_lsn)
 {
 	pg_atomic_write_u64(&EncryptionState->enc_key_lsn, start_lsn);
+}
+
+static TimeLineID
+TDEXLogGetEncKeyTli()
+{
+	return (TimeLineID) pg_atomic_read_u64(&EncryptionState->enc_key_tli);
+}
+
+static void
+TDEXLogSetEncKeyTli(TimeLineID tli)
+{
+	pg_atomic_write_u64(&EncryptionState->enc_key_tli, tli);
 }
 
 static Size TDEXLogEncryptBuffSize(void);
@@ -159,6 +172,7 @@ TDEXLogShmemInit(void)
 	}
 
 	pg_atomic_init_u64(&EncryptionState->enc_key_lsn, 0);
+	pg_atomic_init_u64(&EncryptionState->enc_key_tli, 0);
 
 	elog(DEBUG1, "pg_tde: initialized encryption buffer %lu bytes", TDEXLogEncryptStateSize());
 }
@@ -169,6 +183,7 @@ typedef struct EncryptionStateData
 {
 	char		db_map_path[MAXPGPATH];
 	XLogRecPtr	enc_key_lsn;	/* to sync with reader */
+	XLogRecPtr	enc_key_tli;	/* to sync with reader */
 } EncryptionStateData;
 
 static EncryptionStateData EncryptionStateD = {0};
@@ -186,7 +201,19 @@ TDEXLogGetEncKeyLsn()
 static void
 TDEXLogSetEncKeyLsn(XLogRecPtr start_lsn)
 {
-	EncryptionState->enc_key_lsn = EncryptionKey.start_lsn;
+	EncryptionState->enc_key_lsn = start_lsn;
+}
+
+static TimeLineID
+TDEXLogGetEncKeyTli()
+{
+	return (TimeLineID) EncryptionState->enc_key_tli;
+}
+
+static void
+TDEXLogSetEncKeyTli(TimeLineID tli)
+{
+	EncryptionState->enc_key_lsn = tli;
 }
 
 #endif							/* FRONTEND */
@@ -221,6 +248,7 @@ TDEXLogSmgrInitWrite(bool encrypt_xlog)
 	{
 		EncryptionKey = *key;
 		TDEXLogSetEncKeyLsn(EncryptionKey.start_lsn);
+		TDEXLogSetEncKeyTli(EncryptionKey.tli);
 	}
 
 	if (key)
@@ -245,8 +273,8 @@ TDEXLogWriteEncryptedPages(int fd, const void *buf, size_t count, off_t offset,
 #endif
 
 #ifdef TDE_XLOG_DEBUG
-	elog(DEBUG1, "write encrypted WAL, size: %lu, offset: %ld [%lX], seg: %X/%X, key_start_lsn: %X/%X",
-		 count, offset, offset, LSN_FORMAT_ARGS(segno), LSN_FORMAT_ARGS(key->start_lsn));
+	elog(DEBUG1, "write encrypted WAL, size: %lu, offset: %ld [%lX] tli %u, seg: %X/%X, key_start: %u_%X/%X",
+		 count, offset, offset, tli, LSN_FORMAT_ARGS(segno), key->tli, LSN_FORMAT_ARGS(key->start_lsn));
 #endif
 
 	CalcXLogPageIVPrefix(tli, segno, key->base_iv, iv_prefix);
@@ -272,9 +300,11 @@ tdeheap_xlog_seg_write(int fd, const void *buf, size_t count, off_t offset,
 
 		XLogSegNoOffsetToRecPtr(segno, offset, segSize, lsn);
 
-		pg_tde_wal_last_key_set_lsn(lsn, EncryptionState->db_map_path);
+		pg_tde_wal_last_key_set_lsn(lsn, tli, EncryptionState->db_map_path);
 		EncryptionKey.start_lsn = lsn;
+		EncryptionKey.tli = tli;
 		TDEXLogSetEncKeyLsn(lsn);
+		TDEXLogSetEncKeyTli(tli);
 	}
 
 	if (EncryptionKey.type == TDE_KEY_TYPE_WAL_ENCRYPTED)
@@ -293,8 +323,8 @@ tdeheap_xlog_seg_read(int fd, void *buf, size_t count, off_t offset,
 	ssize_t		readsz;
 
 #ifdef TDE_XLOG_DEBUG
-	elog(DEBUG1, "read from a WAL segment, size: %lu offset: %ld [%lX], seg: %X/%X",
-		 count, offset, offset, LSN_FORMAT_ARGS(segno));
+	elog(DEBUG1, "read from a WAL segment, size: %lu offset: %ld [%lX], tli: %u, seg: %X/%X",
+		 count, offset, offset, tli, LSN_FORMAT_ARGS(segno));
 #endif
 
 	readsz = pg_pread(fd, buf, count, offset);
@@ -318,6 +348,8 @@ TDEXLogCryptBuffer(void *buf, size_t count, off_t offset,
 	XLogRecPtr	write_key_lsn;
 	XLogRecPtr	data_start;
 	XLogRecPtr	data_end;
+	KeyTliLsn	data_start_t = {.tli = tli};
+	KeyTliLsn	data_end_t = {.tli = tli};
 
 	if (!keys)
 	{
@@ -330,11 +362,14 @@ TDEXLogCryptBuffer(void *buf, size_t count, off_t offset,
 	if (!XLogRecPtrIsInvalid(write_key_lsn))
 	{
 		WALKeyCacheRec *last_key = pg_tde_get_last_wal_key();
+		KeyTliLsn	last_key_time = {.tli = last_key->start_tli, .lsn = last_key->start_lsn};
+		KeyTliLsn	write_key_time = {.tli = TDEXLogGetEncKeyTli(), .lsn = write_key_lsn};
 
 		Assert(last_key);
 
 		/* write has generated a new key, need to fetch it */
-		if (last_key->start_lsn < write_key_lsn)
+		if (key_tli_lsn_cmp(last_key_time, write_key_time) == -1)
+		// if (last_key->start_lsn < write_key_lsn)
 		{
 			pg_tde_fetch_wal_keys(write_key_lsn);
 
@@ -346,16 +381,22 @@ TDEXLogCryptBuffer(void *buf, size_t count, off_t offset,
 	XLogSegNoOffsetToRecPtr(segno, offset, segSize, data_start);
 	XLogSegNoOffsetToRecPtr(segno, offset + count, segSize, data_end);
 
+	data_start_t.lsn = data_start;
+	data_end_t.lsn = data_end;
+
 	/*
 	 * TODO: this is higly ineffective. We should get rid of linked list and
 	 * search from the last key as this is what the walsender is useing.
 	 */
 	for (WALKeyCacheRec *curr_key = keys; curr_key != NULL; curr_key = curr_key->next)
 	{
+		KeyTliLsn	key_start_t = {.lsn = curr_key->start_lsn, .tli = curr_key->start_tli};
+		KeyTliLsn	key_end_t = {.lsn = curr_key->end_lsn, .tli = curr_key->end_tli};
+
 #ifdef TDE_XLOG_DEBUG
-		elog(DEBUG1, "WAL key %X/%X-%X/%X, encrypted: %s",
-			 LSN_FORMAT_ARGS(curr_key->start_lsn),
-			 LSN_FORMAT_ARGS(curr_key->end_lsn),
+		elog(DEBUG1, "WAL key %u_%X/%X - %u_%X/%X, encrypted: %s",
+			 curr_key->start_tli, LSN_FORMAT_ARGS(curr_key->start_lsn),
+			 curr_key->end_tli, LSN_FORMAT_ARGS(curr_key->end_lsn),
 			 curr_key->key.type == TDE_KEY_TYPE_WAL_ENCRYPTED ? "yes" : "no");
 #endif
 
@@ -366,7 +407,7 @@ TDEXLogCryptBuffer(void *buf, size_t count, off_t offset,
 			 * Check if the key's range overlaps with the buffer's and decypt
 			 * the part that does.
 			 */
-			if (data_start < curr_key->end_lsn && data_end > curr_key->start_lsn)
+			if (key_tli_lsn_cmp(data_start_t, key_end_t) == -1 && key_tli_lsn_cmp(data_end_t, key_start_t) == 1)
 			{
 				char		iv_prefix[16];
 				off_t		dec_off = XLogSegmentOffset(Max(data_start, curr_key->start_lsn), segSize);
@@ -387,8 +428,8 @@ TDEXLogCryptBuffer(void *buf, size_t count, off_t offset,
 				dec_sz = dec_end - dec_off;
 
 #ifdef TDE_XLOG_DEBUG
-				elog(DEBUG1, "decrypt WAL, dec_off: %lu [buff_off %lu], sz: %lu | key %X/%X",
-					 dec_off, dec_off - offset, dec_sz, LSN_FORMAT_ARGS(curr_key->key->start_lsn));
+				elog(DEBUG1, "decrypt WAL, dec_off: %lu [buff_off %lu] tli %u, sz: %lu | key %u_%X/%X",
+					 dec_off, dec_off - offset, tli, dec_sz, curr_key->key.tli, LSN_FORMAT_ARGS(curr_key->start_lsn));
 #endif
 				pg_tde_stream_crypt(iv_prefix, dec_off, dec_buf, dec_sz, dec_buf,
 									&curr_key->key, &curr_key->crypt_ctx);

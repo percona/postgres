@@ -25,7 +25,32 @@ typedef struct InternalKey
 	uint32		type;
 
 	XLogRecPtr	start_lsn;
+	TimeLineID	tli;
 } InternalKey;
+
+typedef struct KeyTliLsn
+{
+	TimeLineID	tli;
+	XLogRecPtr	lsn;
+} KeyTliLsn;
+
+static inline int
+key_tli_lsn_cmp(KeyTliLsn t1, KeyTliLsn t2)
+{
+	if (t1.tli < t2.tli)
+		return -1;
+
+	if (t1.tli > t2.tli)
+		return 1;
+
+	if (t1.lsn < t2.lsn)
+		return -1;
+
+	if (t1.lsn > t2.lsn)
+		return 1;
+
+	return 0;
+}
 
 #define MAP_ENTRY_IV_SIZE 16
 #define MAP_ENTRY_AEAD_TAG_SIZE 16
@@ -62,6 +87,8 @@ typedef struct WALKeyCacheRec
 {
 	XLogRecPtr	start_lsn;
 	XLogRecPtr	end_lsn;
+	TimeLineID	start_tli;
+	TimeLineID	end_tli;
 
 	InternalKey key;
 	void	   *crypt_ctx;
@@ -73,7 +100,7 @@ extern InternalKey *pg_tde_read_last_wal_key(void);
 extern WALKeyCacheRec *pg_tde_get_last_wal_key(void);
 extern WALKeyCacheRec *pg_tde_fetch_wal_keys(XLogRecPtr start_lsn);
 extern WALKeyCacheRec *pg_tde_get_wal_cache_keys(void);
-extern void pg_tde_wal_last_key_set_lsn(XLogRecPtr lsn, const char *keyfile_path);
+extern void pg_tde_wal_last_key_set_lsn(XLogRecPtr lsn, TimeLineID tli, const char *keyfile_path);
 extern void pg_tde_create_wal_key(InternalKey *rel_key_data, const RelFileLocator *newrlocator, TDEMapEntryType entry_type);
 
 #define PG_TDE_MAP_FILENAME			"%d_keys"
