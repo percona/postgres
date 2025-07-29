@@ -139,7 +139,7 @@ At this point it is safe to remove any configuration related to `pg_tde` from `p
 
 ## Troubleshooting: PANIC checkpoint not found on restart
 
-This happens when WAL encryption is still enabled but the `pg_tde` library has already been removed.
+This can happen if WAL encryption was not properly disabled before removing `pg_tde` from `shared_preload_libraries`, such as when the server was not restarted after disabling encryption.
 
 If you see the following error when restarting the PostgreSQL cluster:
 
