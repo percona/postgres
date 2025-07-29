@@ -30,7 +30,8 @@ void
 pg_tde_generate_internal_key(InternalKey *int_key, TDEMapEntryType entry_type)
 {
 	int_key->type = entry_type;
-	int_key->start_lsn = InvalidXLogRecPtr;
+	int_key->wal_start.tli = 0;
+	int_key->wal_start.lsn = InvalidXLogRecPtr;
 
 	if (!RAND_bytes(int_key->key, INTERNAL_KEY_LEN))
 		ereport(ERROR,

@@ -18,13 +18,47 @@ typedef enum
 #define INTERNAL_KEY_LEN 16
 #define INTERNAL_KEY_IV_LEN 16
 
+typedef struct WALLocation
+{
+	XLogRecPtr	lsn;
+	TimeLineID	tli;
+} WALLocation;
+
+/*
+ * Compares given WAL locations and returns -1 if l1 < l2, 0 if l1 == l2,
+ * and 1 if l1 > l2
+ */
+static inline int
+wal_location_cmp(WALLocation l1, WALLocation l2)
+{
+	if (unlikely(l1.tli < l2.tli))
+		return -1;
+
+	if (unlikely(l1.tli > l2.tli))
+		return 1;
+
+	if (l1.lsn < l2.lsn)
+		return -1;
+
+	if (l1.lsn > l2.lsn)
+		return 1;
+
+	return 0;
+}
+
+static inline bool
+wal_location_valid(WALLocation loc)
+{
+	return loc.tli != 0 && loc.lsn != InvalidXLogRecPtr;
+}
+
 typedef struct InternalKey
 {
 	uint8		key[INTERNAL_KEY_LEN];
 	uint8		base_iv[INTERNAL_KEY_IV_LEN];
 	uint32		type;
 
-	XLogRecPtr	start_lsn;
+	WALLocation wal_start;
 } InternalKey;
 
 #define MAP_ENTRY_IV_SIZE 16
@@ -60,8 +94,8 @@ typedef struct XLogRelKey
  */
 typedef struct WALKeyCacheRec
 {
-	XLogRecPtr	start_lsn;
-	XLogRecPtr	end_lsn;
+	WALLocation start;
+	WALLocation end;
 
 	InternalKey key;
 	void	   *crypt_ctx;
@@ -71,9 +105,9 @@ typedef struct WALKeyCacheRec
 
 extern InternalKey *pg_tde_read_last_wal_key(void);
 extern WALKeyCacheRec *pg_tde_get_last_wal_key(void);
-extern WALKeyCacheRec *pg_tde_fetch_wal_keys(XLogRecPtr start_lsn);
+extern WALKeyCacheRec *pg_tde_fetch_wal_keys(WALLocation start);
 extern WALKeyCacheRec *pg_tde_get_wal_cache_keys(void);
-extern void pg_tde_wal_last_key_set_lsn(XLogRecPtr lsn, const char *keyfile_path);
+extern void pg_tde_wal_last_key_set_lsn(XLogRecPtr lsn, TimeLineID tli, const char *keyfile_path);
 extern void pg_tde_create_wal_key(InternalKey *rel_key_data, const RelFileLocator *newrlocator, TDEMapEntryType entry_type);
 
 #define PG_TDE_MAP_FILENAME			"%d_keys"

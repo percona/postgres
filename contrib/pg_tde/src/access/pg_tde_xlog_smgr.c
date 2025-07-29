@@ -45,7 +45,7 @@ static void *EncryptionCryptCtx = NULL;
 static InternalKey EncryptionKey =
 {
 	.type = MAP_ENTRY_EMPTY,
-	.start_lsn = InvalidXLogRecPtr,
+	.wal_start = {.tli = 0,.lsn = InvalidXLogRecPtr},
 };
 
 /*
@@ -66,7 +66,13 @@ static InternalKey EncryptionKey =
 typedef struct EncryptionStateData
 {
 	char		db_map_path[MAXPGPATH];
-	pg_atomic_uint64 enc_key_lsn;	/* to sync with readers */
+
+	/*
+	 * To sync with readers. We sync on LSN only and TLI here just to
+	 * communicate its value to readers.
+	 */
+	pg_atomic_uint32 enc_key_tli;
+	pg_atomic_uint64 enc_key_lsn;
 } EncryptionStateData;
 
 static EncryptionStateData *EncryptionState = NULL;
@@ -80,9 +86,16 @@ TDEXLogGetEncKeyLsn()
 }
 
 static void
-TDEXLogSetEncKeyLsn(XLogRecPtr start_lsn)
+TDEXLogSetEncKeyLocation(WALLocation loc)
 {
-	pg_atomic_write_u64(&EncryptionState->enc_key_lsn, start_lsn);
+	pg_atomic_write_u32(&EncryptionState->enc_key_tli, loc.tli);
+	pg_atomic_write_u64(&EncryptionState->enc_key_lsn, loc.lsn);
+}
+
+static TimeLineID
+TDEXLogGetEncKeyTli()
+{
+	return (TimeLineID) pg_atomic_read_u32(&EncryptionState->enc_key_tli);
 }
 
 static Size TDEXLogEncryptBuffSize(void);
@@ -159,6 +172,7 @@ TDEXLogShmemInit(void)
 	}
 
 	pg_atomic_init_u64(&EncryptionState->enc_key_lsn, 0);
+	pg_atomic_init_u32(&EncryptionState->enc_key_tli, 0);
 
 	elog(DEBUG1, "pg_tde: initialized encryption buffer %lu bytes", TDEXLogEncryptStateSize());
 }
@@ -168,6 +182,7 @@ TDEXLogShmemInit(void)
 typedef struct EncryptionStateData
 {
 	char		db_map_path[MAXPGPATH];
+	XLogRecPtr	enc_key_tli;	/* to sync with reader */
 	XLogRecPtr	enc_key_lsn;	/* to sync with reader */
 } EncryptionStateData;
 
@@ -184,9 +199,16 @@ TDEXLogGetEncKeyLsn()
 }
 
 static void
-TDEXLogSetEncKeyLsn(XLogRecPtr start_lsn)
+TDEXLogSetEncKeyLocation(WALLocation loc)
 {
-	EncryptionState->enc_key_lsn = EncryptionKey.start_lsn;
+	EncryptionState->enc_key_tli = loc.tli;
+	EncryptionState->enc_key_lsn = loc.lsn;
+}
+
+static TimeLineID
+TDEXLogGetEncKeyTli()
+{
+	return (TimeLineID) EncryptionState->enc_key_tli;
 }
 
 #endif							/* FRONTEND */
@@ -197,6 +219,7 @@ TDEXLogSmgrInit()
 	SetXLogSmgr(&tde_xlog_smgr);
 }
 
+/* On backend it should be called only during the startup */
 void
 TDEXLogSmgrInitWrite(bool encrypt_xlog)
 {
@@ -220,7 +243,7 @@ TDEXLogSmgrInitWrite(bool encrypt_xlog)
 	else if (key)
 	{
 		EncryptionKey = *key;
-		TDEXLogSetEncKeyLsn(EncryptionKey.start_lsn);
+		TDEXLogSetEncKeyLocation(EncryptionKey.wal_start);
 	}
 
 	if (key)
@@ -237,7 +260,7 @@ TDEXLogSmgrInitWriteReuseKey()
 	if (key)
 	{
 		EncryptionKey = *key;
-		TDEXLogSetEncKeyLsn(EncryptionKey.start_lsn);
+		TDEXLogSetEncKeyLocation(EncryptionKey.wal_start);
 		pfree(key);
 	}
 
@@ -260,8 +283,8 @@ TDEXLogWriteEncryptedPages(int fd, const void *buf, size_t count, off_t offset,
 #endif
 
 #ifdef TDE_XLOG_DEBUG
-	elog(DEBUG1, "write encrypted WAL, size: %lu, offset: %ld [%lX], seg: %X/%X, key_start_lsn: %X/%X",
-		 count, offset, offset, LSN_FORMAT_ARGS(segno), LSN_FORMAT_ARGS(key->start_lsn));
+	elog(DEBUG1, "write encrypted WAL, size: %lu, offset: %ld [%lX], seg: %X/%X, key_start_lsn: %u_%X/%X",
+		 count, offset, offset, LSN_FORMAT_ARGS(segno), key->wal_start.tli, LSN_FORMAT_ARGS(key->wal_start.lsn));
 #endif
 
 	CalcXLogPageIVPrefix(tli, segno, key->base_iv, iv_prefix);
@@ -281,15 +304,16 @@ tdeheap_xlog_seg_write(int fd, const void *buf, size_t count, off_t offset,
 	 *
 	 * This func called with WALWriteLock held, so no need in any extra sync.
 	 */
-	if (EncryptionKey.type != MAP_ENTRY_EMPTY && TDEXLogGetEncKeyLsn() == 0)
+	if (EncryptionKey.type !=MAP_ENTRY_EMPTY && TDEXLogGetEncKeyLsn() == 0)
 	{
 		XLogRecPtr	lsn;
 
 		XLogSegNoOffsetToRecPtr(segno, offset, segSize, lsn);
 
-		pg_tde_wal_last_key_set_lsn(lsn, EncryptionState->db_map_path);
-		EncryptionKey.start_lsn = lsn;
-		TDEXLogSetEncKeyLsn(lsn);
+		pg_tde_wal_last_key_set_lsn(lsn, tli, EncryptionState->db_map_path);
+		EncryptionKey.wal_start.tli = tli;
+		EncryptionKey.wal_start.lsn = lsn;
+		TDEXLogSetEncKeyLocation(EncryptionKey.wal_start);
 	}
 
 	if (EncryptionKey.type == TDE_KEY_TYPE_WAL_ENCRYPTED)
@@ -308,12 +332,12 @@ tdeheap_xlog_seg_read(int fd, void *buf, size_t count, off_t offset,
 	ssize_t		readsz;
 	WALKeyCacheRec *keys = pg_tde_get_wal_cache_keys();
 	XLogRecPtr	write_key_lsn;
-	XLogRecPtr	data_start;
-	XLogRecPtr	data_end;
+	WALLocation data_start = {.tli = tli};
+	WALLocation data_end = {.tli = tli};
 
 #ifdef TDE_XLOG_DEBUG
-	elog(DEBUG1, "read from a WAL segment, size: %lu offset: %ld [%lX], seg: %X/%X",
-		 count, offset, offset, LSN_FORMAT_ARGS(segno));
+	elog(DEBUG1, "read from a WAL segment, size: %lu offset: %ld [%lX], seg: %u_%X/%X",
+		 count, offset, offset, tli, LSN_FORMAT_ARGS(segno));
 #endif
 
 	readsz = pg_pread(fd, buf, count, offset);
@@ -323,8 +347,10 @@ tdeheap_xlog_seg_read(int fd, void *buf, size_t count, off_t offset,
 
 	if (!keys)
 	{
+		WALLocation start = {.tli = 1,.lsn = 0};
+
 		/* cache is empty, try to read keys from disk */
-		keys = pg_tde_fetch_wal_keys(InvalidXLogRecPtr);
+		keys = pg_tde_fetch_wal_keys(start);
 	}
 
 	write_key_lsn = TDEXLogGetEncKeyLsn();
@@ -332,21 +358,22 @@ tdeheap_xlog_seg_read(int fd, void *buf, size_t count, off_t offset,
 	if (!XLogRecPtrIsInvalid(write_key_lsn))
 	{
 		WALKeyCacheRec *last_key = pg_tde_get_last_wal_key();
+		WALLocation write_loc = {.tli = TDEXLogGetEncKeyTli(),.lsn = write_key_lsn};
 
 		Assert(last_key);
 
 		/* write has generated a new key, need to fetch it */
-		if (last_key->start_lsn < write_key_lsn)
+		if (wal_location_cmp(last_key->start, write_loc) < 0)
 		{
-			pg_tde_fetch_wal_keys(write_key_lsn);
+			pg_tde_fetch_wal_keys(write_loc);
 
 			/* in case cache was empty before */
 			keys = pg_tde_get_wal_cache_keys();
 		}
 	}
 
-	XLogSegNoOffsetToRecPtr(segno, offset, segSize, data_start);
-	XLogSegNoOffsetToRecPtr(segno, offset + readsz, segSize, data_end);
+	XLogSegNoOffsetToRecPtr(segno, offset, segSize, data_start.lsn);
+	XLogSegNoOffsetToRecPtr(segno, offset + readsz, segSize, data_end.lsn);
 
 	/*
 	 * TODO: this is higly ineffective. We should get rid of linked list and
@@ -355,24 +382,25 @@ tdeheap_xlog_seg_read(int fd, void *buf, size_t count, off_t offset,
 	for (WALKeyCacheRec *curr_key = keys; curr_key != NULL; curr_key = curr_key->next)
 	{
 #ifdef TDE_XLOG_DEBUG
-		elog(DEBUG1, "WAL key %X/%X-%X/%X, encrypted: %s",
-			 LSN_FORMAT_ARGS(curr_key->start_lsn),
-			 LSN_FORMAT_ARGS(curr_key->end_lsn),
+		elog(DEBUG1, "WAL key %u_%X/%X - %u_%X/%X, encrypted: %s",
+			 curr_key->start.tli, LSN_FORMAT_ARGS(curr_key->start.lsn),
+			 curr_key->end.tli, LSN_FORMAT_ARGS(curr_key->end.lsn),
 			 curr_key->key.type == TDE_KEY_TYPE_WAL_ENCRYPTED ? "yes" : "no");
 #endif
 
-		if (curr_key->key.start_lsn != InvalidXLogRecPtr &&
+		if (wal_location_valid(curr_key->key.wal_start) &&
 			curr_key->key.type == TDE_KEY_TYPE_WAL_ENCRYPTED)
 		{
 			/*
 			 * Check if the key's range overlaps with the buffer's and decypt
 			 * the part that does.
 			 */
-			if (data_start < curr_key->end_lsn && data_end > curr_key->start_lsn)
+
+			if (wal_location_cmp(data_start, curr_key->end) < 0 && wal_location_cmp(data_end, curr_key->start) > 0)
 			{
 				char		iv_prefix[16];
-				off_t		dec_off = XLogSegmentOffset(Max(data_start, curr_key->start_lsn), segSize);
-				off_t		dec_end = XLogSegmentOffset(Min(data_end, curr_key->end_lsn), segSize);
+				off_t		dec_off = XLogSegmentOffset(Max(data_start.lsn, curr_key->start.lsn), segSize);
+				off_t		dec_end = XLogSegmentOffset(Min(data_end.lsn, curr_key->end.lsn), segSize);
 				size_t		dec_sz;
 				char	   *dec_buf = (char *) buf + (dec_off - offset);
 
@@ -389,8 +417,8 @@ tdeheap_xlog_seg_read(int fd, void *buf, size_t count, off_t offset,
 				dec_sz = dec_end - dec_off;
 
 #ifdef TDE_XLOG_DEBUG
-				elog(DEBUG1, "decrypt WAL, dec_off: %lu [buff_off %lu], sz: %lu | key %X/%X",
-					 dec_off, dec_off - offset, dec_sz, LSN_FORMAT_ARGS(curr_key->key->start_lsn));
+				elog(DEBUG1, "decrypt WAL, dec_off: %lu [buff_off %lu], sz: %lu | key %u_%X/%X",
+					 dec_off, dec_off - offset, dec_sz, curr_key->key.wal_start.tli, LSN_FORMAT_ARGS(curr_key->key.wal_start.lsn));
 #endif
 				pg_tde_stream_crypt(iv_prefix, dec_off, dec_buf, dec_sz, dec_buf,
 									&curr_key->key, &curr_key->crypt_ctx);
