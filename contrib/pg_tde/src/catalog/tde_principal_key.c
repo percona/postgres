@@ -700,12 +700,13 @@ pg_tde_delete_key(PG_FUNCTION_ARGS)
 	 * If database has something encryted, we can try to fallback to the
 	 * default principal key
 	 */
-	if (pg_tde_count_relations(MyDatabaseId) != 0)
+	if (pg_tde_count_encryption_keys(MyDatabaseId) != 0)
 	{
 		default_principal_key = GetPrincipalKeyNoDefault(DEFAULT_DATA_TDE_OID, LW_EXCLUSIVE);
 		if (default_principal_key == NULL)
 		{
 			ereport(ERROR,
+					errcode(ERRCODE_OBJECT_IN_USE),
 					errmsg("cannot delete principal key"),
 					errdetail("There are encrypted tables in the database."),
 					errhint("Set default principal key as fallback option or decrypt all tables before deleting principal key."));
@@ -718,6 +719,7 @@ pg_tde_delete_key(PG_FUNCTION_ARGS)
 		if (pg_tde_is_same_principal_key(principal_key, default_principal_key))
 		{
 			ereport(ERROR,
+					errcode(ERRCODE_OBJECT_IN_USE),
 					errmsg("cannot delete principal key"),
 					errdetail("There are encrypted tables in the database."));
 		}
@@ -785,9 +787,10 @@ pg_tde_delete_default_key(PG_FUNCTION_ARGS)
 			 * delete default principal key if there are encrypted tables in
 			 * the database.
 			 */
-			if (pg_tde_count_relations(dbOid) != 0)
+			if (pg_tde_count_encryption_keys(dbOid) != 0)
 			{
 				ereport(ERROR,
+						errcode(ERRCODE_OBJECT_IN_USE),
 						errmsg("cannot delete default principal key"),
 						errhint("There are encrypted tables in the database with id: %u.", dbOid));
 			}
@@ -798,8 +801,23 @@ pg_tde_delete_default_key(PG_FUNCTION_ARGS)
 	}
 
 	/*
-	 * Remove empty key map files for databases that has no encrypted tables
-	 * as we cannot leave reference to the default principal key.
+	 * The default key may have been used as server key, check if there are
+	 * any WAL encryption keys that uses it.
+	 */
+	principal_key = GetPrincipalKeyNoDefault(GLOBAL_DATA_TDE_OID, LW_EXCLUSIVE);
+	if (pg_tde_is_same_principal_key(default_principal_key, principal_key))
+	{
+		if (pg_tde_count_encryption_keys(GLOBAL_DATA_TDE_OID) != 0)
+			ereport(ERROR,
+					errcode(ERRCODE_OBJECT_IN_USE),
+					errmsg("cannot delete default principal key"),
+					errhint("There are WAL encryption keys."));
+		dbs = lappend_oid(dbs, GLOBAL_DATA_TDE_OID);
+	}
+
+	/*
+	 * Remove empty key files for OIDs that have no encryption keys as we
+	 * cannot leave references to the default principal key.
 	 */
 	foreach_oid(dbOid, dbs)
 	{
