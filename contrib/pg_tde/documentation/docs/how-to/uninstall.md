@@ -57,7 +57,7 @@ a. Run:
 ALTER SYSTEM SET pg_tde.wal_encrypt = off;
 ```
 
-b. Restart the `postgresql` cluster to apply the changes:
+b. Restart the PostgreSQL cluster to apply the changes:
 
 - On Debian and Ubuntu:
 
@@ -141,14 +141,21 @@ At this point it is safe to remove any configuration related to `pg_tde` from `p
 
 This can happen if WAL encryption was not properly disabled before removing `pg_tde` from `shared_preload_libraries`, such as when the server was not restarted after disabling encryption.
 
-If you see the following error when restarting the PostgreSQL cluster:
+You might see this when restarting the PostgreSQL cluster:
 
 ```sh
 2025-04-01 17:12:50.607 CEST [496385] PANIC:  could not locate a valid checkpoint record at 0/17B2580
 ```
 
-You can resolve it by following these steps:
+To resolve it follow these steps:
 
 1. Re-add `pg_tde` to `shared_preload_libraries`
 2. Restart the PostgreSQL cluster
 3. Follow the [instructions for turning off WAL encryption](#step-2-turn-off-wal-encryption) before uninstalling the shared library again
+
+!!! note
+
+    Two restarts are required to uninstall properly if WAL encryption was enabled:
+    
+    - First: to re-enable `pg_tde` and disable WAL encryption safely
+    - Second: to finalize removal of the shared library
