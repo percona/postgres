@@ -203,6 +203,7 @@ nav:
     - "Encryption Enforcement": how-to/enforcement.md
     - "Decrypt an Encrypted Table": how-to/decrypt.md
     - "Restore an encrypted pg_tde backup": how-to/restore-backups.md
+    - "Enable FIPS using OpenSSL": how-to/fips.md
   - faq.md
   - "Release notes":
     - "Release notes index": release-notes/release-notes.md
