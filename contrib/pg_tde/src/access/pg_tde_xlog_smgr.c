@@ -88,7 +88,14 @@ TDEXLogGetEncKeyLsn()
 static void
 TDEXLogSetEncKeyLocation(WALLocation loc)
 {
+	/*
+	 * Write TLI first and then LSN. The barrier ensures writes won't be
+	 * reordered. When reading, the opposite must be done (with a matching
+	 * barrier in between), so we always see a valid TLI after observing a
+	 * valid LSN.
+	 */
 	pg_atomic_write_u32(&EncryptionState->enc_key_tli, loc.tli);
+	pg_write_barrier();
 	pg_atomic_write_u64(&EncryptionState->enc_key_lsn, loc.lsn);
 }
 
@@ -304,7 +311,7 @@ tdeheap_xlog_seg_write(int fd, const void *buf, size_t count, off_t offset,
 	 *
 	 * This func called with WALWriteLock held, so no need in any extra sync.
 	 */
-	if (EncryptionKey.type !=MAP_ENTRY_EMPTY && TDEXLogGetEncKeyLsn() == 0)
+	if (EncryptionKey.type != MAP_ENTRY_EMPTY && TDEXLogGetEncKeyLsn() == 0)
 	{
 		XLogRecPtr	lsn;
 
@@ -353,7 +360,12 @@ tdeheap_xlog_seg_read(int fd, void *buf, size_t count, off_t offset,
 		keys = pg_tde_fetch_wal_keys(start);
 	}
 
+	/*
+	 * The barrier ensures that we always read a vaild TLI after the valid
+	 * LSN. See the comment in TDEXLogSetEncKeyLocation()
+	 */
 	write_key_lsn = TDEXLogGetEncKeyLsn();
+	pg_read_barrier();
 
 	if (!XLogRecPtrIsInvalid(write_key_lsn))
 	{
