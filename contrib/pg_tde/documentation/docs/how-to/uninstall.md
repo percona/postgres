@@ -35,7 +35,7 @@ DROP EXTENSION pg_tde;
 
 !!! note
 
-    If there are any encrypted objects that were not previously decrypted or deleted, this command will fail and you have to follow the step above for these objects.
+    If there are any encrypted objects that were not previously decrypted or deleted, this command will fail and you have to follow the steps above for these objects.
 
 Alternatively, to drop the extension and any database objects that depend on it:
 
