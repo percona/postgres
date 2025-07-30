@@ -54,7 +54,7 @@ If you are using WAL encryption, you need to **turn it off** before you uninstal
 a. Run:
 
 ```sql
-ALTER SYSTEM SET pg_tde.wal_encrypt=off;
+ALTER SYSTEM SET pg_tde.wal_encrypt = off;
 ```
 
 b. Restart the `postgresql` cluster to apply the changes:
