@@ -8,7 +8,7 @@ Percona Transparent Data Encryption for PostgreSQL (`pg_tde`) is an open source,
 
 <div data-grid markdown><div data-banner markdown>
 
-### :material-progress-download: Installation guides { .title }
+### :material-progress-download: Installation guide { .title }
 
 Get started quickly with the step-by-step installation instructions.
 
@@ -16,7 +16,7 @@ Get started quickly with the step-by-step installation instructions.
 
 </div><div data-banner markdown>
 
-### :material-stars: Features { .title }
+### :material-rocket: Features { .title }
 
 Explore what features Percona's `pg_tde` extension brings to PostgreSQL.
 
