@@ -16,7 +16,7 @@ Get started quickly with the step-by-step installation instructions.
 
 </div><div data-banner markdown>
 
-### :material-rocket: Features { .title }
+### :rocket: Features { .title }
 
 Explore what features Percona's `pg_tde` extension brings to PostgreSQL.
 
