@@ -6,17 +6,13 @@ Percona Transparent Data Encryption for PostgreSQL (`pg_tde`) is an open source,
     There is no safe upgrade path from the previous versions, such as Release Candidate 2, to the General Availability (GA) version of `pg_tde`.  
     We recommend starting with a **clean installation** for GA deployments. Avoid using RC environments in production.
 
-[Overview](index/index.md){.md-button}
-[Get Started](install.md){.md-button}
-[What's new in pg_tde {{release}}](release-notes/release-notes.md){.md-button}
-
 <div data-grid markdown><div data-banner markdown>
 
 ### :material-progress-download: Installation guides { .title }
 
 Get started quickly with the step-by-step installation instructions.
 
-[Install guide :material-arrow-right:](install.md){ .md-button }
+[How to install `pg_tde` :material-arrow-right:](install.md){ .md-button }
 
 </div><div data-banner markdown>
 
@@ -24,7 +20,7 @@ Get started quickly with the step-by-step installation instructions.
 
 Explore what features Percona's `pg_tde` extension brings to PostgreSQL.
 
-[Explore features :material-arrow-right:](features.md){ .md-button }
+[Check what you can do with `pg_tde` :material-arrow-right:](features.md){ .md-button }
 
 </div><div data-banner markdown>
 
@@ -32,7 +28,7 @@ Explore what features Percona's `pg_tde` extension brings to PostgreSQL.
 
 Understand how `pg_tde` integrates into PostgreSQL with Percona's architecture. Learn how keys are managed, how encryption is applied, and how our design ensures performance and security.
 
-[Explore the architecture :material-arrow-right:](architecture/index.md){.md-button}
+[Check what’s under the hood for `pg_tde` :material-arrow-right:](architecture/index.md){.md-button}
 
 </div><div data-banner markdown>
 
@@ -40,6 +36,6 @@ Understand how `pg_tde` integrates into PostgreSQL with Percona's architecture. 
 
 Learn about the releases and changes in `pg_tde`.
 
-[Release notes :material-arrow-right:](release-notes/{{latestreleasenotes}}.md){.md-button}
+[Check what’s new in the latest version :material-arrow-right:](release-notes/{{latestreleasenotes}}.md){.md-button}
 </div>
 </div>
