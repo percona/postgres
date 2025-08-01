@@ -13,19 +13,13 @@ To uninstall `pg_tde`, follow the steps below.
 
 Before uninstalling, you must remove the extension from every database where it is loaded. This includes template databases if `pg_tde` was previously enabled there.
 
-a. You must clean up all encrypted tables in each database:
+a. Clean up encrypted tables:
 
-- To **decrypt a table**, switch it back to the default storage method:
+To decrypt a table and restore it to its default storage method:
 
-    ```sql
-    ALTER TABLE <table_name> SET ACCESS METHOD heap;
-    ```
-
-- To **discard the data**, simply drop the encrypted tables:
-
-    ```sql
-    DROP TABLE <table_name>;
-    ```
+```sql
+ALTER TABLE <table_name> SET ACCESS METHOD heap;
+```
 
 b. Remove the extension once all encrypted tables have been handled:
 
@@ -36,16 +30,6 @@ DROP EXTENSION pg_tde;
 !!! note
 
     If there are any encrypted objects that were not previously decrypted or deleted, this command will fail and you have to follow the steps above for these objects.
-
-Alternatively, to drop the extension and any database objects that depend on it:
-
-```sql
-DROP EXTENSION pg_tde CASCADE;
-```
-
-!!! note
-
-    The `DROP EXTENSION` command does not delete the underlying `pg_tde`-specific data files from disk.
 
 ## Step 2. Turn off WAL encryption
 
@@ -113,8 +97,9 @@ postgres=#
 
 !!! note
 
-    - Your list of libraries will most likely be different than the above example.
-    - If `pg_tde` is the only shared library in the list, and this is set using `postgresql.conf`:
+    Your list of libraries will most likely be different than the above example.
+    
+    If `pg_tde` is the only shared library in the list, and it was set via `postgresql.conf`:
         - You cannot disable it using `ALTER SYSTEM SET ...`
         - Instead, remove the `shared_preload_libraries` line from `postgresql.conf`
         - Then run `ALTER SYSTEM RESET shared_preload_libraries;`
@@ -139,7 +124,7 @@ At this point it is safe to remove any configuration related to `pg_tde` from `p
 
 ## Troubleshooting: PANIC checkpoint not found on restart
 
-This can happen if WAL encryption was not properly disabled before removing `pg_tde` from `shared_preload_libraries`, such as when the server was not restarted after disabling encryption.
+This can happen if WAL encryption was not properly disabled before removing `pg_tde` from `shared_preload_libraries`, when the PostgreSQL server was not restarted after disabling WAL encryption (see step 3.c).
 
 You might see this when restarting the PostgreSQL cluster:
 
@@ -157,5 +142,5 @@ To resolve it follow these steps:
 
     Two restarts are required to uninstall properly if WAL encryption was enabled:
     
-    - First: to re-enable `pg_tde` and disable WAL encryption safely
-    - Second: to finalize removal of the shared library
+    - First to disable WAL encryption
+    - Second to remove the `pg_tde` library
