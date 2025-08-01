@@ -100,9 +100,10 @@ postgres=#
     Your list of libraries will most likely be different than the above example.
     
     If `pg_tde` is the only shared library in the list, and it was set via `postgresql.conf`:
-        - You cannot disable it using `ALTER SYSTEM SET ...`
-        - Instead, remove the `shared_preload_libraries` line from `postgresql.conf`
-        - Then run `ALTER SYSTEM RESET shared_preload_libraries;`
+        
+    - You cannot disable it using `ALTER SYSTEM SET ...`
+    - Instead, remove the `shared_preload_libraries` line from `postgresql.conf`
+    - Then run `ALTER SYSTEM RESET shared_preload_libraries;`
 
 c. Restart the `postgresql` cluster to apply the changes:
 
