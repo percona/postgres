@@ -19,4 +19,30 @@ The following features are available for the extension:
 * Table-level granularity for encryption and access control
 * Multiple [Key management options](global-key-provider-configuration/index.md)
 
-[Learn more about TDE and pg_tde :material-arrow-right:](index/about-tde.md){.md-button} [Get started with installation :material-arrow-right:](install.md){.md-button}
+<div data-grid markdown><div data-banner markdown>
+
+### :material-progress-download: About Transparent Data Encryption { .title }
+
+Get an overview on what Transparent Data Encryption is and what pg_tde is below!
+
+[How to install `pg_tde` :material-arrow-right:](index/about-tde.md){ .md-button }
+
+</div><div data-banner markdown>
+
+### :material-progress-download: Installation guide { .title }
+
+Get started quickly with the step-by-step installation instructions.
+
+[How to install `pg_tde` :material-arrow-right:](install.md){ .md-button }
+
+</div>
+
+!!! note
+
+    Your list of libraries will most likely be different than the above example.
+    
+    If `pg_tde` is the only shared library in the list, and it was set via `postgresql.conf`:
+
+    - You cannot disable it using `ALTER SYSTEM SET ...`
+    - Instead, remove the `shared_preload_libraries` line from `postgresql.conf`
+    - Then run `ALTER SYSTEM RESET shared_preload_libraries;`
