@@ -62,7 +62,7 @@ tdeheap_rmgr_redo(XLogReaderState *record)
 	{
 		XLogRelKey *xlrec = (XLogRelKey *) XLogRecGetData(record);
 
-		tde_smgr_delete_key_redo(&xlrec->rlocator);
+		tde_smgr_remove_leftover_key_redo(&xlrec->rlocator);
 	}
 	else if (info == XLOG_TDE_ROTATE_PRINCIPAL_KEY)
 	{
