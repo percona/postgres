@@ -478,6 +478,74 @@ pg_tde_write_one_map_entry(int fd, const TDEMapEntry *map_entry, off_t *offset, 
 #endif
 
 #ifndef FRONTEND
+static FILE *
+pg_tde_open_file_basic_copy(const char *tde_filename, const char *mode, bool ignore_missing)
+{
+	FILE	   *file;
+
+	file = AllocateFile(tde_filename, mode);
+	if (file == NULL && !(errno == ENOENT && ignore_missing == true))
+	{
+		ereport(ERROR,
+				errcode_for_file_access(),
+				errmsg("could not open tde file \"%s\": %m", tde_filename));
+	}
+
+	return file;
+}
+
+static void
+pg_tde_file_header_read_copy(const char *tde_filename, FILE *file, TDEFileHeader *fheader)
+{
+	size_t		bytes_read;
+
+	Assert(fheader);
+
+	bytes_read = fread(fheader, TDE_FILE_HEADER_SIZE, 1, file);
+
+	if (bytes_read != 1 || fheader->file_version != PG_TDE_FILEMAGIC)
+	{
+		ereport(FATAL,
+				errcode_for_file_access(),
+				errmsg("TDE map file \"%s\" is corrupted %ld %d: %m", tde_filename, bytes_read, fheader->file_version));
+	}
+}
+
+static FILE *
+pg_tde_open_file_write_copy(const char *tde_filename, const TDESignedPrincipalKeyInfo *signed_key_info)
+{
+	FILE	   *file;
+	TDEFileHeader fheader;
+
+	Assert(LWLockHeldByMeInMode(tde_lwlock_enc_keys(), LW_EXCLUSIVE));
+
+	file = pg_tde_open_file_basic_copy(tde_filename, "rb+", false);
+
+	pg_tde_file_header_read_copy(tde_filename, file, &fheader);
+
+	///* In case it's a new file, let's add the header now. */
+	//if (bytes_read == 0 && signed_key_info)
+	//	pg_tde_file_header_write(tde_filename, fd, signed_key_info, &bytes_written);
+
+	return file;
+}
+
+static bool
+pg_tde_read_one_map_entry_copy(FILE *map_file, TDEMapEntry *map_entry)
+{
+	size_t		entries_read;
+
+	Assert(map_entry);
+
+	entries_read = fread(map_entry, MAP_ENTRY_SIZE, 1, map_file);
+
+	/* We've reached the end of the file. */
+	if (entries_read != 1)
+		return false;
+
+	return true;
+}
+
 /*
  * The caller must hold an exclusive lock on the key file to avoid
  * concurrent in place updates leading to data conflicts.
@@ -486,8 +554,7 @@ void
 pg_tde_replace_key_map_entry(const RelFileLocator *rlocator, const InternalKey *rel_key_data, TDEPrincipalKey *principal_key)
 {
 	char		db_map_path[MAXPGPATH];
-	int			map_fd;
-	off_t		curr_pos = 0;
+	FILE	   *map_file;
 	off_t		write_pos = 0;
 	TDEMapEntry write_map_entry;
 	TDESignedPrincipalKeyInfo signed_key_Info;
@@ -499,7 +566,7 @@ pg_tde_replace_key_map_entry(const RelFileLocator *rlocator, const InternalKey *
 	pg_tde_sign_principal_key_info(&signed_key_Info, principal_key);
 
 	/* Open and validate file for basic correctness. */
-	map_fd = pg_tde_open_file_write(db_map_path, &signed_key_Info, false, &curr_pos);
+	map_file = pg_tde_open_file_write_copy(db_map_path, &signed_key_Info);
 
 	/*
 	 * Read until we find an empty slot. Otherwise, read until end. This seems
@@ -509,32 +576,31 @@ pg_tde_replace_key_map_entry(const RelFileLocator *rlocator, const InternalKey *
 	while (1)
 	{
 		TDEMapEntry read_map_entry;
-		off_t		prev_pos = curr_pos;
 
-		if (!pg_tde_read_one_map_entry(map_fd, &read_map_entry, &curr_pos))
+		if (!pg_tde_read_one_map_entry_copy(map_file, &read_map_entry))
 		{
 			if (write_pos == 0)
-				write_pos = prev_pos;
+				write_pos = ftell(map_file);
 			break;
 		}
 
 		if (read_map_entry.spcOid == rlocator->spcOid && read_map_entry.relNumber == rlocator->relNumber)
 		{
-			write_pos = prev_pos;
+			write_pos = ftell(map_file) - MAP_ENTRY_SIZE;
 			break;
 		}
 
 		if (write_pos == 0 && read_map_entry.type == MAP_ENTRY_TYPE_EMPTY)
-			write_pos = prev_pos;
+			write_pos = ftell(map_file) - MAP_ENTRY_SIZE;
 	}
 
 	/* Initialize map entry and encrypt key */
 	pg_tde_initialize_map_entry(&write_map_entry, principal_key, rlocator, rel_key_data);
 
 	/* Write the given entry at curr_pos; i.e. the free entry. */
-	pg_tde_write_one_map_entry(map_fd, &write_map_entry, &write_pos, db_map_path);
+	pg_tde_write_one_map_entry(fileno(map_file), &write_map_entry, &write_pos, db_map_path);
 
-	CloseTransientFile(map_fd);
+	FreeFile(map_file);
 }
 #endif
 
