@@ -55,10 +55,6 @@ sudo systemctl restart postgresql
 sudo systemctl restart postgresql-17
 ```
 
-!!! note
-
-    If an error appears when restarting the PostgreSQL cluster, see [this subtopic](#troubleshooting-panic-checkpoint-not-found-on-restart).
-
 ## Step 3. Uninstall the `pg_tde` shared library
 
 !!! warning
