@@ -19,24 +19,9 @@ The following features are available for the extension:
 * Table-level granularity for encryption and access control
 * Multiple [Key management options](global-key-provider-configuration/index.md)
 
-## Related topics
+## Next steps
 
-Continue learning or get started with the installation:
+Learn more about how `pg_tde` implements Transparent Data Encryption:
 
-<div data-grid markdown><div data-banner markdown>
+[Overview of TDE and `pg_tde` :material-arrow-right:](index/about-tde.md){.md-button}
 
-### :material-progress-download: About Transparent Data Encryption { .title }
-
-Learn what Transparent Data Encryption (TDE) is and how the `pg_tde` extension enables it in PostgreSQL.
-
-[Explore TDE and `pg_tde` :material-arrow-right:](index/about-tde.md){ .md-button }
-
-</div><div data-banner markdown>
-
-### :material-progress-download: Installation guide { .title }
-
-Get started quickly with the step-by-step installation instructions.
-
-[How to install `pg_tde` :material-arrow-right:](install.md){ .md-button }
-
-</div>
