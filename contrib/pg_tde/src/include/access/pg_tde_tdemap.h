@@ -37,56 +37,6 @@ typedef struct
 	unsigned char aead_tag[MAP_ENTRY_AEAD_TAG_SIZE];
 } TDESignedPrincipalKeyInfo;
 
-/* We do not need the dbOid since the entries are stored in a file per db */
-typedef struct TDEMapEntry
-{
-	Oid			spcOid;
-	RelFileNumber relNumber;
-	uint32		type;
-	InternalKey enc_key;
-	/* IV and tag used when encrypting the key itself */
-	unsigned char entry_iv[MAP_ENTRY_IV_SIZE];
-	unsigned char aead_tag[MAP_ENTRY_AEAD_TAG_SIZE];
-} TDEMapEntry;
-
-typedef struct XLogRelKey
-{
-	RelFileLocator rlocator;
-} XLogRelKey;
-
-/*
- * TODO: For now it's a simple linked list which is no good. So consider having
- * 		 dedicated WAL keys cache inside some proper data structure.
- */
-typedef struct WALKeyCacheRec
-{
-	XLogRecPtr	start_lsn;
-	XLogRecPtr	end_lsn;
-
-	InternalKey key;
-	void	   *crypt_ctx;
-
-	struct WALKeyCacheRec *next;
-} WALKeyCacheRec;
-
-extern InternalKey *pg_tde_read_last_wal_key(void);
-extern WALKeyCacheRec *pg_tde_get_last_wal_key(void);
-extern WALKeyCacheRec *pg_tde_fetch_wal_keys(XLogRecPtr start_lsn);
-extern WALKeyCacheRec *pg_tde_get_wal_cache_keys(void);
-extern void pg_tde_wal_last_key_set_lsn(XLogRecPtr lsn, const char *keyfile_path);
-extern void pg_tde_create_wal_key(InternalKey *rel_key_data, const RelFileLocator *newrlocator, TDEMapEntryType entry_type);
-
-#define PG_TDE_MAP_FILENAME			"%d_keys"
-
-static inline void
-pg_tde_set_db_file_path(Oid dbOid, char *path)
-{
-	char	   *fname = psprintf(PG_TDE_MAP_FILENAME, dbOid);
-
-	join_path_components(path, pg_tde_get_data_dir(), fname);
-	pfree(fname);
-}
-
 extern void pg_tde_save_smgr_key(RelFileLocator rel, const InternalKey *key);
 extern bool pg_tde_has_smgr_key(RelFileLocator rel);
 extern InternalKey *pg_tde_get_smgr_key(RelFileLocator rel);
@@ -103,6 +53,8 @@ extern void pg_tde_save_principal_key_redo(const TDESignedPrincipalKeyInfo *sign
 extern void pg_tde_perform_rotate_key(TDEPrincipalKey *principal_key, TDEPrincipalKey *new_principal_key, bool write_xlog);
 extern void pg_tde_delete_principal_key(Oid dbOid);
 extern void pg_tde_delete_principal_key_redo(Oid dbOid);
+
+extern void pg_tde_sign_principal_key_info(TDESignedPrincipalKeyInfo *signed_key_info, const TDEPrincipalKey *principal_key);
 
 const char *tde_sprint_key(InternalKey *k);
 

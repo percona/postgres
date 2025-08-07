@@ -13,7 +13,7 @@
 #include "utils/guc.h"
 #include "utils/memutils.h"
 
-#include "access/pg_tde_tdemap.h"
+#include "access/pg_tde_xlog_keys.h"
 #include "access/pg_tde_xlog_smgr.h"
 #include "catalog/tde_global_space.h"
 #include "encryption/enc_tde.h"
@@ -42,7 +42,7 @@ static const XLogSmgr tde_xlog_smgr = {
 static void *EncryptionCryptCtx = NULL;
 
 /* TODO: can be swapped out to the disk */
-static InternalKey EncryptionKey =
+static WalEncryptionKey EncryptionKey =
 {
 	.type = MAP_ENTRY_EMPTY,
 	.start_lsn = InvalidXLogRecPtr,
@@ -65,7 +65,6 @@ static InternalKey EncryptionKey =
 
 typedef struct EncryptionStateData
 {
-	char		db_map_path[MAXPGPATH];
 	pg_atomic_uint64 enc_key_lsn;	/* to sync with readers */
 } EncryptionStateData;
 
@@ -167,7 +166,6 @@ TDEXLogShmemInit(void)
 
 typedef struct EncryptionStateData
 {
-	char		db_map_path[MAXPGPATH];
 	XLogRecPtr	enc_key_lsn;	/* to sync with reader */
 } EncryptionStateData;
 
@@ -200,7 +198,7 @@ TDEXLogSmgrInit()
 void
 TDEXLogSmgrInitWrite(bool encrypt_xlog)
 {
-	InternalKey *key = pg_tde_read_last_wal_key();
+	WalEncryptionKey *key = pg_tde_read_last_wal_key();
 
 	/*
 	 * Always generate a new key on starting PostgreSQL to protect against
@@ -209,13 +207,11 @@ TDEXLogSmgrInitWrite(bool encrypt_xlog)
 	 */
 	if (encrypt_xlog)
 	{
-		pg_tde_create_wal_key(&EncryptionKey, &GLOBAL_SPACE_RLOCATOR(XLOG_TDE_OID),
-							  TDE_KEY_TYPE_WAL_ENCRYPTED);
+		pg_tde_create_wal_key(&EncryptionKey, TDE_KEY_TYPE_WAL_ENCRYPTED);
 	}
 	else if (key && key->type == TDE_KEY_TYPE_WAL_ENCRYPTED)
 	{
-		pg_tde_create_wal_key(&EncryptionKey, &GLOBAL_SPACE_RLOCATOR(XLOG_TDE_OID),
-							  TDE_KEY_TYPE_WAL_UNENCRYPTED);
+		pg_tde_create_wal_key(&EncryptionKey, TDE_KEY_TYPE_WAL_UNENCRYPTED);
 	}
 	else if (key)
 	{
@@ -225,14 +221,12 @@ TDEXLogSmgrInitWrite(bool encrypt_xlog)
 
 	if (key)
 		pfree(key);
-
-	pg_tde_set_db_file_path(GLOBAL_SPACE_RLOCATOR(XLOG_TDE_OID).dbOid, EncryptionState->db_map_path);
 }
 
 void
 TDEXLogSmgrInitWriteReuseKey()
 {
-	InternalKey *key = pg_tde_read_last_wal_key();
+	WalEncryptionKey *key = pg_tde_read_last_wal_key();
 
 	if (key)
 	{
@@ -240,8 +234,6 @@ TDEXLogSmgrInitWriteReuseKey()
 		TDEXLogSetEncKeyLsn(EncryptionKey.start_lsn);
 		pfree(key);
 	}
-
-	pg_tde_set_db_file_path(GLOBAL_SPACE_RLOCATOR(XLOG_TDE_OID).dbOid, EncryptionState->db_map_path);
 }
 
 /*
@@ -252,7 +244,7 @@ TDEXLogWriteEncryptedPages(int fd, const void *buf, size_t count, off_t offset,
 						   TimeLineID tli, XLogSegNo segno)
 {
 	char		iv_prefix[16];
-	InternalKey *key = &EncryptionKey;
+	WalEncryptionKey *key = &EncryptionKey;
 	char	   *enc_buff = EncryptionBuf;
 
 #ifndef FRONTEND
@@ -265,9 +257,13 @@ TDEXLogWriteEncryptedPages(int fd, const void *buf, size_t count, off_t offset,
 #endif
 
 	CalcXLogPageIVPrefix(tli, segno, key->base_iv, iv_prefix);
-	pg_tde_stream_crypt(iv_prefix, offset,
-						(char *) buf, count,
-						enc_buff, key, &EncryptionCryptCtx);
+	pg_tde_stream_crypt(iv_prefix,
+						offset,
+						(char *) buf,
+						count,
+						enc_buff,
+						key->key,
+						&EncryptionCryptCtx);
 
 	return pg_pwrite(fd, enc_buff, count, offset);
 }
@@ -287,7 +283,7 @@ tdeheap_xlog_seg_write(int fd, const void *buf, size_t count, off_t offset,
 
 		XLogSegNoOffsetToRecPtr(segno, offset, segSize, lsn);
 
-		pg_tde_wal_last_key_set_lsn(lsn, EncryptionState->db_map_path);
+		pg_tde_wal_last_key_set_lsn(lsn);
 		EncryptionKey.start_lsn = lsn;
 		TDEXLogSetEncKeyLsn(lsn);
 	}
@@ -392,8 +388,13 @@ tdeheap_xlog_seg_read(int fd, void *buf, size_t count, off_t offset,
 				elog(DEBUG1, "decrypt WAL, dec_off: %lu [buff_off %lu], sz: %lu | key %X/%X",
 					 dec_off, dec_off - offset, dec_sz, LSN_FORMAT_ARGS(curr_key->key->start_lsn));
 #endif
-				pg_tde_stream_crypt(iv_prefix, dec_off, dec_buf, dec_sz, dec_buf,
-									&curr_key->key, &curr_key->crypt_ctx);
+				pg_tde_stream_crypt(iv_prefix,
+									dec_off,
+									dec_buf,
+									dec_sz,
+									dec_buf,
+									curr_key->key.key,
+									&curr_key->crypt_ctx);
 			}
 		}
 	}
