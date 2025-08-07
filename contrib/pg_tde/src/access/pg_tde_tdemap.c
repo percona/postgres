@@ -56,7 +56,13 @@ typedef struct TDEMapEntry
 	Oid			spcOid;
 	RelFileNumber relNumber;
 	uint32		type;
-	InternalKey enc_key;
+	struct {
+		InternalKey enc_key;
+
+		/* These fields were used when WAL keys were in the same file */
+		uint32		_unused1;
+		uint64		_unused2;
+	} 			k;
 	/* IV and tag used when encrypting the key itself */
 	unsigned char entry_iv[MAP_ENTRY_IV_SIZE];
 	unsigned char aead_tag[MAP_ENTRY_AEAD_TAG_SIZE];
@@ -210,9 +216,6 @@ pg_tde_free_key_map_entry(const RelFileLocator rlocator)
 		{
 			TDEMapEntry empty_map_entry = {
 				.type = MAP_ENTRY_EMPTY,
-				.enc_key = {
-					.type = MAP_ENTRY_EMPTY,
-				},
 			};
 
 			pg_tde_write_one_map_entry(map_fd, &empty_map_entry, &prev_pos, db_map_path);
@@ -407,8 +410,10 @@ pg_tde_initialize_map_entry(TDEMapEntry *map_entry, const TDEPrincipalKey *princ
 {
 	map_entry->spcOid = rlocator->spcOid;
 	map_entry->relNumber = rlocator->relNumber;
-	map_entry->type = rel_key_data->type;
-	map_entry->enc_key = *rel_key_data;
+	map_entry->type = TDE_KEY_TYPE_SMGR;
+	map_entry->k.enc_key = *rel_key_data;
+	map_entry->k._unused1 = 0;
+	map_entry->k._unused2 = 0;
 
 	if (!RAND_bytes(map_entry->entry_iv, MAP_ENTRY_IV_SIZE))
 		ereport(ERROR,
@@ -417,9 +422,9 @@ pg_tde_initialize_map_entry(TDEMapEntry *map_entry, const TDEPrincipalKey *princ
 
 	AesGcmEncrypt(principal_key->keyData,
 				  map_entry->entry_iv, MAP_ENTRY_IV_SIZE,
-				  (unsigned char *) map_entry, offsetof(TDEMapEntry, enc_key),
+				  (unsigned char *) map_entry, offsetof(TDEMapEntry, k),
 				  rel_key_data->key, INTERNAL_KEY_LEN,
-				  map_entry->enc_key.key,
+				  map_entry->k.enc_key.key,
 				  map_entry->aead_tag, MAP_ENTRY_AEAD_TAG_SIZE);
 }
 #endif
@@ -589,12 +594,12 @@ tde_decrypt_rel_key(TDEPrincipalKey *principal_key, TDEMapEntry *map_entry)
 
 	Assert(principal_key);
 
-	*rel_key_data = map_entry->enc_key;
+	*rel_key_data = map_entry->k.enc_key;
 
 	if (!AesGcmDecrypt(principal_key->keyData,
 					   map_entry->entry_iv, MAP_ENTRY_IV_SIZE,
-					   (unsigned char *) map_entry, offsetof(TDEMapEntry, enc_key),
-					   map_entry->enc_key.key, INTERNAL_KEY_LEN,
+					   (unsigned char *) map_entry, offsetof(TDEMapEntry, k),
+					   map_entry->k.enc_key.key, INTERNAL_KEY_LEN,
 					   rel_key_data->key,
 					   map_entry->aead_tag, MAP_ENTRY_AEAD_TAG_SIZE))
 		ereport(ERROR,

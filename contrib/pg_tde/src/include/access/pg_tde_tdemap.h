@@ -1,7 +1,6 @@
 #ifndef PG_TDE_MAP_H
 #define PG_TDE_MAP_H
 
-#include "access/xlog_internal.h"
 #include "storage/relfilelocator.h"
 #include "catalog/tde_principal_key.h"
 #include "common/pg_tde_utils.h"
@@ -22,9 +21,6 @@ typedef struct InternalKey
 {
 	uint8		key[INTERNAL_KEY_LEN];
 	uint8		base_iv[INTERNAL_KEY_IV_LEN];
-	uint32		type;
-
-	XLogRecPtr	start_lsn;
 } InternalKey;
 
 #define MAP_ENTRY_IV_SIZE 16
