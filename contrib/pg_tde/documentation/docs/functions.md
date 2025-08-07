@@ -240,7 +240,7 @@ SELECT pg_tde_create_key_using_database_key_provider(
 
 ### pg_tde_create_key_using_global_key_provider
 
-Creates a principal key at a global  key provider with the given name. Use this key later with the `pg_tde_set_` series of functions.
+Creates a principal key at a global key provider with the given name. Use this key later with the `pg_tde_set_*` series of functions.
 
 ```sql
 SELECT pg_tde_create_key_using_global_key_provider(
