@@ -421,3 +421,14 @@ If any of the above checks fail, the function reports an error.
 ```sql
 SELECT pg_tde_verify_default_key();
 ```
+
+### pg_tde_is_wal_record_encrypted
+
+This function checks if a WAL record is encrypted or not. It assumes provided LSN belongs to the current timeline if not specified.
+
+```sql
+SELECT pg_tde_is_wal_record_encrypted(
+  'wal_record_lsn',
+  'optional_timeline_id'
+);
+```

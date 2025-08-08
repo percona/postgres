@@ -13,6 +13,12 @@ SELECT key_name, provider_name, provider_id FROM pg_tde_server_key_info();
           |               |            
 (1 row)
 
+SELECT pg_tde_is_wal_record_encrypted(pg_current_wal_lsn());
+ pg_tde_is_wal_record_encrypted 
+--------------------------------
+ f
+(1 row)
+
 SELECT pg_tde_create_key_using_global_key_provider('server-key', 'file-keyring-010');
  pg_tde_create_key_using_global_key_provider 
 ---------------------------------------------
@@ -53,6 +59,12 @@ SELECT slot_name FROM pg_create_logical_replication_slot('tde_slot', 'test_decod
 
 CREATE TABLE test_wal (id SERIAL, k INTEGER, PRIMARY KEY (id));
 INSERT INTO test_wal (k) VALUES (1), (2);
+SELECT pg_tde_is_wal_record_encrypted(pg_current_wal_lsn());
+ pg_tde_is_wal_record_encrypted 
+--------------------------------
+ t
+(1 row)
+
 ALTER SYSTEM SET pg_tde.wal_encrypt = off;
 -- server restart without wal encryption
 SHOW pg_tde.wal_encrypt;
@@ -62,6 +74,12 @@ SHOW pg_tde.wal_encrypt;
 (1 row)
 
 INSERT INTO test_wal (k) VALUES (3), (4);
+SELECT pg_tde_is_wal_record_encrypted(pg_current_wal_lsn());
+ pg_tde_is_wal_record_encrypted 
+--------------------------------
+ f
+(1 row)
+
 ALTER SYSTEM SET pg_tde.wal_encrypt = on;
 -- server restart with wal encryption
 SHOW pg_tde.wal_encrypt;
@@ -71,6 +89,12 @@ SHOW pg_tde.wal_encrypt;
 (1 row)
 
 INSERT INTO test_wal (k) VALUES (5), (6);
+SELECT pg_tde_is_wal_record_encrypted(pg_current_wal_lsn());
+ pg_tde_is_wal_record_encrypted 
+--------------------------------
+ t
+(1 row)
+
 -- server restart with still wal encryption
 SHOW pg_tde.wal_encrypt;
  pg_tde.wal_encrypt 
@@ -79,6 +103,12 @@ SHOW pg_tde.wal_encrypt;
 (1 row)
 
 INSERT INTO test_wal (k) VALUES (7), (8);
+SELECT pg_tde_is_wal_record_encrypted('0/15883E8'::pg_lsn);
+ pg_tde_is_wal_record_encrypted 
+--------------------------------
+ t
+(1 row)
+
 SELECT data FROM pg_logical_slot_get_changes('tde_slot', NULL, NULL);
                            data                            
 -----------------------------------------------------------

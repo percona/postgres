@@ -32,6 +32,9 @@ PGTDE::psql($node, 'postgres',
 );
 
 PGTDE::psql($node, 'postgres',
+	"SELECT pg_tde_is_wal_record_encrypted(pg_current_wal_lsn());");
+
+PGTDE::psql($node, 'postgres',
 	"SELECT pg_tde_create_key_using_global_key_provider('server-key', 'file-keyring-010');"
 );
 PGTDE::psql($node, 'postgres',
@@ -60,6 +63,9 @@ PGTDE::psql($node, 'postgres',
 
 PGTDE::psql($node, 'postgres', 'INSERT INTO test_wal (k) VALUES (1), (2);');
 
+PGTDE::psql($node, 'postgres',
+	"SELECT pg_tde_is_wal_record_encrypted(pg_current_wal_lsn());");
+
 PGTDE::psql($node, 'postgres', 'ALTER SYSTEM SET pg_tde.wal_encrypt = off;');
 
 PGTDE::append_to_result_file("-- server restart without wal encryption");
@@ -68,6 +74,9 @@ $node->restart;
 PGTDE::psql($node, 'postgres', "SHOW pg_tde.wal_encrypt;");
 
 PGTDE::psql($node, 'postgres', 'INSERT INTO test_wal (k) VALUES (3), (4);');
+
+PGTDE::psql($node, 'postgres',
+	"SELECT pg_tde_is_wal_record_encrypted(pg_current_wal_lsn());");
 
 PGTDE::psql($node, 'postgres', 'ALTER SYSTEM SET pg_tde.wal_encrypt = on;');
 
@@ -78,12 +87,18 @@ PGTDE::psql($node, 'postgres', "SHOW pg_tde.wal_encrypt;");
 
 PGTDE::psql($node, 'postgres', 'INSERT INTO test_wal (k) VALUES (5), (6);');
 
+PGTDE::psql($node, 'postgres',
+	"SELECT pg_tde_is_wal_record_encrypted(pg_current_wal_lsn());");
+
 PGTDE::append_to_result_file("-- server restart with still wal encryption");
 $node->restart;
 
 PGTDE::psql($node, 'postgres', "SHOW pg_tde.wal_encrypt;");
 
 PGTDE::psql($node, 'postgres', 'INSERT INTO test_wal (k) VALUES (7), (8);');
+
+PGTDE::psql($node, 'postgres',
+	"SELECT pg_tde_is_wal_record_encrypted(pg_current_wal_lsn());");
 
 PGTDE::psql($node, 'postgres',
 	"SELECT data FROM pg_logical_slot_get_changes('tde_slot', NULL, NULL);");

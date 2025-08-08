@@ -15,10 +15,12 @@
 #include "storage/shmem.h"
 #include "utils/builtins.h"
 #include "utils/percona.h"
+#include "utils/pg_lsn.h"
 
 #include "access/pg_tde_tdemap.h"
 #include "access/pg_tde_xlog.h"
 #include "access/pg_tde_xlog_smgr.h"
+#include "access/pg_tde_xlog_keys.h"
 #include "catalog/tde_global_space.h"
 #include "catalog/tde_principal_key.h"
 #include "encryption/enc_aes.h"
@@ -41,6 +43,7 @@ static shmem_request_hook_type prev_shmem_request_hook = NULL;
 PG_FUNCTION_INFO_V1(pg_tde_extension_initialize);
 PG_FUNCTION_INFO_V1(pg_tde_version);
 PG_FUNCTION_INFO_V1(pg_tdeam_handler);
+PG_FUNCTION_INFO_V1(pg_tde_is_wal_record_encrypted);
 
 static void
 tde_shmem_request(void)
@@ -165,4 +168,40 @@ Datum
 pg_tdeam_handler(PG_FUNCTION_ARGS)
 {
 	PG_RETURN_POINTER(GetHeapamTableAmRoutine());
+}
+
+/*
+ * Returns true if the WAL record at the given LSN is encrypted.
+ */
+Datum
+pg_tde_is_wal_record_encrypted(PG_FUNCTION_ARGS)
+{
+	XLogRecPtr	lsn = PG_GETARG_LSN(0);
+	int			tli = PG_GETARG_INT32(1);
+	WalLocation loc;
+	WALKeyCacheRec *keys;
+
+	if (tli == 0)
+		tli = GetWALInsertionTimeLine();
+
+	/* Load all keys for the given timeline */
+	loc = (WalLocation)
+	{
+		.tli = tli,.lsn = 0
+	};
+
+	keys = pg_tde_fetch_wal_keys(loc);
+	if (!keys)
+		PG_RETURN_BOOL(false);
+
+	loc.lsn = lsn;
+
+	for (WALKeyCacheRec *curr_key = keys; curr_key != NULL; curr_key = curr_key->next)
+	{
+		if (wal_location_cmp(loc, curr_key->start) >= 0 &&
+			wal_location_cmp(loc, curr_key->end) < 0)
+			PG_RETURN_BOOL(curr_key->key.type == WAL_KEY_TYPE_ENCRYPTED);
+	}
+
+	PG_RETURN_BOOL(false);
 }
