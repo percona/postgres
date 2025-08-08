@@ -581,7 +581,7 @@ pg_tde_decrypt_wal_key(TDEPrincipalKey *principal_key, WalKeyFileEntry *entry)
 
 	if (!AesGcmDecrypt(principal_key->keyData,
 					   entry->entry_iv, MAP_ENTRY_IV_SIZE,
-					   (unsigned char *) entry, offsetof(WalKeyFileEntry, enc_key),
+					   NULL, 0,
 					   entry->enc_key.key, INTERNAL_KEY_LEN,
 					   key->key,
 					   entry->aead_tag, MAP_ENTRY_AEAD_TAG_SIZE))
@@ -632,7 +632,7 @@ pg_tde_initialize_wal_key_file_entry(WalKeyFileEntry *entry,
 
 	AesGcmEncrypt(principal_key->keyData,
 				  entry->entry_iv, MAP_ENTRY_IV_SIZE,
-				  (unsigned char *) entry, offsetof(WalKeyFileEntry, enc_key),
+				  NULL, 0,
 				  rel_key_data->key, INTERNAL_KEY_LEN,
 				  entry->enc_key.key,
 				  entry->aead_tag, MAP_ENTRY_AEAD_TAG_SIZE);
