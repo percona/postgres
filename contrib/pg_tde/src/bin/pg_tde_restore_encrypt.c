@@ -1,12 +1,9 @@
 #include "postgres_fe.h"
 
-#include <fcntl.h>
-#include <sys/wait.h>
-#include <unistd.h>
-
 #include "access/xlog_internal.h"
 #include "access/xlog_smgr.h"
 #include "common/logging.h"
+#include "common/percentrepl.h"
 
 #include "access/pg_tde_fe_init.h"
 #include "access/pg_tde_xlog_smgr.h"
@@ -111,7 +108,7 @@ static void
 usage(const char *progname)
 {
 	printf(_("%s wraps a restore command to make it write encrypted WAL to pg_wal.\n\n"), progname);
-	printf(_("Usage:\n  %s %%f %%p <restore command>\n\n"), progname);
+	printf(_("Usage:\n  %s %%f %%p RESTORE_COMMAND\n\n"), progname);
 	printf(_("Options:\n"));
 	printf(_("  -V, --version output version information, then exit\n"));
 	printf(_("  -?, --help    show this help, then exit\n"));
@@ -122,15 +119,13 @@ main(int argc, char *argv[])
 {
 	const char *progname;
 	char	   *sourcename;
+	char	   *command;
 	char	   *targetpath;
 	char	   *sep;
 	char	   *targetname;
 	char		tmpdir[MAXPGPATH] = TMPFS_DIRECTORY "/pg_tde_restoreXXXXXX";
 	char		tmppath[MAXPGPATH];
 	bool		issegment;
-	pid_t		child;
-	int			status;
-	int			r;
 
 	pg_logging_init(argv[0]);
 	progname = get_progname(argv[0]);
@@ -158,6 +153,7 @@ main(int argc, char *argv[])
 
 	sourcename = argv[1];
 	targetpath = argv[2];
+	command = argv[3];
 
 	pg_tde_fe_init("pg_tde");
 	TDEXLogSmgrInit();
@@ -182,33 +178,17 @@ main(int argc, char *argv[])
 		s = stpcpy(s, "/");
 		stpcpy(s, targetname);
 
-		for (int i = 2; i < argc; i++)
-			if (strcmp(targetpath, argv[i]) == 0)
-				argv[i] = tmppath;
+		command = replace_percent_placeholders(command,
+											   "restore_command", "fp",
+											   sourcename, tmppath);
 	}
+	else
+		command = replace_percent_placeholders(command,
+											   "restore_command", "fp",
+											   sourcename, targetpath);
 
-	child = fork();
-	if (child == 0)
-	{
-		if (execvp(argv[3], argv + 3) < 0)
-			pg_fatal("exec failed: %m");
-	}
-	else if (child < 0)
-		pg_fatal("could not create background process: %m");
-
-	r = waitpid(child, &status, 0);
-	if (r == (pid_t) -1)
-		pg_fatal("could not wait for child process: %m");
-	if (r != child)
-		pg_fatal("child %d died, expected %d", (int) r, (int) child);
-	if (status != 0)
-	{
-		char	   *reason = wait_result_to_str(status);
-
-		pg_fatal("%s", reason);
-		/* keep lsan happy */
-		free(reason);
-	}
+	if (system(command) != 0)
+		pg_fatal("system failed: %m");
 
 	if (issegment)
 	{
