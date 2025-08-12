@@ -1794,6 +1794,7 @@ BaseBackup(char *compression_algorithm, char *compression_detail,
 				serverMajor;
 	int			writing_to_stdout;
 	bool		use_new_option_syntax = false;
+	bool		tde_src_wal_keys = false;
 	PQExpBufferData buf;
 
 	Assert(conn != NULL);
@@ -2058,6 +2059,10 @@ BaseBackup(char *compression_algorithm, char *compression_detail,
 		starttli = atoi(PQgetvalue(res, 0, 1));
 	else
 		starttli = latesttli;
+
+	if (PQnfields(res) >= 3)
+		tde_src_wal_keys = atoi(PQgetvalue(res, 0, 2));
+		
 	PQclear(res);
 
 	if (verbose && includewal != NO_WAL)
@@ -2130,6 +2135,16 @@ BaseBackup(char *compression_algorithm, char *compression_detail,
 		if (verbose)
 			pg_log_info("starting background WAL receiver");
 
+#ifdef PERCONA_EXT
+		{
+			char tde_wal_keys_file[MAXPGPATH];
+
+			snprintf(tde_wal_keys_file, sizeof(tde_wal_keys_file), "%s/%s/%s", basedir, PG_TDE_DATA_DIR, "wal_keys");
+
+			if (tde_src_wal_keys && access(tde_wal_keys_file, F_OK) != 0)
+				pg_fatal("could not start WAL receiver, copy pg_tde from the source to the destination dir");
+		}
+#endif
 		if (client_compress->algorithm == PG_COMPRESSION_GZIP)
 		{
 			wal_compress_algorithm = PG_COMPRESSION_GZIP;

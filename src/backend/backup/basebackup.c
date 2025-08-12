@@ -269,6 +269,7 @@ perform_base_backup(basebackup_options *opt, bbsink *sink,
 
 	state.startptr = backup_state->startpoint;
 	state.starttli = backup_state->starttli;
+	state.tde_have_wal_keys = backup_state->tde_have_wal_keys;
 
 	/*
 	 * Once do_pg_backup_start has been called, ensure that any failure causes

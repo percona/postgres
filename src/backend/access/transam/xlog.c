@@ -8967,6 +8967,12 @@ do_pg_backup_start(const char *backupidstr, bool fast, List **tablespaces,
 			WALInsertLockRelease();
 		} while (!gotUniqueStartpoint);
 
+		/* TODO: we should rather check if the last WAL key is encrypted */
+		if (access("pg_tde/wal_keys", F_OK) == 0)
+		{
+			state->tde_have_wal_keys = true;
+		}
+
 		/*
 		 * Construct tablespace_map file.
 		 */

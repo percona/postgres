@@ -86,7 +86,7 @@ static void bbsink_copystream_cleanup(bbsink *sink);
 
 static void SendCopyOutResponse(void);
 static void SendCopyDone(void);
-static void SendXlogRecPtrResult(XLogRecPtr ptr, TimeLineID tli);
+static void SendXlogRecPtrResult(XLogRecPtr ptr, TimeLineID tli, bool wal_keys);
 static void SendTablespaceList(List *tablespaces);
 
 static const bbsink_ops bbsink_copystream_ops = {
@@ -146,7 +146,7 @@ bbsink_copystream_begin_backup(bbsink *sink)
 	mysink->msgbuffer[0] = 'd'; /* archive or manifest data */
 
 	/* Tell client the backup start location. */
-	SendXlogRecPtrResult(state->startptr, state->starttli);
+	SendXlogRecPtrResult(state->startptr, state->starttli, state->tde_have_wal_keys);
 
 	/* Send client a list of tablespaces. */
 	SendTablespaceList(state->tablespaces);
@@ -298,7 +298,7 @@ bbsink_copystream_end_backup(bbsink *sink, XLogRecPtr endptr,
 							 TimeLineID endtli)
 {
 	SendCopyDone();
-	SendXlogRecPtrResult(endptr, endtli);
+	SendXlogRecPtrResult(endptr, endtli, false);
 }
 
 /*
@@ -338,17 +338,17 @@ SendCopyDone(void)
  * XLogRecPtr record (in text format)
  */
 static void
-SendXlogRecPtrResult(XLogRecPtr ptr, TimeLineID tli)
+SendXlogRecPtrResult(XLogRecPtr ptr, TimeLineID tli, bool wal_keys)
 {
 	DestReceiver *dest;
 	TupOutputState *tstate;
 	TupleDesc	tupdesc;
-	Datum		values[2];
-	bool		nulls[2] = {0};
+	Datum		values[3];
+	bool		nulls[3] = {0};
 
 	dest = CreateDestReceiver(DestRemoteSimple);
 
-	tupdesc = CreateTemplateTupleDesc(2);
+	tupdesc = CreateTemplateTupleDesc(3);
 	TupleDescInitBuiltinEntry(tupdesc, (AttrNumber) 1, "recptr", TEXTOID, -1, 0);
 
 	/*
@@ -357,12 +357,16 @@ SendXlogRecPtrResult(XLogRecPtr ptr, TimeLineID tli)
 	 */
 	TupleDescInitBuiltinEntry(tupdesc, (AttrNumber) 2, "tli", INT8OID, -1, 0);
 
+
+	TupleDescInitBuiltinEntry(tupdesc, (AttrNumber) 3, "walkeys", INT4OID, -1, 0);
+
 	/* send RowDescription */
 	tstate = begin_tup_output_tupdesc(dest, tupdesc, &TTSOpsVirtual);
 
 	/* Data row */
 	values[0] = CStringGetTextDatum(psprintf("%X/%X", LSN_FORMAT_ARGS(ptr)));
 	values[1] = Int64GetDatum(tli);
+	values[2] = BoolGetDatum(wal_keys);
 	do_tup_output(tstate, values, nulls);
 
 	end_tup_output(tstate);

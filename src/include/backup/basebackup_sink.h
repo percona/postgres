@@ -72,6 +72,7 @@ typedef struct bbsink_state
 	bool		bytes_total_is_valid;
 	XLogRecPtr	startptr;
 	TimeLineID	starttli;
+	bool		tde_have_wal_keys;
 } bbsink_state;
 
 /*
