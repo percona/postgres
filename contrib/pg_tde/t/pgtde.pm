@@ -116,8 +116,13 @@ sub backup
 
 	mkdir $backup_dir or die "mkdir($backup_dir) failed: $!";
 
-	PostgreSQL::Test::RecursiveCopy::copypath($node->data_dir . '/pg_tde',
-		$backup_dir . '/pg_tde');
+	my $pg_tde_dir = $node->data_dir . '/pg_tde';
+	if (-d $pg_tde_dir) {
+		PostgreSQL::Test::RecursiveCopy::copypath($pg_tde_dir, $backup_dir . '/pg_tde');
+	}
+	else {
+		note "Skipping pg_tde directory backup ?~@~T not present in data directory";
+	}
 
 	$node->backup($backup_name, %params);
 }
