@@ -107,6 +107,7 @@ tap_tests = [
   't/change_key_provider.pl',
   't/crash_recovery.pl',
   't/key_rotate_tablespace.pl',
+  't/key_validation.pl',
   't/multiple_extensions.pl',
   't/pg_tde_change_key_provider.pl',
   't/pg_rewind_basic.pl',
@@ -126,6 +127,7 @@ tap_tests = [
   't/unlogged_tables.pl',
   't/wal_archiving.pl',
   't/wal_encrypt.pl',
+  't/wal_key_tli.pl',
 ]
 
 tests += {
