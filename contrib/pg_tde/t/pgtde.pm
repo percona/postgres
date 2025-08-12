@@ -122,4 +122,67 @@ sub backup
 	$node->backup($backup_name, %params);
 }
 
+sub setup_pg_tde_node {
+    my ($node, $test_name) = @_;
+
+    # Default test_name from script name if not provided
+    $test_name ||= basename($0, '.pl');
+    # Add process ID to ensure parallel safety
+    my $pid = $$;
+    # Build unique keyring file paths in /tmp
+    my $global_keyring = File::Spec->catfile('/tmp', "global_keyring_${test_name}_${pid}.file");
+    my $local_keyring  = File::Spec->catfile('/tmp', "local_keyring_${test_name}_${pid}.file");
+
+    # Basic pg_tde settings
+    $node->append_conf('postgresql.conf',
+        "shared_preload_libraries = 'pg_tde'");
+    $node->append_conf('postgresql.conf',
+        "default_table_access_method = 'tde_heap'");
+
+    $node->start;
+
+    # Remove any existing keyring files for this test
+    unlink($global_keyring_file);
+    unlink($local_keyring_file);
+
+    # Create and enable pg_tde extension
+    $node->safe_psql('postgres',
+        'CREATE EXTENSION IF NOT EXISTS pg_tde;');
+
+	# Create global key provider and set server key
+    $node->safe_psql('postgres',
+        "SELECT pg_tde_add_global_key_provider_file(
+            'global_key_provider', '$global_keyring_file');");
+
+    $node->safe_psql('postgres',
+        "SELECT pg_tde_create_key_using_global_key_provider(
+            'global_test_key_time', 'global_key_provider');");
+
+    $node->safe_psql('postgres',
+        "SELECT pg_tde_set_server_key_using_global_key_provider(
+            'global_test_key_time', 'global_key_provider');");
+
+	# Create local key provider and set database key
+    $node->safe_psql('postgres',
+        "SELECT pg_tde_add_database_key_provider_file(
+            'local_key_provider', '$local_keyring_file');");
+
+    $node->safe_psql('postgres',
+        "SELECT pg_tde_create_key_using_database_key_provider(
+            'local_test_key_time', 'local_key_provider');");
+
+    $node->safe_psql('postgres',
+        "SELECT pg_tde_set_key_using_database_key_provider(
+            'local_test_key_time', 'local_key_provider');");
+
+    # WAL encryption setting
+    my $WAL_ENCRYPTION = $ENV{WAL_ENCRYPTION} // 'on';
+    $node->append_conf(
+        'postgresql.conf',
+        ($WAL_ENCRYPTION eq 'off')
+            ? "pg_tde.wal_encrypt = off\n"
+            : "pg_tde.wal_encrypt = on\n"
+    );
+}
+
 1;

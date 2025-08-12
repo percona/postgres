@@ -510,6 +510,7 @@ is($stdout_recv, '', 'pg_recvlogical acknowledged changes');
 $node_primary->safe_psql('postgres', 'CREATE DATABASE otherdb');
 
 # Create and enable tde extension
+unlink('/tmp/local_keyring_test2.file');
 $node_primary->safe_psql('otherdb', 'CREATE EXTENSION IF NOT EXISTS pg_tde;');
 $node_primary->safe_psql('otherdb',
 	"SELECT pg_tde_add_database_key_provider_file('local_key_provider_test2', '/tmp/local_keyring_test2.file');");
