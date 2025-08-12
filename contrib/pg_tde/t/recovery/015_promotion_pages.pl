@@ -16,44 +16,12 @@ use pgtde;
 # Initialize primary node
 my $alpha = PostgreSQL::Test::Cluster->new('alpha');
 $alpha->init(allows_streaming => 1);
-$alpha->append_conf('postgresql.conf',
-	"shared_preload_libraries = 'pg_tde'");
-$alpha->append_conf('postgresql.conf',
-	"default_table_access_method = 'tde_heap'");
 # Setting wal_log_hints to off is important to get invalid page
 # references.
 $alpha->append_conf("postgresql.conf", <<EOF);
 wal_log_hints = off
 EOF
-
-# Start the primary
-$alpha->start;
-
-unlink('/tmp/global_keyring.file');
-unlink('/tmp/local_keyring.file');
-# Create and enable tde extension
-$alpha->safe_psql('postgres', 'CREATE EXTENSION IF NOT EXISTS pg_tde;');
-$alpha->safe_psql('postgres',
-	"SELECT pg_tde_add_global_key_provider_file('global_key_provider', '/tmp/global_keyring.file');");
-$alpha->safe_psql('postgres',
-	"SELECT pg_tde_create_key_using_global_key_provider('global_test_key_pp', 'global_key_provider');");
-$alpha->safe_psql('postgres',
-	"SELECT pg_tde_set_server_key_using_global_key_provider('global_test_key_pp', 'global_key_provider');");
-$alpha->safe_psql('postgres',
-	"SELECT pg_tde_add_database_key_provider_file('local_key_provider', '/tmp/local_keyring.file');");
-$alpha->safe_psql('postgres',
-	"SELECT pg_tde_create_key_using_database_key_provider('local_test_key_pp', 'local_key_provider');");
-$alpha->safe_psql('postgres',
-	"SELECT pg_tde_set_key_using_database_key_provider('local_test_key_pp', 'local_key_provider');");
-
-my $WAL_ENCRYPTION = $ENV{WAL_ENCRYPTION} // 'on';
-
-$alpha->append_conf(
-    'postgresql.conf',
-    ($WAL_ENCRYPTION eq 'off')
-        ? "pg_tde.wal_encrypt = off\n"
-        : "pg_tde.wal_encrypt = on\n"
-);
+PGTDE::setup_pg_tde_node($alpha);
 
 $alpha->restart;
 
