@@ -13,37 +13,8 @@ use pgtde;
 
 my $node = PostgreSQL::Test::Cluster->new('node');
 $node->init;
-$node->append_conf('postgresql.conf',
-	"shared_preload_libraries = 'pg_tde'");
-$node->append_conf('postgresql.conf',
-	"default_table_access_method = 'tde_heap'");
-$node->start;
 
-unlink('/tmp/global_keyring.file');
-unlink('/tmp/local_keyring.file');
-# Create and enable tde extension
-$node->safe_psql('postgres', 'CREATE EXTENSION IF NOT EXISTS pg_tde;');
-$node->safe_psql('postgres',
-	"SELECT pg_tde_add_global_key_provider_file('global_key_provider', '/tmp/global_keyring.file');");
-$node->safe_psql('postgres',
-	"SELECT pg_tde_create_key_using_global_key_provider('global_test_key', 'global_key_provider');");
-$node->safe_psql('postgres',
-	"SELECT pg_tde_set_server_key_using_global_key_provider('global_test_key', 'global_key_provider');");
-$node->safe_psql('postgres',
-	"SELECT pg_tde_add_database_key_provider_file('local_key_provider', '/tmp/local_keyring.file');");
-$node->safe_psql('postgres',
-	"SELECT pg_tde_create_key_using_database_key_provider('local_test_key', 'local_key_provider');");
-$node->safe_psql('postgres',
-	"SELECT pg_tde_set_key_using_database_key_provider('local_test_key', 'local_key_provider');");
-
-my $WAL_ENCRYPTION = $ENV{WAL_ENCRYPTION} // 'on';
-
-$node->append_conf(
-    'postgresql.conf',
-    ($WAL_ENCRYPTION eq 'off')
-        ? "pg_tde.wal_encrypt = off\n"
-        : "pg_tde.wal_encrypt = on\n"
-);
+PGTDE::setup_pg_tde_node($node);
 
 $node->restart;
 
@@ -53,23 +24,25 @@ $node->restart;
 my $db_template = "template1";
 my $db_new = "test_db_1";
 
+unlink('/tmp/local_keyring_create_db_1.file');
+unlink('/tmp/local_keyring_create_db_2.file');
 # Create table.  It should persist on the template database.
 $node->safe_psql($db_template, 'CREATE EXTENSION IF NOT EXISTS pg_tde;');
 $node->safe_psql($db_template,
-	"SELECT pg_tde_add_database_key_provider_file('local_key_provider', '/tmp/local_keyring.file');");
+	"SELECT pg_tde_add_database_key_provider_file('local_key_provider1', '/tmp/local_keyring_create_db_1.file');");
 $node->safe_psql($db_template,
-	"SELECT pg_tde_create_key_using_database_key_provider('local_test_key_cd', 'local_key_provider');");
+	"SELECT pg_tde_create_key_using_database_key_provider('local_test_key_cd', 'local_key_provider1');");
 $node->safe_psql($db_template,
-	"SELECT pg_tde_set_key_using_database_key_provider('local_test_key_cd', 'local_key_provider');");
+	"SELECT pg_tde_set_key_using_database_key_provider('local_test_key_cd', 'local_key_provider1');");
 $node->safe_psql("postgres",
 	"CREATE DATABASE $db_new STRATEGY WAL_LOG TEMPLATE $db_template;");
 
 $node->safe_psql($db_new,
-	"SELECT pg_tde_add_database_key_provider_file('local_key_provider', '/tmp/local_keyring.file');");
+	"SELECT pg_tde_add_database_key_provider_file('local_key_provider2', '/tmp/local_keyring_create_db_2.file');");
 $node->safe_psql($db_new,
-	"SELECT pg_tde_create_key_using_database_key_provider('local_test_key_cd1', 'local_key_provider');");
+	"SELECT pg_tde_create_key_using_database_key_provider('local_test_key_cd1', 'local_key_provider2');");
 $node->safe_psql($db_new,
-	"SELECT pg_tde_set_key_using_database_key_provider('local_test_key_cd1', 'local_key_provider');");
+	"SELECT pg_tde_set_key_using_database_key_provider('local_test_key_cd1', 'local_key_provider2');");
 
 $node->safe_psql($db_template, "CREATE TABLE tab_db_after_create_1 (a INT);");
 

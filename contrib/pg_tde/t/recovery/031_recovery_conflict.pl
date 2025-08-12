@@ -38,38 +38,8 @@ log_recovery_conflict_waits = on
 deadlock_timeout = 10ms
 ]);
 $node_primary->append_conf('postgresql.conf', "track_functions = 'all'");
-$node_primary->append_conf('postgresql.conf',
-	"shared_preload_libraries = 'pg_tde'");
-$node_primary->append_conf('postgresql.conf',
-	"default_table_access_method = 'tde_heap'");
-$node_primary->start;
 
-unlink('/tmp/global_keyring.file');
-unlink('/tmp/local_keyring.file');
-# Create and enable tde extension
-$node_primary->safe_psql('postgres', 'CREATE EXTENSION IF NOT EXISTS pg_tde;');
-
-$node_primary->safe_psql('postgres',
-	"SELECT pg_tde_add_global_key_provider_file('global_key_provider', '/tmp/global_keyring.file');");
-$node_primary->safe_psql('postgres',
-	"SELECT pg_tde_create_key_using_global_key_provider('global_test_key', 'global_key_provider');");
-$node_primary->safe_psql('postgres',
-	"SELECT pg_tde_set_server_key_using_global_key_provider('global_test_key', 'global_key_provider');");
-$node_primary->safe_psql('postgres',
-	"SELECT pg_tde_add_database_key_provider_file('local_key_provider', '/tmp/local_keyring.file');");
-$node_primary->safe_psql('postgres',
-	"SELECT pg_tde_create_key_using_database_key_provider('local_test_key', 'local_key_provider');");
-$node_primary->safe_psql('postgres',
-	"SELECT pg_tde_set_key_using_database_key_provider('local_test_key', 'local_key_provider');");
-
-my $WAL_ENCRYPTION = $ENV{WAL_ENCRYPTION} // 'on';
-
-$node_primary->append_conf(
-    'postgresql.conf',
-    ($WAL_ENCRYPTION eq 'off')
-        ? "pg_tde.wal_encrypt = off\n"
-        : "pg_tde.wal_encrypt = on\n"
-);
+PGTDE::setup_pg_tde_node($node_primary);
 
 $node_primary->restart;
 
@@ -86,13 +56,13 @@ $node_standby->init_from_backup($node_primary, $backup_name,
 $node_standby->start;
 
 my $test_db = "test_db";
-unlink('/tmp/local_keyring_test.file');
+unlink('/tmp/local_keyring_recovery_conflict_1.file');
 # use a new database, to trigger database recovery conflict
 $node_primary->safe_psql('postgres', "CREATE DATABASE $test_db");
 # Create and enable tde extension
 $node_primary->safe_psql($test_db, 'CREATE EXTENSION IF NOT EXISTS pg_tde;');
 $node_primary->safe_psql($test_db,
-	"SELECT pg_tde_add_database_key_provider_file('local_key_provider_test', '/tmp/local_keyring_test.file');");
+	"SELECT pg_tde_add_database_key_provider_file('local_key_provider_test', '/tmp/local_keyring_recovery_conflict_1.file');");
 $node_primary->safe_psql($test_db,
 	"SELECT pg_tde_create_key_using_database_key_provider('local_test_key_rc', 'local_key_provider_test');");
 $node_primary->safe_psql($test_db,
