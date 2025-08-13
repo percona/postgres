@@ -14,6 +14,7 @@ use pgtde;
 
 my $node = PostgreSQL::Test::Cluster->new('primary');
 $node->init(allows_streaming => 1);
+$node->append_conf('postgresql.conf', "track_functions = 'all'");
 
 PGTDE::setup_pg_tde_node($node);
 
