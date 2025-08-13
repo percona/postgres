@@ -51,14 +51,14 @@ $node_publisher->append_conf(
 checkpoint_timeout = 1h
 autovacuum = off
 });
-PGTDE::setup_pg_tde_node($node_publisher);
+PGTDE::setup_pg_tde_node($node_publisher,'node_publisher');
 $node_publisher->restart;
 
 # Create subscriber node
 my $node_subscriber = PostgreSQL::Test::Cluster->new('sub');
 $node_subscriber->init;
 
-PGTDE::setup_pg_tde_node($node_subscriber);
+PGTDE::setup_pg_tde_node($node_subscriber,'node_subscriber');
 
 $node_subscriber->restart;
 
