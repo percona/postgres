@@ -10,9 +10,9 @@ This tool is often use in conjunction with [pg_tde_restore_encrypt](./pg-tde-res
 
 ## How it works
 
-* Decrypts the WAL segment to a temporary file on a RAM disk (/dev/shm)
-* Replaces %p and %f placeholders with the path and name of the decrypted file
-* Passes the result to the specified archive command
+1. Decrypts the WAL segment to a temporary file on a RAM disk (/dev/shm)
+2. Replaces %p and %f placeholders with the path and name of the decrypted file
+3. Passes the result to the specified archive command
 
 !!! note
 
