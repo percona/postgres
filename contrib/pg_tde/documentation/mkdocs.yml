@@ -193,7 +193,7 @@ nav:
     - "Functions": functions.md
     - "Streaming Replication with tde_heap": replication.md
   - "TDE operations":
-    - "pg_tde CLI Tools":
+    - "pg_tde CLI tools":
       - "Overview": command-line-tools/cli-tools.md
       - "pg_tde_change_key_provider": command-line-tools/pg-tde-change-key-provider.md
       - "pg_tde_archive_decrypt": command-line-tools/pg-tde-archive-decrypt.md
