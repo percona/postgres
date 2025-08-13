@@ -10,8 +10,8 @@ This tool is often use in conjunction with [pg_tde_restore_encrypt](./pg-tde-res
 
 ## How it works
 
-1. Decrypts the WAL segment to a temporary file on a RAM disk (/dev/shm)
-2. Replaces %p and %f placeholders with the path and name of the decrypted file
+1. Decrypts the WAL segment to a temporary file on a RAM disk (`/dev/shm`)
+2. Replaces `%p` and `%f` placeholders with the path and name of the decrypted file
 3. Passes the result to the specified archive command
 
 !!! note
@@ -38,7 +38,7 @@ pg_tde_archive_decrypt DEST-NAME SOURCE-PATH ARCHIVE-COMMAND
 
 !!! note
 
-    Any %f or %p parameter in `ARCHIVE-COMMAND` has to be escaped as `%%f` or `%%p` respectively if used as `archive_command` in `postgresql.conf`.
+    Any `%f` or `%p` parameter in `ARCHIVE-COMMAND` has to be escaped as `%%f` or `%%p` respectively if used as `archive_command` in `postgresql.conf`.
 
 ## Examples
 
