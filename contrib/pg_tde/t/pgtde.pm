@@ -135,8 +135,8 @@ sub setup_pg_tde_node {
     # Add process ID to ensure parallel safety
     my $pid = $$;
     # Build unique keyring file paths in /tmp
-    my $global_keyring = File::Spec->catfile('/tmp', "global_keyring_${test_name}_${pid}.file");
-    my $local_keyring  = File::Spec->catfile('/tmp', "local_keyring_${test_name}_${pid}.file");
+    my $global_keyring_file = File::Spec->catfile('/tmp', "global_keyring_${test_name}_${pid}.file");
+    my $local_keyring_file  = File::Spec->catfile('/tmp', "local_keyring_${test_name}_${pid}.file");
 
     # Basic pg_tde settings
     $node->append_conf('postgresql.conf',
