@@ -129,6 +129,7 @@ tap_tests = [
   't/unlogged_tables.pl',
   't/wal_archiving.pl',
   't/wal_encrypt.pl',
+  't/wal_encryption_ranges.pl',
   't/wal_key_tli.pl',
   't/2pc_replication.pl',
   't/stream_rep.pl',

@@ -35,6 +35,8 @@
 
 PG_MODULE_MAGIC;
 
+#define PG_TDE_LIST_WAL_KEYS_RANGES_COLS 4
+
 static void pg_tde_init_data_dir(void);
 
 static shmem_startup_hook_type prev_shmem_startup_hook = NULL;
@@ -44,6 +46,7 @@ PG_FUNCTION_INFO_V1(pg_tde_extension_initialize);
 PG_FUNCTION_INFO_V1(pg_tde_version);
 PG_FUNCTION_INFO_V1(pg_tdeam_handler);
 PG_FUNCTION_INFO_V1(pg_tde_is_wal_record_encrypted);
+PG_FUNCTION_INFO_V1(pg_tde_get_wal_encryption_ranges);
 
 static void
 tde_shmem_request(void)
@@ -204,4 +207,65 @@ pg_tde_is_wal_record_encrypted(PG_FUNCTION_ARGS)
 	}
 
 	PG_RETURN_BOOL(false);
+}
+
+/*
+ * Returns WAL encryption ranges. WAL records within the LSN range are encrypted.
+ */
+Datum
+pg_tde_get_wal_encryption_ranges(PG_FUNCTION_ARGS)
+{
+	Tuplestorestate *tupstore;
+	TupleDesc	tupdesc;
+	ReturnSetInfo *rsinfo = (ReturnSetInfo *) fcinfo->resultinfo;
+	MemoryContext per_query_ctx;
+	MemoryContext oldcontext;
+	WALKeyCacheRec *keys;
+	WalLocation loc = {.tli = 0,.lsn = 0};
+
+	/* check to see if caller supports us returning a tuplestore */
+	if (rsinfo == NULL || !IsA(rsinfo, ReturnSetInfo))
+		ereport(ERROR,
+				errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+				errmsg("set-valued function called in context that cannot accept a set"));
+	if (!(rsinfo->allowedModes & SFRM_Materialize))
+		ereport(ERROR,
+				errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+				errmsg("materialize mode required, but it is not allowed in this context"));
+
+	/* Switch into long-lived context to construct returned data structures */
+	per_query_ctx = rsinfo->econtext->ecxt_per_query_memory;
+	oldcontext = MemoryContextSwitchTo(per_query_ctx);
+
+	/* Build a tuple descriptor for our result type */
+	if (get_call_result_type(fcinfo, NULL, &tupdesc) != TYPEFUNC_COMPOSITE)
+		elog(ERROR, "return type must be a row type");
+
+	tupstore = tuplestore_begin_heap(true, false, work_mem);
+	rsinfo->returnMode = SFRM_Materialize;
+	rsinfo->setResult = tupstore;
+	rsinfo->setDesc = tupdesc;
+
+	MemoryContextSwitchTo(oldcontext);
+
+	keys = pg_tde_fetch_wal_keys(loc);
+
+	for (WALKeyCacheRec *curr_key = keys; curr_key != NULL; curr_key = curr_key->next)
+	{
+		Datum		values[PG_TDE_LIST_WAL_KEYS_RANGES_COLS] = {0};
+		bool		nulls[PG_TDE_LIST_WAL_KEYS_RANGES_COLS] = {0};
+		int			i = 0;
+
+		if (curr_key->key.type != WAL_KEY_TYPE_ENCRYPTED)
+			continue;
+
+		values[i++] = Int64GetDatum(curr_key->start.tli);
+		values[i++] = Int64GetDatum(curr_key->start.lsn);
+		values[i++] = Int64GetDatum(curr_key->end.tli);
+		values[i++] = Int64GetDatum(curr_key->end.lsn);
+
+		tuplestore_putvalues(tupstore, tupdesc, values, nulls);
+	}
+
+	return (Datum) 0;
 }

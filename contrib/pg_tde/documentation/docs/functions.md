@@ -432,3 +432,11 @@ SELECT pg_tde_is_wal_record_encrypted(
   'optional_timeline_id'
 );
 ```
+
+### pg_tde_get_wal_encryption_ranges
+
+This function returns the ranges of WAL records that are encrypted. It returns a set of records with the start and end LSNs and TLI for each range.
+
+```sql
+SELECT * FROM pg_tde_get_wal_encryption_ranges();
+```

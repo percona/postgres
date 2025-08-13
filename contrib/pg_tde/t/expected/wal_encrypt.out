@@ -103,7 +103,7 @@ SHOW pg_tde.wal_encrypt;
 (1 row)
 
 INSERT INTO test_wal (k) VALUES (7), (8);
-SELECT pg_tde_is_wal_record_encrypted('0/15883E8'::pg_lsn);
+SELECT pg_tde_is_wal_record_encrypted(pg_current_wal_lsn());
  pg_tde_is_wal_record_encrypted 
 --------------------------------
  t
