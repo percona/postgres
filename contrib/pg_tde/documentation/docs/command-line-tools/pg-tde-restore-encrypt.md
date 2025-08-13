@@ -10,7 +10,7 @@ The `pg_tde_restore_encrypt` tool wraps a normal restore command from the WAL ar
 
 1. Replaces `%f` and `%p` in the restore command with the WAL file name and temporary file path (in `/dev/shm`)
 2. Runs the restore command to fetch the unencrypted WAL from the archive and write it to the temp file
-3. Encrypts the temp file and writes the result to the final destination path in PostgreSQL’s data directory
+3. Encrypts the temp file and writes it to the destination path in PostgreSQL’s data directory
 
 ## Usage
 
