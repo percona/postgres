@@ -1,14 +1,18 @@
-# pg_tde 2.0 ({{date.2.0}})
+# pg_tde 2.0 ({{date.GA20}})
 
-The `pg_tde` by Percona extension brings in [Transparent Data Encryption (TDE)](../index/index.md) to PostgreSQL and enables you to keep sensitive data safe and secure.
+The `pg_tde` by Percona extension brings in [Transparent Data Encryption (TDE)](../index/about-tde.md) to PostgreSQL and enables you to keep sensitive data safe and secure.
 
 [Get Started](../install.md){.md-button}
 
 ## Release Highlights
 
-* **WAL encryption is now Generally Available (GA)**
+### WAL encryption is now generally available
 
 The WAL (Write-Ahead Logging) encryption feature is now fully supported and production-ready, it adds secure logging to `pg_tde`, expanding Percona's PostgreSQL encryption coverage by enabling secure, transparent encryption of write-ahead logs using the same key infrastructure as data encryption.
+
+### Documentation updates
+
+* Updated the [Limitations](../index/tde-limitations.md) topic to include WAL encryption limitations and supported tools.
 
 ## Known issues
 
@@ -28,8 +32,6 @@ Adjust the limits with caution since it affects other processes running in your 
 - [PG-1037](https://perconadev.atlassian.net/browse/PG-1037) Make `pg_rewind` work with encrypted WAL
 
 ### Improvements
-
-- PG-1497 WAL encryption GA epic tracking issue
 
 ### Bugs Fixed
 
