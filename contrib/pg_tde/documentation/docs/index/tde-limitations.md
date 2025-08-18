@@ -24,6 +24,6 @@ Check which PostgreSQL versions and deployment types are compatible with `pg_tde
 
 [View the versions and supported deployments :material-arrow-right:](supported-versions.md){.md-button}
 
-Begin the installation process when you’re ready to set up encryption.
+Begin the installation process when you're ready to set up encryption.
 
 [Start installing `pg_tde`](../install.md){.md-button}
