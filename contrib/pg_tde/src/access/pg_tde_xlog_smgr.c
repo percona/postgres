@@ -23,7 +23,6 @@
 #ifdef FRONTEND
 #include "pg_tde_fe.h"
 #else
-#include "pg_tde_guc.h"
 #include "port/atomics.h"
 #endif
 
@@ -138,11 +137,8 @@ TDEXLogEncryptStateSize(void)
 	Size		sz;
 
 	sz = sizeof(EncryptionStateData);
-	if (EncryptXLog)
-	{
-		sz = add_size(sz, TDEXLogEncryptBuffSize());
-		sz = add_size(sz, PG_IO_ALIGN_SIZE);
-	}
+	sz = add_size(sz, TDEXLogEncryptBuffSize());
+	sz = add_size(sz, PG_IO_ALIGN_SIZE);
 
 	return sz;
 }
@@ -169,12 +165,9 @@ TDEXLogShmemInit(void)
 
 	memset(EncryptionState, 0, sizeof(EncryptionStateData));
 
-	if (EncryptXLog)
-	{
-		EncryptionBuf = (char *) TYPEALIGN(PG_IO_ALIGN_SIZE, ((char *) EncryptionState) + sizeof(EncryptionStateData));
+	EncryptionBuf = (char *) TYPEALIGN(PG_IO_ALIGN_SIZE, ((char *) EncryptionState) + sizeof(EncryptionStateData));
 
-		Assert((char *) EncryptionState + TDEXLogEncryptStateSize() >= (char *) EncryptionBuf + TDEXLogEncryptBuffSize());
-	}
+	Assert((char *) EncryptionState + TDEXLogEncryptStateSize() >= (char *) EncryptionBuf + TDEXLogEncryptBuffSize());
 
 	pg_atomic_init_u64(&EncryptionState->enc_key_lsn, 0);
 
@@ -226,6 +219,7 @@ void
 TDEXLogSmgrInitWrite(bool encrypt_xlog)
 {
 	WalEncryptionKey *key = pg_tde_read_last_wal_key();
+	WALKeyCacheRec *keys;
 
 	/*
 	 * Always generate a new key on starting PostgreSQL to protect against
@@ -244,6 +238,16 @@ TDEXLogSmgrInitWrite(bool encrypt_xlog)
 	{
 		EncryptionKey = *key;
 		TDEXLogSetEncKeyLocation(EncryptionKey.wal_start);
+	}
+
+	keys = pg_tde_get_wal_cache_keys();
+
+	if (keys == NULL)
+	{
+		WalLocation start = {.tli = 1,.lsn = 0};
+
+		/* cache is empty, prefetch keys from disk */
+		pg_tde_fetch_wal_keys(start);
 	}
 
 	if (key)
@@ -267,6 +271,32 @@ TDEXLogSmgrInitWriteReuseKey()
  * Encrypt XLog page(s) from the buf and write to the segment file.
  */
 static ssize_t
+TDEXLogWriteEncryptedPagesOldKeys(int fd, const void *buf, size_t count, off_t offset,
+								  TimeLineID tli, XLogSegNo segno, int segSize)
+{
+	char	   *enc_buff = EncryptionBuf;
+
+#ifndef FRONTEND
+	Assert(count <= TDEXLogEncryptBuffSize());
+#endif
+
+	/* Copy the data as-is, as we might have unencrypted parts */
+	memcpy(enc_buff, buf, count);
+
+	/*
+	 * This method potentially allocates, but only in very early execution
+	 * Shouldn't happen in a write, where we are in a critical section
+	 */
+	TDEXLogCryptBuffer(buf, enc_buff, count, offset, tli, segno, segSize);
+
+	return pg_pwrite(fd, enc_buff, count, offset);
+}
+
+
+/*
+ * Encrypt XLog page(s) from the buf and write to the segment file.
+ */
+static ssize_t
 TDEXLogWriteEncryptedPages(int fd, const void *buf, size_t count, off_t offset,
 						   TimeLineID tli, XLogSegNo segno)
 {
@@ -284,6 +314,7 @@ TDEXLogWriteEncryptedPages(int fd, const void *buf, size_t count, off_t offset,
 #endif
 
 	CalcXLogPageIVPrefix(tli, segno, key->base_iv, iv_prefix);
+
 	pg_tde_stream_crypt(iv_prefix,
 						offset,
 						(char *) buf,
@@ -299,26 +330,60 @@ static ssize_t
 tdeheap_xlog_seg_write(int fd, const void *buf, size_t count, off_t offset,
 					   TimeLineID tli, XLogSegNo segno, int segSize)
 {
+	bool		lastKeyUsable;
+	bool		afterWriteKey;
+#ifdef FRONTEND
+	bool		crashRecovery = false;
+#else
+	bool		crashRecovery = GetRecoveryState() == RECOVERY_STATE_CRASH;
+#endif
+
+	WalLocation loc = {.tli = tli};
+	WalLocation writeKeyLoc;
+
+	XLogSegNoOffsetToRecPtr(segno, offset, segSize, loc.lsn);
+
 	/*
 	 * Set the last (most recent) key's start LSN if not set.
 	 *
 	 * This func called with WALWriteLock held, so no need in any extra sync.
 	 */
-	if (EncryptionKey.type != WAL_KEY_TYPE_INVALID && TDEXLogGetEncKeyLsn() == 0)
+
+	writeKeyLoc.lsn = TDEXLogGetEncKeyLsn();
+	pg_read_barrier();
+	writeKeyLoc.tli = TDEXLogGetEncKeyTli();
+
+	lastKeyUsable = (writeKeyLoc.lsn != 0);
+	afterWriteKey = wal_location_cmp(writeKeyLoc, loc) <= 0;
+
+	if (EncryptionKey.type != WAL_KEY_TYPE_INVALID && !lastKeyUsable)
 	{
-		WalLocation loc = {.tli = tli};
+		WALKeyCacheRec *last_key = pg_tde_get_last_wal_key();
 
-		XLogSegNoOffsetToRecPtr(segno, offset, segSize, loc.lsn);
-
-		pg_tde_wal_last_key_set_location(loc);
-		EncryptionKey.wal_start = loc;
-		TDEXLogSetEncKeyLocation(EncryptionKey.wal_start);
+		if (!crashRecovery)
+		{
+			if (last_key == NULL || last_key->start.lsn < loc.lsn)
+			{
+				pg_tde_wal_last_key_set_location(loc);
+				EncryptionKey.wal_start = loc;
+				TDEXLogSetEncKeyLocation(EncryptionKey.wal_start);
+				lastKeyUsable = true;
+			}
+		}
 	}
 
-	if (EncryptionKey.type == WAL_KEY_TYPE_ENCRYPTED)
+	if ((!afterWriteKey || !lastKeyUsable) && EncryptionKey.type != WAL_KEY_TYPE_INVALID)
+	{
+		return TDEXLogWriteEncryptedPagesOldKeys(fd, buf, count, offset, tli, segno, segSize);
+	}
+	else if (EncryptionKey.type == WAL_KEY_TYPE_ENCRYPTED)
+	{
 		return TDEXLogWriteEncryptedPages(fd, buf, count, offset, tli, segno);
+	}
 	else
+	{
 		return pg_pwrite(fd, buf, count, offset);
+	}
 }
 
 /*
@@ -340,7 +405,7 @@ tdeheap_xlog_seg_read(int fd, void *buf, size_t count, off_t offset,
 	if (readsz <= 0)
 		return readsz;
 
-	TDEXLogCryptBuffer(buf, count, offset, tli, segno, segSize);
+	TDEXLogCryptBuffer(buf, buf, count, offset, tli, segno, segSize);
 
 	return readsz;
 }
@@ -349,7 +414,7 @@ tdeheap_xlog_seg_read(int fd, void *buf, size_t count, off_t offset,
  * [De]Crypt buffer if needed based on provided segment offset, number and TLI
  */
 void
-TDEXLogCryptBuffer(void *buf, size_t count, off_t offset,
+TDEXLogCryptBuffer(const void *buf, void *out_buf, size_t count, off_t offset,
 				   TimeLineID tli, XLogSegNo segno, int segSize)
 {
 	WALKeyCacheRec *keys = pg_tde_get_wal_cache_keys();
@@ -357,7 +422,7 @@ TDEXLogCryptBuffer(void *buf, size_t count, off_t offset,
 	WalLocation data_end = {.tli = tli};
 	WalLocation data_start = {.tli = tli};
 
-	if (!keys)
+	if (keys == NULL)
 	{
 		WalLocation start = {.tli = 1,.lsn = 0};
 
@@ -415,32 +480,73 @@ TDEXLogCryptBuffer(void *buf, size_t count, off_t offset,
 			if (wal_location_cmp(data_start, curr_key->end) < 0 && wal_location_cmp(data_end, curr_key->start) > 0)
 			{
 				char		iv_prefix[16];
-				off_t		dec_off = XLogSegmentOffset(Max(data_start.lsn, curr_key->start.lsn), segSize);
-				off_t		dec_end = XLogSegmentOffset(Min(data_end.lsn, curr_key->end.lsn), segSize);
+
+				/*
+				 * We want to calculate where to start / end encrypting. This
+				 * depends on two factors:
+				 *
+				 * 1. Where does the key start / end
+				 *
+				 * 2. Where does the data start / end
+				 *
+				 * And this is complicated even more by the fact that keys can
+				 * span multiple timelines: if a key starts at TLI 3 LSN 100,
+				 * and ends at TLI 5 LSN 200 it means it is used for
+				 * everything between two, including the entire TLI 4. For
+				 * example, TLI 4 LSN 1 and TLI 4 LSN 400 are both encrypted
+				 * with it, even through 1 is less than 100 and 400 is greater
+				 * than 200.
+				 *
+				 * The below min/max calculations make sure that if the key
+				 * and data are in the same timeline, we only encrypt/decrypt
+				 * in the range of the current key - if the data is longer in
+				 * some directions, we use multiple keys. But if the data
+				 * starts/ends in a TLI "within" the key, we can safely
+				 * decrypt/encrypt from the beginning / until the end, as it
+				 * is part of the key.
+				 */
+
+
+				size_t		end_lsn =
+					data_end.tli < curr_key->end.tli ? data_end.lsn :
+					Min(data_end.lsn, curr_key->end.lsn);
+				size_t		start_lsn =
+					data_start.tli > curr_key->start.tli ? data_start.lsn :
+					Max(data_start.lsn, curr_key->start.lsn);
+				off_t		dec_off =
+					XLogSegmentOffset(start_lsn, segSize);
+				off_t		dec_end =
+					XLogSegmentOffset(end_lsn, segSize);
 				size_t		dec_sz;
 				char	   *dec_buf = (char *) buf + (dec_off - offset);
+				char	   *o_buf = (char *) out_buf + (dec_off - offset);
 
 				Assert(dec_off >= offset);
 
-				CalcXLogPageIVPrefix(tli, segno, curr_key->key.base_iv, iv_prefix);
+				CalcXLogPageIVPrefix(tli, segno, curr_key->key.base_iv,
+									 iv_prefix);
 
-				/* We have reached the end of the segment */
+				/*
+				 * We have reached the end of the segment
+				 */
 				if (dec_end == 0)
 				{
 					dec_end = offset + count;
 				}
 
+				Assert(dec_end > dec_off);
 				dec_sz = dec_end - dec_off;
 
 #ifdef TDE_XLOG_DEBUG
 				elog(DEBUG1, "decrypt WAL, dec_off: %lu [buff_off %lu], sz: %lu | key %u_%X/%X",
 					 dec_off, dec_off - offset, dec_sz, curr_key->key.wal_start.tli, LSN_FORMAT_ARGS(curr_key->key.wal_start.lsn));
 #endif
+
 				pg_tde_stream_crypt(iv_prefix,
 									dec_off,
 									dec_buf,
 									dec_sz,
-									dec_buf,
+									o_buf,
 									curr_key->key.key,
 									&curr_key->crypt_ctx);
 			}
