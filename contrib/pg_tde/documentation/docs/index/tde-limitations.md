@@ -1,6 +1,6 @@
 # Limitations of pg_tde
 
-The following limitations apply to the current release:
+Limitations of `pg_tde` (applies to release {{release}}):
 
 * PostgreSQL’s internal system tables, which include statistics and metadata, are not encrypted.
 * `pg_createsubscriber` is not supported.
@@ -16,7 +16,7 @@ The following tools and extensions in Percona Distribution for PostgreSQL have b
     * `pg_rewind`
     * `pg_upgrade`
     * `pg_waldump`
-    * pgBackRest
+    * `pgBackRest`
 
 ## Next steps
 
