@@ -23,5 +23,4 @@ The following features are available for the extension:
 
 Learn more about how `pg_tde` implements Transparent Data Encryption:
 
-[Overview of TDE and `pg_tde` :material-arrow-right:](index/about-tde.md){.md-button}
-
+[About Transparent Data Encryption :material-arrow-right:](index/about-tde.md){.md-button}
