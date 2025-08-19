@@ -158,6 +158,8 @@ TDEXLogShmemInit(void)
 {
 	bool		foundBuf;
 
+	Assert(LWLockHeldByMeInMode(AddinShmemInitLock, LW_EXCLUSIVE));
+
 	EncryptionState = (EncryptionStateData *)
 		ShmemInitStruct("TDE XLog Encryption State",
 						TDEXLogEncryptStateSize(),
@@ -218,8 +220,17 @@ TDEXLogSmgrInit()
 void
 TDEXLogSmgrInitWrite(bool encrypt_xlog)
 {
-	WalEncryptionKey *key = pg_tde_read_last_wal_key();
+	WalEncryptionKey *key;
 	WALKeyCacheRec *keys;
+
+	/*
+	 * If the postmaster have done a "soft" restart after a backend crash, we
+	 * may have inherited the cache in a weird state. Clearing the cache here
+	 * ensures we reinitialize all keys from disk.
+	 */
+	pg_tde_free_wal_key_cache();
+
+	key = pg_tde_read_last_wal_key();
 
 	/*
 	 * Always generate a new key on starting PostgreSQL to protect against
@@ -248,6 +259,7 @@ TDEXLogSmgrInitWrite(bool encrypt_xlog)
 
 		/* cache is empty, prefetch keys from disk */
 		pg_tde_fetch_wal_keys(start);
+		pg_tde_wal_cache_extra_palloc();
 	}
 
 	if (key)
@@ -284,8 +296,8 @@ TDEXLogWriteEncryptedPagesOldKeys(int fd, const void *buf, size_t count, off_t o
 	memcpy(enc_buff, buf, count);
 
 	/*
-	 * This method potentially allocates, but only in very early execution
-	 * Shouldn't happen in a write, where we are in a critical section
+	 * This method potentially allocates, but only in very early execution Can
+	 * happen during a write, but we have one more cache entry preallocated.
 	 */
 	TDEXLogCryptBuffer(buf, enc_buff, count, offset, tli, segno, segSize);
 
@@ -356,7 +368,7 @@ tdeheap_xlog_seg_write(int fd, const void *buf, size_t count, off_t offset,
 	lastKeyUsable = (writeKeyLoc.lsn != 0);
 	afterWriteKey = wal_location_cmp(writeKeyLoc, loc) <= 0;
 
-	if (EncryptionKey.type != WAL_KEY_TYPE_INVALID && !lastKeyUsable)
+	if (EncryptionKey.type != WAL_KEY_TYPE_INVALID && !lastKeyUsable && afterWriteKey)
 	{
 		WALKeyCacheRec *last_key = pg_tde_get_last_wal_key();
 
@@ -442,10 +454,8 @@ TDEXLogCryptBuffer(const void *buf, void *out_buf, size_t count, off_t offset,
 		WALKeyCacheRec *last_key = pg_tde_get_last_wal_key();
 		WalLocation write_loc = {.tli = TDEXLogGetEncKeyTli(),.lsn = write_key_lsn};
 
-		Assert(last_key);
-
 		/* write has generated a new key, need to fetch it */
-		if (wal_location_cmp(last_key->start, write_loc) < 0)
+		if (last_key != NULL && wal_location_cmp(last_key->start, write_loc) < 0)
 		{
 			pg_tde_fetch_wal_keys(write_loc);
 
