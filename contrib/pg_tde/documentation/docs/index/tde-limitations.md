@@ -4,6 +4,7 @@ Limitations of `pg_tde` (applies to release {{release}}):
 
 * PostgreSQL’s internal system tables, which include statistics and metadata, are not encrypted.
 * `pg_createsubscriber` is not supported.
+* WAL shipping standby (warm standby) is not supported with WAL encryption. You can instead use [Streaming Replication with `tde_heap`](../replication.md), which is supported with encrypted WAL.
 
 ## WAL encryption tool support
 
