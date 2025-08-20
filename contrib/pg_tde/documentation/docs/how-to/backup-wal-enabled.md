@@ -1,16 +1,19 @@
-# Backing up with WAL encryption enabled
+# Backup with WAL encryption enabled
 
-When taking a backup from a server with WAL encryption enabled, you must copy the `pg_tde` directory, specifically the `wal_keys` and `1664_providers` files, from the source server to the backup destination before running `pg_basebackup`.
+To create a backup with WAL encryption enabled:
 
-Without these files:
+1. Copy the `pg_tde` directory, including the `wal_keys` and `1664_providers` files, and any external files referenced by your providers configuration (for example, certificate or key files).
+2. Run:
 
-1. Part of the WAL in the backup may be unencrypted
-2. The server might fail to start from such a backup
+    ```bash
+    pg_basebackup -X stream -F p -E
+    ```
 
-If WAL encryption is disabled and has never been used, copying the `pg_tde` directory is unnecessary.
+    Where:
 
-!!! warning
+    - `-X stream` streams WAL in parallel with the base backup (default)
+    - `-F p` writes the backup in plain format (default)
+    - `-E` (or `--encrypt-wal`) enables WAL encryption and validates that the copied `pg_tde` and provider files are present and that the server key is accessible (required)
 
-    Do not restart the source server between copying `pg_tde` and running `pg_basebackup`.
-    Restarting the server generates a new key, invalidating the previously copied `pg_tde/wal_keys` file.  
-    The backup will still complete, but the WAL data it contains will be corrupted.
+!!! note
+    If the required `pg_tde` files or referenced provider files are missing, or the server key is not accessible, `pg_basebackup` will fail immediately without starting the backup.
