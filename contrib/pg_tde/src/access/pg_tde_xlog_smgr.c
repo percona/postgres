@@ -158,6 +158,8 @@ TDEXLogShmemInit(void)
 {
 	bool		foundBuf;
 
+	Assert(LWLockHeldByMeInMode(AddinShmemInitLock, LW_EXCLUSIVE));
+
 	EncryptionState = (EncryptionStateData *)
 		ShmemInitStruct("TDE XLog Encryption State",
 						TDEXLogEncryptStateSize(),
@@ -218,8 +220,17 @@ TDEXLogSmgrInit()
 void
 TDEXLogSmgrInitWrite(bool encrypt_xlog)
 {
-	WalEncryptionKey *key = pg_tde_read_last_wal_key();
+	WalEncryptionKey *key;
 	WALKeyCacheRec *keys;
+
+	/*
+	 * If the postmaster have done a "soft" restart after a backend crash, we
+	 * may have inherited the cache in a weird state. Clearing the cache here
+	 * ensures we reinitialize all keys from disk.
+	 */
+	pg_tde_free_wal_key_cache();
+
+	key = pg_tde_read_last_wal_key();
 
 	/*
 	 * Always generate a new key on starting PostgreSQL to protect against
@@ -248,22 +259,40 @@ TDEXLogSmgrInitWrite(bool encrypt_xlog)
 
 		/* cache is empty, prefetch keys from disk */
 		pg_tde_fetch_wal_keys(start);
+		pg_tde_wal_cache_extra_palloc();
 	}
 
 	if (key)
 		pfree(key);
 }
 
+/*
+ * Used by pg_tde_restore_encrypt to simulate being constantly in recovery
+ * since the command does not have access to any information about if we are in
+ * recovery or not.
+ *
+ * Creates a dummy key which points at the very end of the WAL stream.
+ */
 void
-TDEXLogSmgrInitWriteReuseKey()
+TDEXLogSmgrInitWriteOldKeys()
 {
-	WalEncryptionKey *key = pg_tde_read_last_wal_key();
+	WALKeyCacheRec *keys;
+	WalEncryptionKey dummy = {
+		.type = WAL_KEY_TYPE_UNENCRYPTED,
+		.wal_start = {.tli = -1,.lsn = -1}
+	};
 
-	if (key)
+	EncryptionKey = dummy;
+	TDEXLogSetEncKeyLocation(dummy.wal_start);
+
+	keys = pg_tde_get_wal_cache_keys();
+
+	if (keys == NULL)
 	{
-		EncryptionKey = *key;
-		TDEXLogSetEncKeyLocation(EncryptionKey.wal_start);
-		pfree(key);
+		WalLocation start = {.tli = 1,.lsn = 0};
+
+		/* cache is empty, prefetch keys from disk */
+		pg_tde_fetch_wal_keys(start);
 	}
 }
 
@@ -284,8 +313,8 @@ TDEXLogWriteEncryptedPagesOldKeys(int fd, const void *buf, size_t count, off_t o
 	memcpy(enc_buff, buf, count);
 
 	/*
-	 * This method potentially allocates, but only in very early execution
-	 * Shouldn't happen in a write, where we are in a critical section
+	 * This method potentially allocates, but only in very early execution Can
+	 * happen during a write, but we have one more cache entry preallocated.
 	 */
 	TDEXLogCryptBuffer(buf, enc_buff, count, offset, tli, segno, segSize);
 
@@ -326,29 +355,25 @@ TDEXLogWriteEncryptedPages(int fd, const void *buf, size_t count, off_t offset,
 	return pg_pwrite(fd, enc_buff, count, offset);
 }
 
-static ssize_t
-tdeheap_xlog_seg_write(int fd, const void *buf, size_t count, off_t offset,
-					   TimeLineID tli, XLogSegNo segno, int segSize)
+/*
+ * Set the last (most recent) key's start location if not set.
+ */
+bool
+tde_ensure_xlog_key_location(WalLocation loc)
 {
 	bool		lastKeyUsable;
 	bool		afterWriteKey;
+	WalLocation writeKeyLoc;
 #ifdef FRONTEND
 	bool		crashRecovery = false;
 #else
 	bool		crashRecovery = GetRecoveryState() == RECOVERY_STATE_CRASH;
 #endif
 
-	WalLocation loc = {.tli = tli};
-	WalLocation writeKeyLoc;
-
-	XLogSegNoOffsetToRecPtr(segno, offset, segSize, loc.lsn);
-
 	/*
-	 * Set the last (most recent) key's start LSN if not set.
-	 *
-	 * This func called with WALWriteLock held, so no need in any extra sync.
+	 * On backend this called with WALWriteLock held, so no need in any extra
+	 * sync.
 	 */
-
 	writeKeyLoc.lsn = TDEXLogGetEncKeyLsn();
 	pg_read_barrier();
 	writeKeyLoc.tli = TDEXLogGetEncKeyTli();
@@ -356,23 +381,33 @@ tdeheap_xlog_seg_write(int fd, const void *buf, size_t count, off_t offset,
 	lastKeyUsable = (writeKeyLoc.lsn != 0);
 	afterWriteKey = wal_location_cmp(writeKeyLoc, loc) <= 0;
 
-	if (EncryptionKey.type != WAL_KEY_TYPE_INVALID && !lastKeyUsable)
+	if (EncryptionKey.type != WAL_KEY_TYPE_INVALID && !lastKeyUsable && afterWriteKey && !crashRecovery)
 	{
 		WALKeyCacheRec *last_key = pg_tde_get_last_wal_key();
 
-		if (!crashRecovery)
+		if (last_key == NULL || last_key->start.lsn < loc.lsn)
 		{
-			if (last_key == NULL || last_key->start.lsn < loc.lsn)
-			{
-				pg_tde_wal_last_key_set_location(loc);
-				EncryptionKey.wal_start = loc;
-				TDEXLogSetEncKeyLocation(EncryptionKey.wal_start);
-				lastKeyUsable = true;
-			}
+			pg_tde_wal_last_key_set_location(loc);
+			EncryptionKey.wal_start = loc;
+			TDEXLogSetEncKeyLocation(EncryptionKey.wal_start);
+			lastKeyUsable = true;
 		}
 	}
 
-	if ((!afterWriteKey || !lastKeyUsable) && EncryptionKey.type != WAL_KEY_TYPE_INVALID)
+	return lastKeyUsable && afterWriteKey;
+}
+
+static ssize_t
+tdeheap_xlog_seg_write(int fd, const void *buf, size_t count, off_t offset,
+					   TimeLineID tli, XLogSegNo segno, int segSize)
+{
+	bool		lastKeyUsable;
+	WalLocation loc = {.tli = tli};
+
+	XLogSegNoOffsetToRecPtr(segno, offset, segSize, loc.lsn);
+	lastKeyUsable = tde_ensure_xlog_key_location(loc);
+
+	if (!lastKeyUsable && EncryptionKey.type != WAL_KEY_TYPE_INVALID)
 	{
 		return TDEXLogWriteEncryptedPagesOldKeys(fd, buf, count, offset, tli, segno, segSize);
 	}
@@ -442,10 +477,8 @@ TDEXLogCryptBuffer(const void *buf, void *out_buf, size_t count, off_t offset,
 		WALKeyCacheRec *last_key = pg_tde_get_last_wal_key();
 		WalLocation write_loc = {.tli = TDEXLogGetEncKeyTli(),.lsn = write_key_lsn};
 
-		Assert(last_key);
-
 		/* write has generated a new key, need to fetch it */
-		if (wal_location_cmp(last_key->start, write_loc) < 0)
+		if (last_key != NULL && wal_location_cmp(last_key->start, write_loc) < 0)
 		{
 			pg_tde_fetch_wal_keys(write_loc);
 
