@@ -1,5 +1,6 @@
 name: CodeChecker
 on:
+  pull_request:
   push:
     branches:
       - TDE_REL_17_STABLE
@@ -31,6 +32,9 @@ jobs:
 
       - name: Install CodeChecker
         run: |
+          ## Install cython first to resolve dependency issue
+          pip3 install "cython<3.0.0"
+          pip3 install --force-reinstall wheel
           ## CodeChecker version should match version installed on server side.
           pip3 install codechecker==6.21
 
