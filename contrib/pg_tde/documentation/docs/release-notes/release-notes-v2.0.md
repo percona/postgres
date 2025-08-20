@@ -1,6 +1,6 @@
 # pg_tde 2.0 ({{date.GA20}})
 
-The `pg_tde` by Percona extension brings in [Transparent Data Encryption (TDE)](../index/about-tde.md) to PostgreSQL and enables you to keep sensitive data safe and secure.
+The `pg_tde` by Percona extension brings [Transparent Data Encryption (TDE)](../index/about-tde.md) to PostgreSQL and enables you to keep sensitive data safe and secure.
 
 [Get Started](../install.md){.md-button}
 
@@ -29,6 +29,7 @@ Adjust the limits with caution since it affects other processes running in your 
 
 ### New Features
 
+- [PG-1497](https://perconadev.atlassian.net/browse/PG-1497) WAL encryption is now generally available (GA)
 - [PG-1037](https://perconadev.atlassian.net/browse/PG-1037) Make `pg_rewind` work with encrypted WAL
 
 ### Improvements
