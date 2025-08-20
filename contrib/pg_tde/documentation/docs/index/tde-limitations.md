@@ -1,10 +1,9 @@
 # Limitations of pg_tde
 
-Limitations of `pg_tde` (applies to release {{release}}):
+Limitations of `pg_tde` {{release}}:
 
 * PostgreSQL’s internal system tables, which include statistics and metadata, are not encrypted.
 * `pg_createsubscriber` is not supported.
-* WAL shipping standby (warm standby) is not supported with WAL encryption. You can instead use [Streaming Replication with `tde_heap`](../replication.md), which is supported with encrypted WAL.
 
 ## WAL encryption tool support
 
@@ -17,7 +16,7 @@ The following tools and extensions in Percona Distribution for PostgreSQL have b
     * `pg_rewind`
     * `pg_upgrade`
     * `pg_waldump`
-    * `pgBackRest`
+    * pgBackRest
 
 ## Next steps
 
