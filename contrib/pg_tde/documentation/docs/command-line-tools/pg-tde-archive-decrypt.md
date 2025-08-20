@@ -6,7 +6,7 @@ The `pg_tde_archive_decrypt` tool wraps an archive command and decrypts WAL file
 
     For more information on the encryption architecture and key hierarchy, see [Architecture](../architecture/architcture.md).
 
-This tool is often use in conjunction with [pg_tde_restore_encrypt](./pg-tde-restore-encrypt.md) to support WAL archive.
+This tool is often used in conjunction with [pg_tde_restore_encrypt](./pg-tde-restore-encrypt.md) to support WAL archive.
 
 ## How it works
 
