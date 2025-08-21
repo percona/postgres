@@ -4,6 +4,7 @@ Limitations of `pg_tde` {{release}}:
 
 * PostgreSQL’s internal system tables, which include statistics and metadata, are not encrypted.
 * `pg_createsubscriber` is not supported.
+* Temporary files created when queries exceed `work_mem` are not encrypted. These files may persist if the query runs for a long time or the server crashes which can expose sensitive data in plaintext on disk.
 
 ## WAL encryption tool support
 
@@ -11,7 +12,7 @@ The following tools and extensions in Percona Distribution for PostgreSQL have b
 
 ??? note "Click to expand"
     * Patroni
-    * `pg_basebackup` (with `--wal-method=stream`)
+    * `pg_basebackup` (with `--wal-method=stream` or `--wal-method=none`), for details on using `pg_basebackup` with WAL encryption, see [Backup with WAL encryption enabled](../how-to/backup-wal-enabled.md)
     * `pg_resetwal`
     * `pg_rewind`
     * `pg_upgrade`
