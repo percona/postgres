@@ -10,6 +10,17 @@ The `pg_tde` by Percona extension brings [Transparent Data Encryption (TDE)](../
 
 The WAL (Write-Ahead Logging) encryption feature is now fully supported and production-ready, it adds secure logging to `pg_tde`, expanding Percona's PostgreSQL encryption coverage by enabling secure, transparent encryption of write-ahead logs using the same key infrastructure as data encryption.
 
+### WAL encryption upgrade limitation
+
+Clusters that used WAL encryption in the beta release (`pg_tde` 1.0 or older) cannot be upgraded to `pg_tde` 2.0. The following error indicates that WAL encryption was enabled:
+
+```sql
+FATAL: principal key not configured
+HINT: Use pg_tde_set_server_key_using_global_key_provider() to configure one.
+```
+
+Clusters that did not use WAL encryption in beta can be upgraded normally.
+
 ### Documentation updates
 
 * Updated the [Limitations](../index/tde-limitations.md) topic to include WAL encryption limitations and supported tools.
