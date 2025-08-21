@@ -3,10 +3,14 @@
 Limitations of `pg_tde` {{release}}:
 
 * PostgreSQL’s internal system tables, which include statistics and metadata, are not encrypted.
-* `pg_createsubscriber` is not supported.
 * Temporary files created when queries exceed `work_mem` are not encrypted. These files may persist during long-running queries or after a server crash which can expose sensitive data in plaintext on disk.
 
 ## WAL tool compatibility
+
+The following tools and extensions in Percona Distribution for PostgreSQL are not currently supported:
+
+* `pg_createsubscriber`
+* `pg_verifybackup` (checksum mismatch with encrypted WAL)
 
 The following tools and extensions in Percona Distribution for PostgreSQL have been tested and verified to work with `pg_tde` WAL encryption:
 
