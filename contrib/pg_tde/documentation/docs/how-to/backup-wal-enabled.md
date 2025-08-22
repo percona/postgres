@@ -18,20 +18,20 @@ Also copy any external files referenced by your providers configuration (such as
     - `-E` (or `--encrypt-wal`) enables WAL encryption and validates that the copied `pg_tde` and provider files are present and that the server key is accessible (required)
 
 !!! note
-    - The `-E` flag only works with the `--wal-method=stream` option (default). It is not compatible with `-X none` or `-X fetch`. For more information, see [the other WAL methods topic](#other-wal-methods).
+    - The `-E` flag only works with the `-X stream` option (default). It is not compatible with `-X none` or `-X fetch`. For more information, see [the other WAL methods topic](#other-wal-methods).
     - The `-E` flag is only supported with the plain output format (`-F p`). It cannot be used with the tar output format (`-F t`).
 
 ## Restore a backup created with WAL encryption
 
 When you want to restore a backup created with `pg_basebackup -E`:
 
-1. Ensure that the `pg_tde` directory from the backup you have done above is placed in the restored server’s data directory.
-2. Ensure all external files referenced by your providers configuration (such as certificates or key files) are also present and accessible at the same relative paths.
-3. Start PostgreSQL with the restored data directory.
+1. Ensure all external files referenced by your providers configuration (such as certificates or key files) are also present and accessible at the same relative paths.
+2. Start PostgreSQL with the restored data directory.
 
 ## Other WAL methods
 
-The `-X none` and `-X fetch` options are not affected by WAL encryption and both work with encrypted WAL without requiring any additional flags.  
+The `-X fetch` option works with encrypted WAL without requiring any additional flags.  
+The `-X none` option excludes WAL from the backup and is unaffected by WAL encryption.
 
 If the source server has `pg_tde/wal_keys`, running `pg_basebackup` with `-X none` or `-X fetch` produces warnings such as:
 
