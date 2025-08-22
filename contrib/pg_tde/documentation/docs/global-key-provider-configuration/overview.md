@@ -11,7 +11,7 @@ To use an external KMS with `pg_tde`, follow these two steps:
 !!! note
      While key files may be acceptable for **local** or **testing environments**, KMS integration is the recommended approach for production deployments.
 
-`pg_tde` has been tested and approved with the following key providers:
+`pg_tde` has been tested with the following key providers:
 
 | KMS Provider       | Description                                           | Documentation |
 |--------------------|-------------------------------------------------------|---------------|
