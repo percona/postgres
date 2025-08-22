@@ -8,7 +8,7 @@ The `pg_tde` by Percona extension brings [Transparent Data Encryption (TDE)](../
 
 ### WAL encryption is now generally available
 
-The WAL (Write-Ahead Logging) encryption feature is now fully supported and production-ready, it adds secure logging to `pg_tde`, expanding Percona's PostgreSQL encryption coverage by enabling secure, transparent encryption of write-ahead logs using the same key infrastructure as data encryption.
+The WAL (Write-Ahead Logging) encryption feature is now fully supported and production-ready, it adds secure write-ahead logging to `pg_tde`, expanding Percona's PostgreSQL encryption coverage by enabling secure, transparent encryption of write-ahead logs using the same key infrastructure as data encryption.
 
 ### WAL encryption upgrade limitation
 
@@ -26,7 +26,7 @@ Clusters that did not use WAL encryption in beta can be upgraded normally.
 * Updated the [Limitations](../index/tde-limitations.md) topic, it now includes WAL encryption limitations and both supported and unsupported WAL tools
 * [PG-1858 :octicons-link-external-16:](https://perconadev.atlassian.net/browse/PG-1858) - Added a new topic for [Backup with WAL encryption enabled](../how-to/backup-wal-enabled.md) that includes restoring a backup created with WAL encryption
 * [PG-1832 :octicons-link-external-16:](https://perconadev.atlassian.net/browse/PG-1858) - Added documentation for using the `pg_tde_archive_decrypt` and `pg_tde_restore_encrypt` utilities. These tools are now covered in [CLI Tools](../command-line-tools/cli-tools.md) to guide users on how to archive and restore encrypted WAL segments securely
-* [PG-1740 :octicons-link-external-16:](https://perconadev.atlassian.net/browse/PG-1740)- Updated documentation for [uninstalling `pg_tde`](../how-to/uninstall.md) with WAL encryption enabled and improved the uninstall instructions to cover cases where TDE is disabled while WAL encryption remains active
+* [PG-1740 :octicons-link-external-16:](https://perconadev.atlassian.net/browse/PG-1740) - Updated documentation for [uninstalling `pg_tde`](../how-to/uninstall.md) with WAL encryption enabled and improved the uninstall instructions to cover cases where TDE is disabled while WAL encryption remains active
 
 ## Known issues
 
@@ -47,25 +47,22 @@ Adjust the limits with caution since it affects other processes running in your 
 * [PG-1037 :octicons-link-external-16:](https://perconadev.atlassian.net/browse/PG-1037) - Added support for `pg_rewind` with encrypted WAL
 * [PG-1411 :octicons-link-external-16:](https://perconadev.atlassian.net/browse/PG-1497) - Added support for `pg_resetwal` with encrypted WAL
 * [PG-1603 :octicons-link-external-16:](https://perconadev.atlassian.net/browse/PG-1603) - Added support for `pg_basebackup` with encrypted WAL
-[PG-1710 :octicons-link-external-16:](https://perconadev.atlassian.net/browse/PG-1710) - Added support for PITR with encrypted WAL
+[PG-1710 :octicons-link-external-16:](https://perconadev.atlassian.net/browse/PG-1710) - Added support for WAL archiving with encrypted WAL
 [PG-1711 :octicons-link-external-16:](https://perconadev.atlassian.net/browse/PG-1711) - Added support for incremental backups with encrypted WAL, compatibility has been verified with `pg_combinebackup` and the WAL summarizer tool.
 [PG-1712 :octicons-link-external-16:](https://perconadev.atlassian.net/browse/PG-1712) - Added support for `pg_createsubscriber` with encrypted WAL
-[PG-1815 :octicons-link-external-16:](https://perconadev.atlassian.net/browse/PG-1815) - Verified pgBackRest backup and restore with encrypted clusters
 [PG-1833 :octicons-link-external-16:](https://perconadev.atlassian.net/browse/PG-1833) - Added verified support for using `pg_waldump` with encrypted WAL
-[PG-1834 :octicons-link-external-16:](https://perconadev.atlassian.net/browse/PG-1834) - Verified `pg_upgrade` with encryption (please note the limitation [described above](#wal-encryption-upgrade-limitation))
+[PG-1834 :octicons-link-external-16:](https://perconadev.atlassian.net/browse/PG-1834) - Verified `pg_upgrade` with encryption
 
 ### Improvements
 
 * [PG-1661 :octicons-link-external-16:](https://perconadev.atlassian.net/browse/PG-1661) - Added validation for key material received from providers
 * [PG-1667 :octicons-link-external-16:](https://perconadev.atlassian.net/browse/PG-1667) - Validated Vault keyring engine type
-* [PG-1857 :octicons-link-external-16:](https://perconadev.atlassian.net/browse/PG-1857) - Improved error handling for `pg_basebackup` with WAL encryption, `pg_basebackup` now performs stricter validation when used with WAL encryption
 
 ### Bugs Fixed
 
 * [PG-1391 :octicons-link-external-16:](https://perconadev.atlassian.net/browse/PG-1391) - Fixed unencrypted checkpoint segment on replica with encrypted key
-* [PG-1452 :octicons-link-external-16:](https://perconadev.atlassian.net/browse/PG-1452) - Fixed an issue where `pg_tde_change_key_provider` did not work without the `-D` flag even if `PGDATA` was set
 * [PG-1412 :octicons-link-external-16:](https://perconadev.atlassian.net/browse/PG-1412) – Fixed an issue where `XLogFileCopy` failed with encrypted WAL during PITR and `pg_rewind`
-* [PG-1452 :octicons-link-external-16:](https://perconadev.atlassian.net/browse/PG-1452) - Fixed an issue where `pg_tde_change_key_provider` ignored PGDATA when the `-D` flag was not provided
+* [PG-1452 :octicons-link-external-16:](https://perconadev.atlassian.net/browse/PG-1452) - Fixed an issue where `pg_tde_change_key_provider` did not work without the `-D` flag even if `PGDATA` was set
 * [PG-1485 :octicons-link-external-16:](https://perconadev.atlassian.net/browse/PG-1485) - Fixed an issue where streaming replication failed with an invalid magic number in WAL when `wal_encryption` was enabled
 * [PG-1604 :octicons-link-external-16:](https://perconadev.atlassian.net/browse/PG-1604) - Fixed a crash during standby promotion caused by an invalid magic number when replaying two-phase transactions from WAL
 * [PG-1658 :octicons-link-external-16:](https://perconadev.atlassian.net/browse/PG-1658) - Fixed an issue where the global key provider could not be deleted after server restart
