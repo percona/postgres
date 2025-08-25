@@ -28,6 +28,9 @@ When you want to restore a backup created with `pg_basebackup -E`:
 1. Ensure all external files referenced by your providers configuration (such as certificates or key files) are also present and accessible at the same relative paths.
 2. Start PostgreSQL with the restored data directory.
 
+!!! warning
+    When using `pgBackRest` with WAL encryption, disable checksums. Otherwise, `pgBackRest` may spam error messages, and in some package builds the log statement can cause crashes.
+
 ## Backup method compatibility with WAL encryption
 
 Tar format (`-F t`):
