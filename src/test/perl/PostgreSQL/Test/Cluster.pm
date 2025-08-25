@@ -108,6 +108,7 @@ use IO::Socket::INET;
 use IPC::Run;
 use PostgreSQL::Version;
 use PostgreSQL::Test::RecursiveCopy;
+use PostgreSQL::Test::TdeCluster;
 use Socket;
 use Test::More;
 use PostgreSQL::Test::Utils          ();
@@ -1642,6 +1643,11 @@ sub new
 			carp
 			  "PostgreSQL::Test::Cluster isn't fully compatible with version $ver";
 		}
+	}
+
+	if ($ENV{TDE_MODE})
+	{
+		bless $node, 'PostgreSQL::Test::TdeCluster';
 	}
 
 	# Add node to list of nodes
