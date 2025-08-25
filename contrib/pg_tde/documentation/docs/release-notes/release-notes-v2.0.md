@@ -47,11 +47,11 @@ Adjust the limits with caution since it affects other processes running in your 
 * [PG-1037 :octicons-link-external-16:](https://perconadev.atlassian.net/browse/PG-1037) - Added support for `pg_rewind` with encrypted WAL
 * [PG-1411 :octicons-link-external-16:](https://perconadev.atlassian.net/browse/PG-1497) - Added support for `pg_resetwal` with encrypted WAL
 * [PG-1603 :octicons-link-external-16:](https://perconadev.atlassian.net/browse/PG-1603) - Added support for `pg_basebackup` with encrypted WAL
-[PG-1710 :octicons-link-external-16:](https://perconadev.atlassian.net/browse/PG-1710) - Added support for WAL archiving with encrypted WAL
-[PG-1711 :octicons-link-external-16:](https://perconadev.atlassian.net/browse/PG-1711) - Added support for incremental backups with encrypted WAL, compatibility has been verified with `pg_combinebackup` and the WAL summarizer tool.
-[PG-1712 :octicons-link-external-16:](https://perconadev.atlassian.net/browse/PG-1712) - Added support for `pg_createsubscriber` with encrypted WAL
-[PG-1833 :octicons-link-external-16:](https://perconadev.atlassian.net/browse/PG-1833) - Added verified support for using `pg_waldump` with encrypted WAL
-[PG-1834 :octicons-link-external-16:](https://perconadev.atlassian.net/browse/PG-1834) - Verified `pg_upgrade` with encryption
+* [PG-1710 :octicons-link-external-16:](https://perconadev.atlassian.net/browse/PG-1710) - Added support for WAL archiving with encrypted WAL
+* [PG-1711 :octicons-link-external-16:](https://perconadev.atlassian.net/browse/PG-1711) - Added support for incremental backups with encrypted WAL, compatibility has been verified with `pg_combinebackup` and the WAL summarizer tool.
+* [PG-1712 :octicons-link-external-16:](https://perconadev.atlassian.net/browse/PG-1712) - Added support for `pg_createsubscriber` with encrypted WAL
+* [PG-1833 :octicons-link-external-16:](https://perconadev.atlassian.net/browse/PG-1833) - Added verified support for using `pg_waldump` with encrypted WAL
+* [PG-1834 :octicons-link-external-16:](https://perconadev.atlassian.net/browse/PG-1834) - Verified `pg_upgrade` with encryption
 
 ### Improvements
 
@@ -66,8 +66,6 @@ Adjust the limits with caution since it affects other processes running in your 
 * [PG-1485 :octicons-link-external-16:](https://perconadev.atlassian.net/browse/PG-1485) - Fixed an issue where streaming replication failed with an invalid magic number in WAL when `wal_encryption` was enabled
 * [PG-1604 :octicons-link-external-16:](https://perconadev.atlassian.net/browse/PG-1604) - Fixed a crash during standby promotion caused by an invalid magic number when replaying two-phase transactions from WAL
 * [PG-1658 :octicons-link-external-16:](https://perconadev.atlassian.net/browse/PG-1658) - Fixed an issue where the global key provider could not be deleted after server restart
-* [PG-1727 :octicons-link-external-16:](https://perconadev.atlassian.net/browse/PG-1727) - Fixed an issue where replicas failed to decrypt encrypted WAL when using `pg_createsubscriber`
-* [PG-1813 :octicons-link-external-16:]() - Fixed an issue where a rewound primary failed to rejoin as a standby due to WAL decryption errors
 * [PG-1835 :octicons-link-external-16:](https://perconadev.atlassian.net/browse/PG-1835) - Fixed an issue where `pg_resetwal` corrupted encrypted WAL, causing PostgreSQL to fail at startup with an invalid checkpoint
 * [PG-1842 :octicons-link-external-16:](https://perconadev.atlassian.net/browse/PG-1842) - Fixed a delay in replica startup with encrypted tables in streaming replication setups
 * [PG-1843 :octicons-link-external-16:](https://perconadev.atlassian.net/browse/PG-1843) - Fixed performance issues when creating encrypted tables
