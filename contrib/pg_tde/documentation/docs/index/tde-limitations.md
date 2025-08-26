@@ -34,17 +34,13 @@ The following is a Percona-tested example configuration.
     ```yaml
     # Example Patroni configuration file maintained by Percona
     # Source: https://github.com/jobinau/pgscripts/blob/main/patroni/patroni.yml
-    scope: postgres
-    namespace: /db/
-    name: postgresql0
-
+    scope: tde
+    name: {{ansible_host}}
     restapi:
       listen: 0.0.0.0:8008
-      connect_address: 127.0.0.1:8008
-
-    etcd:
-      host: 127.0.0.1:2379
-
+      connect_address: {{ansible_host}}:8008
+    etcd3:
+      host: etcd1:2379
     bootstrap:
       dcs:
         ttl: 30
@@ -55,34 +51,45 @@ The following is a Percona-tested example configuration.
           use_pg_rewind: true
           use_slots: true
           parameters:
-            max_connections: 100
-            shared_buffers: 1GB
-            wal_level: replica
-            hot_standby: "on"
-            wal_keep_size: 256MB
-            max_wal_senders: 10
-            max_replication_slots: 10
-
+            archive_command: "/lib/postgresql/17/bin/pg_tde_archive_decrypt %f %p \"pgbackrest --stanza=tde archive-push %%p\""
+            archive_timeout: 600s
+            archive_mode: "on"
+            logging_collector: "on"
+            restore_command: "/lib/postgresql/17/bin/pg_tde_restore_encrypt %f %p \"pgbackrest --stanza=tde archive-get %%f \\\"%%p\\\"\""
+          pg_hba:
+            - local all all peer
+            - host all all 0.0.0.0/0 scram-sha-256
+            - host all all ::/0 scram-sha-256
+            - local replication all peer
+            - host replication all 0.0.0.0/0 scram-sha-256
+            - host replication all ::/0 scram-sha-256
       initdb:
-      - encoding: UTF8
-      - data-checksums
-
-      pg_hba:
-      - host replication replicator 127.0.0.1/32 md5
-      - host all all 0.0.0.0/0 md5
-
+        - encoding: UTF8
+        - data-checksums
+        - set: shared_preload_libraries=pg_tde
+      post_init: /usr/local/bin/setup_cluster.sh
     postgresql:
       listen: 0.0.0.0:5432
-      connect_address: 127.0.0.1:5432
-      data_dir: /var/lib/postgresql/data
-      bin_dir: /usr/lib/postgresql/14/bin
+      connect_address: {{ansible_host}}:5432
+      data_dir: /var/lib/postgresql/patroni-17
+      bin_dir: /lib/postgresql/17/bin
+      pgpass: /var/lib/postgresql/patronipass
       authentication:
         replication:
           username: replicator
-          password: rep-pass
+          password: {{secret}}
         superuser:
           username: postgres
-          password: secretpassword
+          password: {{secret}}
+      parameters:
+        unix_socket_directories: /tmp
+    watchdog:
+      mode: off
+    tags:
+      nofailover: false
+      noloadbalance: false
+      clonefrom: false
+      nosync: false
     ```
 
 !!! warning  
