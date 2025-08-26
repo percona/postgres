@@ -83,6 +83,7 @@ The following is a Percona-tested example configuration.
           password: {{secret}}
       parameters:
         unix_socket_directories: /tmp
+        # Use unix_socket_directories: /var/run/postgresql for Debian/Ubuntu distributions
     watchdog:
       mode: off
     tags:
