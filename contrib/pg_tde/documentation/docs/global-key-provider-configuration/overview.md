@@ -11,6 +11,11 @@ To use an external KMS with `pg_tde`, follow these two steps:
 !!! note
      While key files may be acceptable for **local** or **testing environments**, KMS integration is the recommended approach for production deployments.
 
+!!! warning
+    When using the file keyring provider with WAL encryption, avoid creating new providers that reference different keyring files while `pg_basebackup` is running.  
+
+    Standbys initialized from such backups may fail to start during WAL replay. Schedule rotations outside your backup windows and run a new full backup afterward.
+
 `pg_tde` has been tested with the following key providers:
 
 | KMS Provider       | Description                                           | Documentation |

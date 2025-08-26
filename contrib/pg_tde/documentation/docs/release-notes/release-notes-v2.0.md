@@ -30,14 +30,18 @@ Clusters that did not use WAL encryption in beta can be upgraded normally.
 
 ## Known issues
 
+* When creating new file-based key providers that reference different keyring files while `pg_basebackup` is running can result in a standby that fails to start (key retrieval errors during WAL replay).
+
+    To avoid this, perform key rotations before or after backups, and take a new full backup once rotation completes.
+
 * The default `mlock` limit on Rocky Linux 8 for ARM64-based architectures equals the memory page size and is 64 Kb. This results in the child process with `pg_tde` failing to allocate another memory page because the max memory limit is reached by the parent process.
 
-To prevent this, you can change the `mlock` limit to be at least twice bigger than the memory page size:
+    To prevent this, you can change the `mlock` limit to be at least twice bigger than the memory page size:
 
-* temporarily for the current session using the `ulimit -l <value>` command.
-* set a new hard limit in the `/etc/security/limits.conf` file. To do so, you require the superuser privileges.
+    * temporarily for the current session using the `ulimit -l <value>` command.
+    * set a new hard limit in the `/etc/security/limits.conf` file. To do so, you require the superuser privileges.
 
-Adjust the limits with caution since it affects other processes running in your system.
+    Adjust the limits with caution since it affects other processes running in your system.
 
 ## Changelog
 
