@@ -35,10 +35,10 @@ The following is a Percona-tested example configuration.
     # Example Patroni configuration file maintained by Percona
     # Source: https://github.com/jobinau/pgscripts/blob/main/patroni/patroni.yml
     scope: tde
-    name: {{ansible_host}}
+    name: pg1
     restapi:
       listen: 0.0.0.0:8008
-      connect_address: {{ansible_host}}:8008
+      connect_address: pg1:8008
     etcd3:
       host: etcd1:2379
     bootstrap:
@@ -70,17 +70,17 @@ The following is a Percona-tested example configuration.
       post_init: /usr/local/bin/setup_cluster.sh
     postgresql:
       listen: 0.0.0.0:5432
-      connect_address: {{ansible_host}}:5432
+      connect_address: pg1:5432
       data_dir: /var/lib/postgresql/patroni-17
       bin_dir: /lib/postgresql/17/bin
       pgpass: /var/lib/postgresql/patronipass
       authentication:
         replication:
           username: replicator
-          password: {{secret}}
+          password: rep-pass
         superuser:
           username: postgres
-          password: {{secret}}
+          password: secretpassword
       parameters:
         unix_socket_directories: /tmp
         # Use unix_socket_directories: /var/run/postgresql for Debian/Ubuntu distributions
