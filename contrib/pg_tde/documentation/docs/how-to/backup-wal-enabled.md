@@ -24,14 +24,14 @@ Also copy any external files referenced by your providers configuration (such as
 ## Key rotation during backups
 
 !!! warning
-    Do not add new key providers or rotate SMGR or WAL keys while `pg_basebackup` is running.
+    Do not rotate SMGR or WAL encryption keys while `pg_basebackup` is running. Standbys or standalone clusters created from such backups may fail to start during WAL replay.
 
-    Using a single, shared keyring file for successive providers may appear to work (the standby replays rotations), but this is not supported during the backup window.
+Rotations during a base backup can leave the standby in an inconsistent state where it cannot retrieve the correct key history.
 
-If new file-based key providers are created using different keyring files (for example: `/tmp/keyring.file_1`, `/tmp/keyring.file_2`) during an ongoing base backup, the standby created from that backup may fail to start with errors such as:
+For example, you may see errors such as:
 
 ```sql
-FATAL: failed to retrieve principal key "database_keyXXXX" from key provider "local_providerYYYY" 
+FATAL: failed to retrieve principal key "database_keyXXXX" from key provider "providerYYYY"
 CONTEXT: WAL redo at ... ROTATE_PRINCIPAL_KEY ...
 ```
 
