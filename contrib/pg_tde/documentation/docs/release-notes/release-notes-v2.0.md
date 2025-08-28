@@ -30,7 +30,7 @@ Clusters that did not use WAL encryption in beta can be upgraded normally.
 
 ## Known issues
 
-* Creating, changing, or rotating global key providers (or their keys) while `pg_basebackup` is running may cause standbys or standalone clusters initialized from the backup to fail during WAL replay.
+* Creating, changing, or rotating global key providers (or their keys) while `pg_basebackup` is running may cause standbys or standalone clusters initialized from the backup to fail during WAL replay and may also lead to the corruption of encrypted data (tables, indexes, and other relations).
 
     Avoid making these actions during backup windows. Run a new full backup after completing a rotation or provider update.
 
