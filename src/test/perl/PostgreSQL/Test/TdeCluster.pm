@@ -5,6 +5,7 @@ use parent 'PostgreSQL::Test::Cluster';
 use strict;
 use warnings FATAL => 'all';
 
+use File::stat;
 use List::Util                      ();
 use PostgreSQL::Test::RecursiveCopy ();
 use PostgreSQL::Test::Utils         ();
@@ -165,21 +166,26 @@ sub _tde_init_principal_key
 			SELECT pg_tde_set_default_key_using_global_key_provider('default_test_key', 'global_test_provider');
 		));
 
-		PostgreSQL::Test::Utils::system_log('cp', '-R', '-P', '-p',
+		PostgreSQL::Test::Utils::system_log('cp', '-R', '-P',
 			$temp_dir . '/pg_tde',
 			$tde_template_dir);
 	}
 
-	PostgreSQL::Test::Utils::system_log('cp', '-R', '-P', '-p',
+	my $stat = stat($self->data_dir);
+	my $oldmask = umask((~$stat->mode) & 0777);
+
+	PostgreSQL::Test::Utils::system_log('cp', '-R', '-P', '--no-preserve=mode',
 		$tde_template_dir . '/pg_tde',
 		$self->pg_tde_dir);
 
 	# We don't want clusters sharing the KMS file as any concurrent writes will
 	# mess it up.
 	PostgreSQL::Test::Utils::system_log(
-		'cp', '-R', '-P', '-p',
+		'cp', '-R', '-P', '--no-preserve=mode',
 		$tde_template_dir . '/pg_tde_test_keys',
 		$self->basedir . '/pg_tde_test_keys');
+
+	umask($oldmask);
 
 	PostgreSQL::Test::Utils::system_log(
 		'pg_tde_change_key_provider',

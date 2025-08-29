@@ -3475,7 +3475,7 @@ postgres --single -F -j -D "$TMP_DATA_DIR" postgres << SQL
 	SELECT pg_tde_set_default_key_using_global_key_provider('test_default_key', 'global_test_provider');
 SQL
 
-cp -RPp "$TMP_DATA_DIR/pg_tde" "$2/pg_tde"
+cp -RP "$TMP_DATA_DIR/pg_tde" "$2/pg_tde"
 rm -rf "$TMP_DATA_DIR"
 ''',
        'init_tde_files',
