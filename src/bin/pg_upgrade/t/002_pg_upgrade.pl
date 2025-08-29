@@ -15,9 +15,10 @@ use PostgreSQL::Test::Utils;
 use PostgreSQL::Test::AdjustUpgrade;
 use Test::More;
 
-if (defined($ENV{TDE_MODE}))
+if ($ENV{TDE_MODE_SMGR} and not $ENV{TDE_MODE_NOSKIP})
 {
-    plan skip_all => "Running with TDE doesn't support special server starts yet";
+	plan skip_all =>
+	  'pg_restore fail to restore _pg_tde schema on cluster which already has it';
 }
 
 # Can be changed to test the other modes.
