@@ -1,4 +1,4 @@
-# Architecture Overview
+# Architecture overview
 
 `pg_tde` is a **customizable, complete, data at rest encryption extension** for PostgreSQL.
 

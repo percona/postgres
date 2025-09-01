@@ -1,0 +1,62 @@
+# Key and key provider management
+
+## Principal key rotation
+
+You can rotate principal keys to comply with common policies and to handle situations with potentially exposed principal keys.
+
+Rotation means that `pg_tde` generates a new version of the principal key, and re-encrypts the associated internal keys with the new key. The old principal key is kept as is at the same location, because it may still be needed to decrypt backups or other databases.
+
+## Internal key regeneration
+
+Internal keys for tables, indexes and other data files are fixed once a file is created. There's no way to re-encrypt a file.
+
+There are workarounds for this, because operations that move the table data to a new file, such as `VACUUM FULL` or an `ALTER TABLE` that rewrites the file will create a new key for the new file, essentially rotating the internal key. This however means taking an exclusive lock on the table for the duration of the operation, which might not be desirable for huge tables.
+
+WAL internal keys are also fixed to the respective ranges. To generate a new WAL key you need to restart the database.
+
+## Internal key storage
+
+Internal keys and `pg_tde` metadata in general are kept in a single `$PGDATA/pg_tde` directory. This directory stores separate files for each database, such as:
+
+* Encrypted internal keys and internal key mapping to tables
+* Information about the key providers
+
+Also, the `$PGDATA/pg_tde` directory has a special global section marked with the OID `1664`, which includes the global key providers and global internal keys.
+
+The global section is used for WAL encryption. Specific databases can use the global section too, for scenarios where users configure individual principal keys for databases but use the same global key provider. For this purpose, you must enable the global provider inheritance.
+
+The global default principal key uses the special OID `1663`.
+
+## Key providers (principal key storage)
+
+Principal keys are stored externally in a Key Management Services (KMS). In `pg_tde`a KMS is defined as an external key provider.
+
+The following key providers are supported:
+
+* [HashiCorp Vault](https://developer.hashicorp.com/vault/docs/what-is-vault) KV2 secrets engine
+* [OpenBao](https://openbao.org/) implementation of Vault
+* KMIP compatible servers
+* A local file storage. This storage is intended only for development and testing and is not recommended for production use.
+
+For each key provider `pg_tde` requires a detailed configuration including the address of the service and the authentication information.
+
+With these details `pg_tde` does the following based on user operations:
+
+* Uploads a new principal key to it after this key is created
+* Retrieves the principal key from the service when it is required for decryption
+
+Retrieval of the principal key is cached so it only happens when necessary.
+
+## Key provider management
+
+Key provider configuration or location may change. For example, a service is moved to a new address or the principal key must be moved to a different key provider type. `pg_tde` supports both these scenarios enabling you to manage principal keys using simple [SQL functions](../functions.md#key-provider-management).
+
+In certain cases you can't use SQL functions to manage key providers. For example, if the key provider changed while the server wasn't running and is therefore unaware of these changes. The startup can fail if it needs to access the encryption keys.
+
+For such situations, `pg_tde` also provides [command line tools](../command-line-tools/cli-tools.md) to recover the database.
+
+## Sensitive key provider information
+
+!!! important
+    Authentication details for key providers are sensitive and must be protected.
+    Do not store these credentials in the `$PGDATA` directory alongside the database. Instead, ensure they are stored in a secure location with strict file system permissions to prevent unauthorized access.
