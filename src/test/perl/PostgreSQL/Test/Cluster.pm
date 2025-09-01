@@ -1604,7 +1604,7 @@ sub new
 		}
 	}
 
-	if ($ENV{TDE_MODE})
+	if ($PostgreSQL::Test::TdeCluster::tde_mode)
 	{
 		bless $node, 'PostgreSQL::Test::TdeCluster';
 	}
