@@ -1,6 +1,6 @@
 # Architecture overview
 
-`pg_tde` is a **customizable, complete, data at rest encryption extension** for PostgreSQL.
+`pg_tde` is a **customizable, complete, data at rest encryption extension** available with [Percona Server for PostgreSQL 17](https://docs.percona.com/postgresql/17/postgresql-server.html).
 
 The following sections break down the key architectural components of this design.
 

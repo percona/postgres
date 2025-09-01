@@ -189,10 +189,10 @@ nav:
   - "Technical reference":
     - "Overview": advanced-topics/tech-reference.md
     - "About pg_tde architecture": 
-      - "Architecture overview": advanced-topics/overview.md
-      - "Encryption internals": advanced-topics/encrypt-internals.md
-      - "Key and provider management": advanced-topics/key-prov-management.md
-      - "Usage guide": advanced-topics/usage-guide.md
+      - "Architecture overview": architecture/overview.md
+      - "Encryption internals": architecture/encrypt-internals.md
+      - "Key and provider management": architecture/key-prov-management.md
+      - "Usage guide": architecture/usage-guide.md
     - "GUC variables": variables.md
     - "Functions": functions.md
     - "Streaming replication with tde_heap": replication.md
