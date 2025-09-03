@@ -94,9 +94,6 @@ The principal key is used to encrypt the internal keys. The principal key is sto
 
 ### WAL encryption
 
-!!! note
-    WAL encryption is currently in beta and is not effective unless explicitly enabled. It is not yet production ready. **Do not enable this feature in production environments**.
-
 WAL encryption is done globally for the entire database cluster. All modifications to any database within a PostgreSQL cluster are written to the same WAL to maintain data consistency and integrity and ensure that PostgreSQL cluster can be restored to a consistent state. Therefore, WAL is encrypted globally.
 
 When you turn on WAL encryption, `pg_tde` encrypts entire WAL files starting from the first WAL write after the server was started with the encryption turned on.
@@ -140,7 +137,7 @@ Since the `SET ACCESS METHOD` command drops hint bits and this may affect the pe
 You must restart the database in the following cases to apply the changes:
 
 * after you enabled the `pg_tde` extension
-* when enabling WAL encryption, which is currently in beta. **Do not enable this feature in production environments**.
+* when enabling WAL encryption
 
 After that, no database restart is required. When you create or alter the table using the `tde_heap` access method, the files are marked as those that require encryption. The encryption happens at the storage manager level, before a transaction is written to disk. Read more about [how tde_heap works](index/table-access-method.md#how-tde_heap-works-with-pg_tde).
 
@@ -170,6 +167,8 @@ To restore from an encrypted backup, you must have the same principal encryption
 
 Yes. `pg_tde` works with the FIPS-compliant version of OpenSSL, whether it is provided by your operating system or if you use your own OpenSSL libraries. If you use your own libraries, make sure they are FIPS certified.
 
-## Is post-quantum encryption supported?
+## How to rotate internal encryption keys in pg_tde?
 
-No. Post-quantum encryption is not currently supported.
+We don't have a dedicated function to rotate internal keys, because a key is effectively rotated any time a table's data file is completely rewritten. Operations like `VACUUM FULL`, `TRUNCATE`, or some but not all `ALTER TABLE` commands automatically generate a new internal key.
+
+If you're concerned about internal keys being leaked, the best way to address it is by vacuuming the database. This operation rewrites the table's data and, in the process, creates a new internal key.
