@@ -29,23 +29,18 @@ The global default principal key uses the special OID `1663`.
 
 ## Key providers (principal key storage)
 
-Principal keys are stored externally in a Key Management Services (KMS). In `pg_tde`a KMS is defined as an external key provider.
+In `pg_tde`, a Key Management System (KMS) is treated as an external key provider. Key providers store and serve the principal keys that `pg_tde` uses for encryption and decryption.
 
-The following key providers are supported:
+When you configure a key provider, `pg_tde`:
 
-* [HashiCorp Vault](https://developer.hashicorp.com/vault/docs/what-is-vault) KV2 secrets engine
-* [OpenBao](https://openbao.org/) implementation of Vault
-* KMIP compatible servers
-* A local file storage. This storage is intended only for development and testing and is not recommended for production use.
+* Uploads new principal keys when they are created
+* Retrieves principal keys from the provider when needed for decryption
+* Caches retrieved keys to reduce repeated lookups
 
-For each key provider `pg_tde` requires a detailed configuration including the address of the service and the authentication information.
+!!! note
+    Each key provider requires a detailed configuration, including the service address and authentication information.
 
-With these details `pg_tde` does the following based on user operations:
-
-* Uploads a new principal key to it after this key is created
-* Retrieves the principal key from the service when it is required for decryption
-
-Retrieval of the principal key is cached so it only happens when necessary.
+For a complete list of supported providers and their configuration steps, see the [Key management overview](../global-key-provider-configuration/overview.md).
 
 ## Key provider management
 

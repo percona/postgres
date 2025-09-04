@@ -1,6 +1,6 @@
-# Architecture overview
+# Architecture
 
-`pg_tde` is a **customizable, complete, data at rest encryption extension** available with [Percona Server for PostgreSQL 17](https://docs.percona.com/postgresql/17/postgresql-server.html).
+`pg_tde` is a **customizable, complete, data at rest encryption extension** available with [Percona Server for PostgreSQL 17 :octicons-link-external-16:](https://docs.percona.com/postgresql/17/postgresql-server.html).
 
 The following sections break down the key architectural components of this design.
 
@@ -20,7 +20,7 @@ The following sections break down the key architectural components of this desig
 * Indexes
 * Sequences
 * Temporary tables
-* Write Ahead Log (WAL), still in beta. **Do not enable this feature in production environments**.
+* Write Ahead Log (WAL)
 
 **Extension** means that `pg_tde` should be implemented only as an extension, possibly compatible with any PostgreSQL distribution, including the open source community version. This requires changes in the PostgreSQL core to make it more extensible. Therefore, `pg_tde` currently works only with the [Percona Server for PostgreSQL](https://docs.percona.com/postgresql/17/index.html) - a binary replacement of community PostgreSQL and included in Percona Distribution for PostgreSQL.
 

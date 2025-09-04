@@ -9,7 +9,7 @@
 
 `pg_tde` uses one principal key per database. Every internal key for the given database is encrypted using this principal key.
 
-Internal keys are used for specific database files: each file with a different [Object Identifier (OID)](https://www.postgresql.org/docs/current/datatype-oid.html) has a different internal key.
+Internal keys are used for specific database files: each file with a different [Object Identifier (OID) :octicons-link-external-16:](https://www.postgresql.org/docs/current/datatype-oid.html) has a different internal key.
 
 This means that, for example, a table with 4 indexes will have at least 5 internal keys - one for the table, and one for each index.
 
@@ -20,9 +20,7 @@ If a table has additional associated relations, such as sequences or a TOAST tab
 `pg_tde` currently uses the following encryption algorithms:
 
 * `AES-128-CBC` for encrypting database files; encrypted with internal keys.
-
 * `AES-128-CTR` for WAL encryption; encrypted with internal keys.
-
 * `AES-128-GCM` for encrypting internal keys; encrypted with the principal key.
 
 Support for other cipher lengths / algorithms is planned in the future.
@@ -40,9 +38,6 @@ The initial decision what to encrypt is made using the `postgres` event trigger 
 Later decisions are made using a slightly modified Storage Manager (SMGR) API: when a database file is re-created with a different ID as a result of a `TRUNCATE` or a `VACUUM FULL` command, the newly created file inherits the encryption information and is either encrypted or not.
 
 ## WAL encryption
-
-!!! note
-    The WAL encryption feature is currently in beta and is not effective unless explicitly enabled. It is not yet production ready. **Do not enable this feature in production environments**.
 
 WAL encryption is controlled globally via a global GUC variable, `pg_tde.wal_encrypt`, that requires a server restart.
 
