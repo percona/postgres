@@ -6,15 +6,15 @@ Use it to understand how encryption is implemented, fine-tune a configuration, l
 
 <div data-grid markdown><div data-banner markdown>
 
-### :material-cog-refresh-outline: Architecture { .title }
+### :material-playlist-check: Usage guide { .title }
 
-Explore the internal design of `pg_tde` architecture, including encryption internals, key management, and provider integration.
+Step-by-step instructions for using `pg_tde`. Set up the extension, configure key providers, create and rotate keys, manage permissions, and encrypt tables.
 
-[Explore the architecture :material-arrow-right:](../architecture/overview.md){.md-button}
+[Follow the usage guide :material-arrow-right:](usage-guide.md){.md-button}
 
 </div><div data-banner markdown>
 
-### :material-database-sync: Streaming Replication { .title }
+### :material-database-sync: Streaming replication { .title }
 
 Learn how to configure PostgreSQL streaming replication with `pg_tde` using the `tde_heap` access method. Covers primary and standby setup, key management requirements, and validation steps.
 

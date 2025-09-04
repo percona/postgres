@@ -1,5 +1,9 @@
 # Usage guide
 
+This guide shows how to use `pg_tde` in practice. It walks you through setting up `pg_tde`, adding and managing key providers, creating and rotating keys, setting permissions, and encrypting tables.  
+
+Use this section as a step-by-step reference when deploying or operating `pg_tde` in your PostgreSQL environment.
+
 ## Set up pg_tde
 
 To get started with `pg_tde`, follow these steps:
