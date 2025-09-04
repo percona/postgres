@@ -1,4 +1,4 @@
-# User interface
+# Usage guide
 
 ## Set up pg_tde
 
