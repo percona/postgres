@@ -1,5 +1,9 @@
 # Encryption architecture
 
+This section explains how `pg_tde` implements encryption inside PostgreSQL. It covers the key hierarchy, supported encryption algorithms, encryption workflow, and the core changes that make it possible to encrypt tables, WAL, and other database files.
+  
+Together, these components form the foundation of data-at-rest encryption in `pg_tde`.
+
 ## Two-key hierarchy
 
 `pg_tde` uses two kinds of keys for encryption:
@@ -41,7 +45,7 @@ Later decisions are made using a slightly modified Storage Manager (SMGR) API: w
 
 WAL encryption is controlled globally via a global GUC variable, `pg_tde.wal_encrypt`, that requires a server restart.
 
-WAL keys also contain the [LSN](https://www.postgresql.org/docs/17/wal-internals.html) of the first WAL write after key creation. This allows `pg_tde` to know which WAL ranges are encrypted or not and with which key.
+WAL keys also contain the [LSN :octicons-link-external-16:](https://www.postgresql.org/docs/17/wal-internals.html) of the first WAL write after key creation. This allows `pg_tde` to know which WAL ranges are encrypted or not and with which key.
 
 The setting only controls writes so that only WAL writes are encrypted when WAL encryption is enabled. This means that WAL files can contain both encrypted and unencrypted data, depending on what the status of this variable was when writing the data.
 
