@@ -8,16 +8,16 @@ Together, these components form the foundation of data-at-rest encryption in `pg
 
 `pg_tde` uses two kinds of keys for encryption:
 
-* Internal keys to encrypt the data. They are stored in PostgreSQL's data directory under `$PGDATA/pg_tde`.
-* Higher-level keys to encrypt internal keys. These keys are called *principal keys*. They are stored externally, in a Key Management System (KMS) using the key provider API.
+1. Internal keys to encrypt the data. They are stored in PostgreSQL's data directory under `$PGDATA/pg_tde`.
+2. Higher-level keys to encrypt internal keys. These keys are called *principal keys*. They are stored externally, in a Key Management System (KMS) using the key provider API.
 
 `pg_tde` uses one principal key per database. Every internal key for the given database is encrypted using this principal key.
 
 Internal keys are used for specific database files: each file with a different [Object Identifier (OID) :octicons-link-external-16:](https://www.postgresql.org/docs/current/datatype-oid.html) has a different internal key.
 
-This means that, for example, a table with 4 indexes will have at least 5 internal keys - one for the table, and one for each index.
+**Example:**
 
-If a table has additional associated relations, such as sequences or a TOAST table, those relations will also have separate keys.
+A table with 4 indexes will have at least 5 internal keys, one for the table and one for each index. Additional associated relations, such as sequences or a TOAST table, also have their own keys.
 
 ## Encryption algorithm
 
@@ -27,19 +27,23 @@ If a table has additional associated relations, such as sequences or a TOAST tab
 * `AES-128-CTR` for WAL encryption; encrypted with internal keys.
 * `AES-128-GCM` for encrypting internal keys; encrypted with the principal key.
 
-Support for other cipher lengths / algorithms is planned in the future.
-
 ## Encryption workflow
 
-`pg_tde` makes it possible to encrypt everything or only some tables in some databases.
+You can use `pg_tde` to encrypt entire databases or only selected tables.
 
-To support this without metadata changes, encrypted tables are labeled with a `tde_heap` access method marker.
+To support this without metadata changes, encrypted tables are labeled with the `tde_heap` access method marker.
 
-The `tde_heap` access method is the same as the `heap` one. It uses the same functions internally without any changes, but with the different name and ID. In such a way `pg_tde` knows that `tde_heap` tables are encrypted and `heap` tables are not.
+The `tde_heap` access method is functionally identical to the `heap` access method. It uses the same functions internally without any changes, but with a different name and ID. This allows `pg_tde` to distinguish between encrypted (`tde_heap`)  and non-encrypted (`heap`) tables.
 
-The initial decision what to encrypt is made using the `postgres` event trigger mechanism: if a `CREATE TABLE` or `ALTER TABLE` statement uses the `tde_heap` clause, the newly created data files are marked as encrypted. Then file operations encrypt or decrypt the data.
+The initial decision about encryption is made using the `postgres` event trigger mechanism:
 
-Later decisions are made using a slightly modified Storage Manager (SMGR) API: when a database file is re-created with a different ID as a result of a `TRUNCATE` or a `VACUUM FULL` command, the newly created file inherits the encryption information and is either encrypted or not.
+* When the `tde_heap` clause is used for `CREATE TABLE` or `ALTER TABLE` statements, then the newly created data files are marked as encrypted
+* After this, the file operations encrypt or decrypt the data
+
+Subsequent decisions are done using a slightly modified Storage Manager (SMGR) API:
+
+* When a database file is re-created with a different ID as a result of a `TRUNCATE` or a `VACUUM FULL` command, the newly created file inherits the encryption information
+* The file is then either encrypted or left unencrypted based on that inheritance
 
 ## WAL encryption
 
