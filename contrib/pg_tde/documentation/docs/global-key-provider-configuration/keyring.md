@@ -37,7 +37,7 @@ The steps below provide an example on how to add a [database-scoped key provider
     ```
 
     !!! tip
-        You can check the default key information (such as the date and time of creation), run:
+        You can check the default key information (such as the date and time of creation). Run:
 
         ```sql
         SELECT pg_tde_default_key_info();
