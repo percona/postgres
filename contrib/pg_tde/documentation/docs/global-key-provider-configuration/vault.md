@@ -1,6 +1,6 @@
 # Vault configuration
 
-You can configure `pg_tde` to use HashiCorp Vault as a global key provider for managing encryption keys securely. Both the open source and enterprise editions are supported. Percona Server for PostgreSQL only supports the HashiCorp Vault back end with KV Secrets Engine - Version 2 (API) with versioning enabled.
+You can configure `pg_tde` to use HashiCorp Vault as a global key provider for managing encryption keys securely. Both the open source and enterprise editions are supported. `pg_tde` only supports the HashiCorp Vault back end with KV Secrets Engine - Version 2 (API) with versioning enabled.
 
 !!! note
     This guide assumes that your Vault server is already set up and accessible. Vault configuration is outside the scope of this document, see [Vault's official documentation](https://developer.hashicorp.com/vault/docs) or [KV secrets engine - version 2 (API)](https://developer.hashicorp.com/vault/api-docs/secret/kv/kv-v2) for more information.
@@ -53,4 +53,4 @@ SELECT pg_tde_add_global_key_provider_vault_v2(
 
 ## Next steps
 
-[Global Principal Key Configuration :material-arrow-right:](set-principal-key.md){.md-button}
+[Set up the Global principal key :material-arrow-right:](set-principal-key.md){.md-button}
