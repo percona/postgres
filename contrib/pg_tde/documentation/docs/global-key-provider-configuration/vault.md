@@ -1,9 +1,9 @@
 # Vault configuration
 
-You can configure `pg_tde` to use HashiCorp Vault as a global key provider for managing encryption keys securely. Both the open source and enterprise editions are supported.
+You can configure `pg_tde` to use HashiCorp Vault as a global key provider for managing encryption keys securely. Both the open source and enterprise editions are supported. Percona Server for PostgreSQL only supports the HashiCorp Vault back end with KV Secrets Engine - Version 2 (API) with versioning enabled.
 
 !!! note
-    This guide assumes that your Vault server is already set up and accessible. Vault configuration is outside the scope of this document, see [Vault's official documentation](https://developer.hashicorp.com/vault/docs) for more information.
+    This guide assumes that your Vault server is already set up and accessible. Vault configuration is outside the scope of this document, see [Vault's official documentation](https://developer.hashicorp.com/vault/docs) or [KV secrets engine - version 2 (API)](https://developer.hashicorp.com/vault/api-docs/secret/kv/kv-v2) for more information.
 
 ## Example usage
 
@@ -37,12 +37,13 @@ SELECT pg_tde_add_global_key_provider_vault_v2(
 );
 ```
 
-For more information on related functions, see the link below:
-
-[Percona pg_tde Function Reference](../functions.md){.md-button}
+!!! note
+    For more information on related functions, see [Functions](../functions.md) topic.
 
 ## Required permissions
-`pg_tde` requires given permissions on listed Vault's API endpoints
+
+`pg_tde` requires given permissions on listed Vault's API endpoints:
+
 * `sys/mounts/<mount>` - **read** permissions
 * `<mount>/data/*` - **create**, **read** permissions
 * `<mount>/metadata` - **list** permissions
