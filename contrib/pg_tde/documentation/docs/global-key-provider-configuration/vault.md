@@ -46,7 +46,7 @@ SELECT pg_tde_add_global_key_provider_vault_v2(
 
 * `sys/mounts/<mount>` - **read** permissions
 * `<mount>/data/*` - **create**, **read** permissions
-* `<mount>/metadata` - **list** permissions
+* `<mount>/metadata/*` - **list** permissions
 
 !!! note
     For more information on Vault permissions, see the [following documentation](https://developer.hashicorp.com/vault/docs/concepts/policies).
