@@ -8,7 +8,95 @@
 #include "access/pg_tde_fe_init.h"
 #include "access/pg_tde_xlog_smgr.h"
 
+#include "catalog/pg_control.h"
+
+#include <sys/stat.h>
+#include <sys/statvfs.h>
+#include <signal.h>
+
 #define TMPFS_DIRECTORY "/dev/shm"
+
+static char g_tmpdir[MAXPGPATH] = "";
+static char g_tmppath[MAXPGPATH] = "";
+
+static void
+cleanup_tmp(void)
+{
+	if (g_tmppath[0] != '\0')
+	{
+		if (unlink(g_tmppath) < 0)
+			pg_log_warning("could not remove file \"%s\": %m", g_tmppath);
+		g_tmppath[0] = '\0';
+	}
+	if (g_tmpdir[0] != '\0')
+	{
+		if (rmdir(g_tmpdir) < 0)
+			pg_log_warning("could not remove directory \"%s\": %m", g_tmpdir);
+		g_tmpdir[0] = '\0';
+	}
+}
+
+static void
+signal_cleanup_and_exit(int sig)
+{
+	cleanup_tmp();
+	_exit(128 + sig);
+}
+
+static bool
+check_free_space_sufficient_bytes(const char *path, uint64 requiredBytes, uint64 *freeBytesOut)
+{
+	struct statvfs vfs;
+	if (statvfs(path, &vfs) != 0)
+		return false;
+	uint64 freeBytes = (uint64) vfs.f_bavail * (uint64) vfs.f_frsize;
+	if (freeBytesOut)
+		*freeBytesOut = freeBytes;
+	return freeBytes >= requiredBytes;
+}
+
+/* Try to derive data directory by stripping "/pg_wal/..." from the target path. */
+static bool
+get_data_dir_from_targetpath(const char *targetpath, char *dataDirOut, size_t outLen)
+{
+    const char *needle = "/" XLOGDIR "/"; /* "/pg_wal/" */
+    const char *pos = strstr(targetpath, needle);
+    if (pos == NULL)
+        return false;
+    size_t dirLen = (size_t) (pos - targetpath);
+    if (dirLen == 0 || dirLen >= outLen)
+        return false;
+    memcpy(dataDirOut, targetpath, dirLen);
+    dataDirOut[dirLen] = '\0';
+    return true;
+}
+
+/* Read xlog_seg_size from pg_control in the given data directory. */
+static bool
+read_wal_segment_size_from_control(const char *dataDir, uint32 *segSizeOut)
+{
+    char controlPath[MAXPGPATH];
+    int fd;
+    char buffer[PG_CONTROL_FILE_SIZE];
+    ControlFileData ControlFile;
+
+    snprintf(controlPath, sizeof(controlPath), "%s/%s", dataDir, XLOG_CONTROL_FILE);
+    fd = open(controlPath, O_RDONLY | PG_BINARY, 0);
+    if (fd < 0)
+        return false;
+    if (read(fd, buffer, PG_CONTROL_FILE_SIZE) != PG_CONTROL_FILE_SIZE)
+    {
+        close(fd);
+        return false;
+    }
+    close(fd);
+
+    memcpy(&ControlFile, buffer, sizeof(ControlFileData));
+    if (!IsValidWalSegSize(ControlFile.xlog_seg_size))
+        return false;
+    *segSizeOut = ControlFile.xlog_seg_size;
+    return true;
+}
 
 /*
  * Partial WAL segments are archived but never automatically fetched from the
@@ -186,6 +274,43 @@ main(int argc, char *argv[])
 	if (issegment)
 	{
 		char	   *s;
+		uint64 requiredBytes = 0;
+		uint64 freeBytes = 0;
+
+		/*
+		 * Estimate tmpfs space for the unencrypted file the restore command will
+		 * write. Prefer an accurate value from the cluster's control file
+		 * (xlog_seg_size). If we cannot determine it, fall back to 16MB.
+		 */
+		{
+			/*
+			 * Note: restore_command may be invoked repeatedly (one process per
+			 * segment, with retries on failure). Reading pg_control here is an
+			 * ~8KB I/O that will be page-cache hot after the first call and is
+			 * negligible compared to downloading the WAL from a remote repository
+			 * (e.g., S3 via pgBackRest) or reading it from a local archive, and the
+			 * subsequent encrypt/write. We read pg_control rather than a WAL header
+			 * because we must know the exact segment size before starting the wrapped
+			 * restore to preflight /dev/shm capacity and avoid mid-write ENOSPC.
+			 * Reading the WAL header would happen too late for that purpose.
+			 */
+			char dataDir[MAXPGPATH];
+			uint32 segsz = 0;
+			if (get_data_dir_from_targetpath(targetpath, dataDir, sizeof(dataDir)) &&
+				read_wal_segment_size_from_control(dataDir, &segsz))
+				requiredBytes = (uint64) segsz;
+			else
+				requiredBytes = (uint64) (16 * 1024 * 1024);
+		}
+		/* Fixed 4MB slack; see pg_tde_archive_decrypt.c for detailed rationale. */
+		requiredBytes += (uint64) (4 * 1024 * 1024);
+
+		if (!check_free_space_sufficient_bytes(TMPFS_DIRECTORY, requiredBytes, &freeBytes))
+		{
+			pg_log_error("insufficient temporary space in '%s' for restored WAL (required: %llu bytes, free: %llu bytes)",
+					 TMPFS_DIRECTORY, (unsigned long long) requiredBytes, (unsigned long long) freeBytes);
+			exit(1);
+		}
 
 		if (mkdtemp(tmpdir) == NULL)
 			pg_fatal("could not create temporary directory \"%s\": %m", tmpdir);
@@ -193,6 +318,13 @@ main(int argc, char *argv[])
 		s = stpcpy(tmppath, tmpdir);
 		s = stpcpy(s, "/");
 		stpcpy(s, targetname);
+
+		/* register for cleanup */
+		snprintf(g_tmpdir, sizeof(g_tmpdir), "%s", tmpdir);
+		snprintf(g_tmppath, sizeof(g_tmppath), "%s", tmppath);
+		atexit(cleanup_tmp);
+		signal(SIGINT, signal_cleanup_and_exit);
+		signal(SIGTERM, signal_cleanup_and_exit);
 
 		command = replace_percent_placeholders(command,
 											   "RESTORE-COMMAND", "fp",
@@ -224,11 +356,7 @@ main(int argc, char *argv[])
 	if (issegment)
 	{
 		write_encrypted_segment(targetpath, sourcename, tmppath);
-
-		if (unlink(tmppath) < 0)
-			pg_log_warning("could not remove file \"%s\": %m", tmppath);
-		if (rmdir(tmpdir) < 0)
-			pg_log_warning("could not remove directory \"%s\": %m", tmpdir);
+		/* No explicit cleanup here; atexit(cleanup_tmp) handles normal process exit. */
 	}
 
 	return 0;

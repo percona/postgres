@@ -8,7 +8,50 @@
 #include "access/pg_tde_fe_init.h"
 #include "access/pg_tde_xlog_smgr.h"
 
+#include <sys/stat.h>
+#include <sys/statvfs.h>
+#include <signal.h>
+
 #define TMPFS_DIRECTORY "/dev/shm"
+
+static char g_tmpdir[MAXPGPATH] = "";
+static char g_tmppath[MAXPGPATH] = "";
+
+static void
+cleanup_tmp(void)
+{
+	if (g_tmppath[0] != '\0')
+	{
+		if (unlink(g_tmppath) < 0)
+			pg_log_warning("could not remove file \"%s\": %m", g_tmppath);
+		g_tmppath[0] = '\0';
+	}
+	if (g_tmpdir[0] != '\0')
+	{
+		if (rmdir(g_tmpdir) < 0)
+			pg_log_warning("could not remove directory \"%s\": %m", g_tmpdir);
+		g_tmpdir[0] = '\0';
+	}
+}
+
+static void
+signal_cleanup_and_exit(int sig)
+{
+	cleanup_tmp();
+	_exit(128 + sig);
+}
+
+static bool
+check_free_space_sufficient_bytes(const char *path, uint64 requiredBytes, uint64 *freeBytesOut)
+{
+	struct statvfs vfs;
+	if (statvfs(path, &vfs) != 0)
+		return false;
+	uint64 freeBytes = (uint64) vfs.f_bavail * (uint64) vfs.f_frsize;
+	if (freeBytesOut)
+		*freeBytesOut = freeBytes;
+	return freeBytes >= requiredBytes;
+}
 
 static bool
 is_segment(const char *filename)
@@ -191,6 +234,53 @@ main(int argc, char *argv[])
 	if (issegment)
 	{
 		char	   *s;
+		struct stat st;
+		uint64 requiredBytes = 0;
+		uint64 freeBytes = 0;
+
+		/*
+		 * Estimate how much tmpfs space we need to hold the decrypted WAL file.
+		 *
+		 * Preferred path: use the size of the encrypted source file. For full
+		 * segments this equals the WAL segment size (e.g., 16MB, 64MB). For
+		 * partial segments it will be smaller, which is fine because we only
+		 * decrypt and write as many bytes as exist in the source.
+		 */
+		if (stat(sourcepath, &st) == 0 && S_ISREG(st.st_mode))
+			requiredBytes = (uint64) st.st_size;
+		else
+		{
+			/*
+			 * Fallback when stat fails or source is not a regular file: assume at
+			 * least one WAL block (XLOG_BLCKSZ, typically 16KB). This case is not
+			 * expected in normal operation, but avoids a zero-size estimate.
+			 */
+			requiredBytes = (uint64) XLOG_BLCKSZ;
+		}
+
+		/*
+		 * Add a fixed safety margin (4MB).
+		 *
+		 * Rationale:
+		 * - Provides headroom for directory entries, filesystem metadata and
+		 *   small helper buffers so we don't hit ENOSPC mid-write.
+		 * - Covers minor discrepancies (e.g., trailing partial page, alignment).
+		 * - When the base is a full segment (commonly 16MB), 4MB is a small
+		 *   relative slack (25%). When the base comes from the minimal fallback
+		 *   (16KB), the large relative slack is intentional: the fallback is used
+		 *   only when we cannot size the source, and in practice WAL segments are
+		 *   much larger than 16KB. The extra headroom errs on the side of
+		 *   failing fast rather than starting a write that will soon exhaust
+		 *   tmpfs.
+		 */
+		requiredBytes += (uint64) (4 * 1024 * 1024);
+
+		if (!check_free_space_sufficient_bytes(TMPFS_DIRECTORY, requiredBytes, &freeBytes))
+		{
+			pg_log_error("insufficient temporary space in '%s' for decrypted WAL (required: %llu bytes, free: %llu bytes)",
+					 TMPFS_DIRECTORY, (unsigned long long) requiredBytes, (unsigned long long) freeBytes);
+			exit(1);
+		}
 
 		if (mkdtemp(tmpdir) == NULL)
 			pg_fatal("could not create temporary directory \"%s\": %m", tmpdir);
@@ -198,6 +288,13 @@ main(int argc, char *argv[])
 		s = stpcpy(tmppath, tmpdir);
 		s = stpcpy(s, "/");
 		stpcpy(s, sourcename);
+
+		/* register for cleanup on exit and on signals */
+		snprintf(g_tmpdir, sizeof(g_tmpdir), "%s", tmpdir);
+		snprintf(g_tmppath, sizeof(g_tmppath), "%s", tmppath);
+		atexit(cleanup_tmp);
+		signal(SIGINT, signal_cleanup_and_exit);
+		signal(SIGTERM, signal_cleanup_and_exit);
 
 		command = replace_percent_placeholders(command,
 											   "ARCHIVE-COMMAND", "fp",
@@ -228,13 +325,7 @@ main(int argc, char *argv[])
 
 	free(command);
 
-	if (issegment)
-	{
-		if (unlink(tmppath) < 0)
-			pg_log_warning("could not remove file \"%s\": %m", tmppath);
-		if (rmdir(tmpdir) < 0)
-			pg_log_warning("could not remove directory \"%s\": %m", tmpdir);
-	}
+	/* No explicit cleanup here; atexit(cleanup_tmp) handles normal process exit. */
 
 	return 0;
 }
