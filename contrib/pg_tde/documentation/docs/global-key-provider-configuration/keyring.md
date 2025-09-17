@@ -22,8 +22,8 @@ The steps below provide an example on how to add a [database-scoped key provider
 
     ```sql
     SELECT pg_tde_create_key_using_database_key_provider(
-    'my_default_key',
-    'file-keyring'
+        'my_default_key',
+        'file-keyring'
     );
     ```
 
@@ -31,8 +31,8 @@ The steps below provide an example on how to add a [database-scoped key provider
 
     ```sql
     SELECT pg_tde_set_key_using_database_key_provider(
-    'my_default_key',
-    'file-keyring'
+        'my_default_key',
+        'file-keyring'
     );
     ```
 
@@ -46,7 +46,7 @@ The steps below provide an example on how to add a [database-scoped key provider
 4. Now, create a table using [tde_heap](../index/table-access-method.md#how-tde_heap-works-with-pg_tde):
 
     ```sql
-    CREATE TABLE test1(a INT) USING tde_heap;
+    CREATE TABLE customer_table (a INT) USING tde_heap;
     ```
 
     The newly created table is encrypted with the default key you have set (`my_default_key`).
@@ -72,6 +72,6 @@ The steps below provide an example on how to add a [database-scoped key provider
 
 Next, for production deployments, [configure a global principal key](set-principal-key.md) using a proper [KMS provider](../global-key-provider-configuration/overview.md).
 
-Alternatively, you can skip directly to learn how to [validate encryption with pg_tde](../test.md) or how to [configure WAL encryption](../wal-encryption.md).
+Alternatively, you can skip directly to [validating encryption with pg_tde](../test.md) or [configuring WAL encryption](../wal-encryption.md).
 
-You can also verify the functions that come with `pg_tde` in [Functions](../functions.md).
+You can also review the available `pg_tde` functions in [Functions](../functions.md).
