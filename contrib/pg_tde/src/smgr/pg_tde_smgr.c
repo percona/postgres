@@ -95,7 +95,7 @@ tde_smgr_create_key(const RelFileLocatorBackend *smgr_rlocator)
 {
 	InternalKey *key = palloc_object(InternalKey);
 
-	pg_tde_generate_internal_key(key);
+	pg_tde_generate_internal_key(key, TdeKeySize);
 
 	if (RelFileLocatorBackendIsTemp(*smgr_rlocator))
 		tde_smgr_save_temp_key(&smgr_rlocator->locator, key);
@@ -113,7 +113,7 @@ tde_smgr_create_key_redo(const RelFileLocator *rlocator)
 {
 	InternalKey key;
 
-	pg_tde_generate_internal_key(&key);
+	pg_tde_generate_internal_key(&key, TdeKeySize);
 
 	pg_tde_save_smgr_key(*rlocator, &key);
 }
@@ -228,7 +228,7 @@ tde_mdwritev(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
 		for (int i = 0; i < nblocks; ++i)
 		{
 			BlockNumber bn = blocknum + i;
-			unsigned char iv[16];
+			unsigned char iv[INTERNAL_KEY_IV_LEN];
 
 			local_buffers[i] = &local_blocks[i * BLCKSZ];
 
@@ -285,7 +285,7 @@ tde_mdextend(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
 	else
 	{
 		unsigned char *local_blocks = palloc_aligned(BLCKSZ, PG_IO_ALIGN_SIZE, 0);
-		unsigned char iv[16];
+		unsigned char iv[INTERNAL_KEY_IV_LEN];
 
 		if (tdereln->encryption_status == RELATION_KEY_NOT_AVAILABLE)
 		{
@@ -329,7 +329,7 @@ tde_mdreadv(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
 	{
 		bool		allZero = true;
 		BlockNumber bn = blocknum + i;
-		unsigned char iv[16];
+		unsigned char iv[INTERNAL_KEY_IV_LEN];
 
 		/*
 		 * Detect unencrypted all-zero pages written by smgrzeroextend() by
@@ -525,7 +525,7 @@ tde_smgr_delete_temp_key(const RelFileLocator *rel)
 static void
 CalcBlockIv(ForkNumber forknum, BlockNumber bn, const unsigned char *base_iv, unsigned char *iv)
 {
-	memset(iv, 0, 16);
+	memset(iv, 0, INTERNAL_KEY_IV_LEN);
 
 	/* The init fork is copied to the main fork so we must use the same IV */
 	iv[7] = forknum == INIT_FORKNUM ? MAIN_FORKNUM : forknum;

@@ -221,7 +221,7 @@ TDEXLogSmgrInit()
 }
 
 void
-TDEXLogSmgrInitWrite(bool encrypt_xlog)
+TDEXLogSmgrInitWrite(bool encrypt_xlog, int key_size)
 {
 	WalEncryptionRange *range;
 	WALKeyCacheRec *keys;
@@ -242,11 +242,11 @@ TDEXLogSmgrInitWrite(bool encrypt_xlog)
 	 */
 	if (encrypt_xlog)
 	{
-		pg_tde_create_wal_range(&CurrentWalEncryptionRange, WAL_ENCRYPTION_RANGE_ENCRYPTED);
+		pg_tde_create_wal_range(&CurrentWalEncryptionRange, WAL_ENCRYPTION_RANGE_ENCRYPTED, key_size);
 	}
 	else if (range && range->type == WAL_ENCRYPTION_RANGE_ENCRYPTED)
 	{
-		pg_tde_create_wal_range(&CurrentWalEncryptionRange, WAL_ENCRYPTION_RANGE_UNENCRYPTED);
+		pg_tde_create_wal_range(&CurrentWalEncryptionRange, WAL_ENCRYPTION_RANGE_UNENCRYPTED, key_size);
 	}
 	else if (range)
 	{
@@ -332,7 +332,7 @@ static ssize_t
 TDEXLogWriteEncryptedPages(int fd, const void *buf, size_t count, off_t offset,
 						   TimeLineID tli, XLogSegNo segno)
 {
-	char		iv_prefix[16];
+	char		iv_prefix[INTERNAL_KEY_IV_LEN];
 	WalEncryptionRange *range = &CurrentWalEncryptionRange;
 	char	   *enc_buff = EncryptionBuf;
 
@@ -516,7 +516,7 @@ TDEXLogCryptBuffer(const void *buf, void *out_buf, size_t count, off_t offset,
 			if (wal_location_cmp(data_start, curr_key->range.end) < 0 &&
 				wal_location_cmp(data_end, curr_key->range.start) > 0)
 			{
-				char		iv_prefix[16];
+				char		iv_prefix[INTERNAL_KEY_IV_LEN];
 
 				/*
 				 * We want to calculate where to start / end encrypting. This
@@ -613,7 +613,7 @@ CalcXLogPageIVPrefix(TimeLineID tli, XLogRecPtr lsn, const unsigned char *base_i
 	union u128cast iv;
 	unsigned	__int128 offset;
 
-	for (int i = 0; i < 16; i++)
+	for (int i = 0; i < INTERNAL_KEY_IV_LEN; i++)
 #ifdef WORDS_BIGENDIAN
 		base.a[i] = base_iv[i];
 #else
@@ -627,7 +627,7 @@ CalcXLogPageIVPrefix(TimeLineID tli, XLogRecPtr lsn, const unsigned char *base_i
 
 	iv.i = base.i + offset;
 
-	for (int i = 0; i < 16; i++)
+	for (int i = 0; i < INTERNAL_KEY_IV_LEN; i++)
 #ifdef WORDS_BIGENDIAN
 		iv_prefix[i] = iv.a[i];
 #else

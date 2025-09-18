@@ -5,16 +5,20 @@
 #ifndef ENC_TDE_H
 #define ENC_TDE_H
 
-#define INTERNAL_KEY_LEN 16
+#include "access/pg_tde_keys_common.h"
+
+#define INTERNAL_KEY_LEN MAX_KEY_DATA_SIZE
+#define INTERNAL_KEY_BLOCK_LEN 16
 #define INTERNAL_KEY_IV_LEN 16
 
 typedef struct InternalKey
 {
+	int			key_size;
 	uint8		key[INTERNAL_KEY_LEN];
 	uint8		base_iv[INTERNAL_KEY_IV_LEN];
 } InternalKey;
 
-extern void pg_tde_generate_internal_key(InternalKey *int_key);
+extern void pg_tde_generate_internal_key(InternalKey *int_key, int size);
 extern void pg_tde_stream_crypt(const char *iv_prefix,
 								uint32 start_offset,
 								const char *data,

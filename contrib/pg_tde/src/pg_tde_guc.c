@@ -4,6 +4,7 @@
 
 #include "postgres.h"
 
+#include "access/pg_tde_keys_common.h"
 #include "utils/guc.h"
 
 #include "pg_tde_guc.h"
@@ -11,6 +12,30 @@
 bool		AllowInheritGlobalProviders = true;
 bool		EncryptXLog = false;
 bool		EnforceEncryption = false;
+int			Cipher = TDE_CIPHER_AES_128;
+int			TdeKeySize = KEY_DATA_SIZE_128;
+
+/* Custom GUC variable */
+static const struct config_enum_entry cipher_options[] = {
+	{"aes_128", TDE_CIPHER_AES_128, false},
+	{"aes_256", TDE_CIPHER_AES_256, false},
+};
+
+static void
+assign_keys_size(int newval, void *extra)
+{
+	switch (newval)
+	{
+		case TDE_CIPHER_AES_128:
+			TdeKeySize = KEY_DATA_SIZE_128;
+		break;
+		case TDE_CIPHER_AES_256:
+			TdeKeySize = KEY_DATA_SIZE_256;
+			break;
+		default:
+			Assert(false);
+	}
+}
 
 void
 TdeGucInit(void)
@@ -51,4 +76,16 @@ TdeGucInit(void)
 							 NULL	/* show_hook */
 		);
 
+	DefineCustomEnumVariable("pg_tde.cipher",	/* name */
+							 "TDE encryption algorithm.",	/* short_desc */
+							 NULL,	/* long_desc */
+							 &Cipher,	/* value address */
+							 TDE_CIPHER_AES_128, /* boot value */
+							 cipher_options, /* options */
+							 PGC_SUSET, /* context */
+							 0, /* flags */
+							 NULL,	/* check_hook */
+							 assign_keys_size,	/* assign_hook */
+							 NULL	/* show_hook */
+		);
 }

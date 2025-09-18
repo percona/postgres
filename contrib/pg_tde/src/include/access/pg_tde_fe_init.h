@@ -10,12 +10,14 @@
 #include "keyring/keyring_file.h"
 #include "keyring/keyring_vault.h"
 #include "keyring/keyring_kmip.h"
+#include "pg_tde_guc.h"
 
 /* Frontend has to call this to access keys */
 static inline void
 pg_tde_fe_init(const char *kring_dir)
 {
-	AesInit();
+	/* TODO: should be an option */
+	AesInit(TDE_CIPHER_AES_128);
 	InstallFileKeyring();
 	InstallVaultV2Keyring();
 	InstallKmipKeyring();

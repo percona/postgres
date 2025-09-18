@@ -6,6 +6,7 @@
 #include "nodes/pg_list.h"
 #include "utils/memutils.h"
 
+#include "access/pg_tde_keys_common.h"
 #include "keyring/keyring_api.h"
 
 #ifdef FRONTEND
@@ -142,8 +143,7 @@ ValidateKey(KeyInfo *key)
 		return false;
 	}
 
-	/* For now we only support 128-bit keys */
-	if (key->data.len != KEY_DATA_SIZE_128)
+	if (key->data.len != KEY_DATA_SIZE_128 && key->data.len != KEY_DATA_SIZE_256)
 	{
 		ereport(WARNING,
 				errmsg("invalid key: unsupported key length \"%u\"", key->data.len));

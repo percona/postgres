@@ -7,6 +7,7 @@
 
 #include "postgres.h"
 #include "catalog/tde_keyring.h"
+#include "keyring/keyring_api.h"
 #ifndef FRONTEND
 #include "storage/lwlock.h"
 #endif
@@ -24,7 +25,7 @@ typedef struct TDEPrincipalKeyInfo
 typedef struct TDEPrincipalKey
 {
 	TDEPrincipalKeyInfo keyInfo;
-	unsigned char keyData[MAX_KEY_DATA_SIZE];
+	unsigned char keyData[32];
 	uint32		keyLength;
 } TDEPrincipalKey;
 

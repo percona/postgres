@@ -27,9 +27,9 @@ iv_prefix_debug(const char *iv_prefix, char *out_hex)
 #endif
 
 void
-pg_tde_generate_internal_key(InternalKey *int_key)
+pg_tde_generate_internal_key(InternalKey *int_key, int size)
 {
-	if (!RAND_bytes(int_key->key, INTERNAL_KEY_LEN))
+	if (!RAND_bytes(int_key->key, size))
 		ereport(ERROR,
 				errcode(ERRCODE_INTERNAL_ERROR),
 				errmsg("could not generate internal key: %s",
@@ -39,6 +39,8 @@ pg_tde_generate_internal_key(InternalKey *int_key)
 				errcode(ERRCODE_INTERNAL_ERROR),
 				errmsg("could not generate IV: %s",
 					   ERR_error_string(ERR_get_error(), NULL)));
+
+	int_key->key_size = size;					   
 }
 
 /*

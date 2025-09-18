@@ -11,6 +11,7 @@
 #include "mb/pg_wchar.h"
 #include "utils/builtins.h"
 
+#include "access/pg_tde_keys_common.h"
 #include "keyring/keyring_api.h"
 #include "keyring/keyring_curl.h"
 #include "keyring/keyring_vault.h"

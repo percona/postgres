@@ -6,6 +6,12 @@
 #define MAP_ENTRY_IV_SIZE 16
 #define MAP_ENTRY_AEAD_TAG_SIZE 16
 
+#define KEY_DATA_SIZE_128 16	/* 128 bit encryption */
+#define KEY_DATA_SIZE_256 32	/* 256 bit encryption */
+#define MAX_KEY_DATA_SIZE KEY_DATA_SIZE_256 /* maximum 256 bit encryption */
+
+extern int TdeKeySize;
+
 typedef struct
 {
 	TDEPrincipalKeyInfo data;

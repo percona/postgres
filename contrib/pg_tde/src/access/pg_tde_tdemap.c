@@ -70,10 +70,12 @@ typedef struct TDEMapEntry
 	uint32		type;			/* Part of AAD */
 	uint32		_unused3;		/* Part of AAD */
 
-	uint8		encrypted_key_data[INTERNAL_KEY_LEN];
+	uint8		encrypted_key_data[INTERNAL_KEY_BLOCK_LEN];
 	uint8		key_base_iv[INTERNAL_KEY_IV_LEN];
 
-	uint32		_unused1;		/* Will be 1 in existing files entries. */
+	uint16		key_size;		/* The total size of the key. Currently 16 or 32 bytes */
+	uint16		block_num;		/* If the key is bigger than 16 bytes it is split in blocks */
+
 	uint32		_unused4;
 	uint64		_unused2;		/* Will be 0 in existing files entries. */
 
@@ -398,10 +400,9 @@ pg_tde_initialize_map_entry(TDEMapEntry *map_entry, const TDEPrincipalKey *princ
 	memcpy(map_entry->key_base_iv, rel_key_data->base_iv, INTERNAL_KEY_IV_LEN);
 
 	/*
-	 * We set these fields here so that existing file entries will be
-	 * consistent and future use of these fields easier.
+	 * We set this field here so that existing file entries will be
+	 * consistent and future use of this field easier.
 	 */
-	map_entry->_unused1 = 1;
 	map_entry->_unused2 = 0;
 
 	if (!RAND_bytes(map_entry->entry_iv, MAP_ENTRY_IV_SIZE))
@@ -412,7 +413,7 @@ pg_tde_initialize_map_entry(TDEMapEntry *map_entry, const TDEPrincipalKey *princ
 	AesGcmEncrypt(principal_key->keyData,
 				  map_entry->entry_iv, MAP_ENTRY_IV_SIZE,
 				  (unsigned char *) map_entry, offsetof(TDEMapEntry, encrypted_key_data),
-				  rel_key_data->key, INTERNAL_KEY_LEN,
+				  rel_key_data->key, INTERNAL_KEY_BLOCK_LEN,
 				  map_entry->encrypted_key_data,
 				  map_entry->aead_tag, MAP_ENTRY_AEAD_TAG_SIZE);
 }
@@ -591,7 +592,7 @@ tde_decrypt_rel_key(const TDEPrincipalKey *principal_key, TDEMapEntry *map_entry
 	if (!AesGcmDecrypt(principal_key->keyData,
 					   map_entry->entry_iv, MAP_ENTRY_IV_SIZE,
 					   (unsigned char *) map_entry, offsetof(TDEMapEntry, encrypted_key_data),
-					   map_entry->encrypted_key_data, INTERNAL_KEY_LEN,
+					   map_entry->encrypted_key_data, INTERNAL_KEY_BLOCK_LEN,
 					   key->key,
 					   map_entry->aead_tag, MAP_ENTRY_AEAD_TAG_SIZE))
 		ereport(ERROR,

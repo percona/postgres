@@ -14,13 +14,10 @@ typedef enum ProviderType
 } ProviderType;
 
 #define TDE_KEY_NAME_LEN 256
-#define KEY_DATA_SIZE_128 16	/* 128 bit encryption */
-#define KEY_DATA_SIZE_256 32	/* 256 bit encryption, not yet supported */
-#define MAX_KEY_DATA_SIZE KEY_DATA_SIZE_256 /* maximum 256 bit encryption */
 
 typedef struct KeyData
 {
-	unsigned char data[MAX_KEY_DATA_SIZE];
+	unsigned char data[32];
 	unsigned	len;
 } KeyData;
 

@@ -4,6 +4,7 @@
 #include <openssl/evp.h>
 
 #include "encryption/enc_aes.h"
+#include "pg_tde_guc.h"
 
 #ifdef FRONTEND
 #include "pg_tde_fe.h"
@@ -37,14 +38,26 @@ static const EVP_CIPHER *cipher_gcm = NULL;
 static const EVP_CIPHER *cipher_ctr_ecb = NULL;
 
 void
-AesInit(void)
+AesInit(CipherOption Cipher)
 {
 	OpenSSL_add_all_algorithms();
 	ERR_load_crypto_strings();
 
-	cipher_cbc = EVP_aes_128_cbc();
-	cipher_gcm = EVP_aes_128_gcm();
-	cipher_ctr_ecb = EVP_aes_128_ecb();
+	switch (Cipher)
+	{
+		case TDE_CIPHER_AES_128:
+			cipher_cbc = EVP_aes_128_cbc();
+			cipher_gcm = EVP_aes_128_gcm();
+			cipher_ctr_ecb = EVP_aes_128_ecb();
+		break;
+		case TDE_CIPHER_AES_256:
+			cipher_cbc = EVP_aes_256_cbc();
+			cipher_gcm = EVP_aes_256_gcm();
+			cipher_ctr_ecb = EVP_aes_256_ecb();
+			break;
+		default:
+			Assert(false);
+	}
 }
 
 static void
@@ -210,7 +223,8 @@ AesGcmDecrypt(const unsigned char *key, const unsigned char *iv, int iv_len, con
 	if (EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_TAG, tag_len, tag) == 0)
 		ereport(ERROR,
 				errmsg("EVP_CTRL_GCM_SET_TAG failed. OpenSSL error: %s", ERR_error_string(ERR_get_error(), NULL)));
-
+// int EVP_EncryptUpdate(EVP_CIPHER_CTX *ctx, unsigned char *out,
+                    //   int *outl, const unsigned char *in, int inl);
 	if (EVP_DecryptUpdate(ctx, NULL, &out_len, aad, aad_len) == 0)
 		ereport(ERROR,
 				errmsg("EVP_CipherUpdate failed. OpenSSL error: %s", ERR_error_string(ERR_get_error(), NULL)));

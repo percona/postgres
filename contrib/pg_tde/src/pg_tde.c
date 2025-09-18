@@ -70,7 +70,7 @@ tde_shmem_startup(void)
 	PrincipalKeyShmemInit();
 	TDEXLogShmemInit();
 	TDEXLogSmgrInit();
-	TDEXLogSmgrInitWrite(EncryptXLog);
+	TDEXLogSmgrInitWrite(EncryptXLog, TdeKeySize);
 
 	LWLockRelease(AddinShmemInitLock);
 }
@@ -93,8 +93,8 @@ _PG_init(void)
 	check_percona_api_version();
 
 	pg_tde_init_data_dir();
-	AesInit();
 	TdeGucInit();
+	AesInit(Cipher);
 	TdeEventCaptureInit();
 	InstallFileKeyring();
 	InstallVaultV2Keyring();

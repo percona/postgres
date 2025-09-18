@@ -10,6 +10,13 @@
 extern bool AllowInheritGlobalProviders;
 extern bool EncryptXLog;
 extern bool EnforceEncryption;
+extern int Cipher;
+
+typedef enum CipherOption
+{
+	TDE_CIPHER_AES_128,
+	TDE_CIPHER_AES_256,
+} CipherOption;
 
 extern void TdeGucInit(void);
 
