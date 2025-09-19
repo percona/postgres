@@ -1,5 +1,7 @@
 # Key and key provider management
 
+`pg_tde` uses a hierarchy of principal and internal keys to encrypt database files. This chapter covers how to manage these keys, including rotation, regeneration, storage, and key provider configuration, so you can keep your encrypted data secure and accessible.
+
 ## Principal key rotation
 
 You can rotate principal keys to comply with common policies and to handle situations with potentially exposed principal keys.

@@ -47,7 +47,7 @@ Subsequent decisions are done using a slightly modified Storage Manager (SMGR) A
 
 ## WAL encryption
 
-WAL encryption is controlled globally via a global GUC variable, `pg_tde.wal_encrypt`, that requires a server restart.
+You can control WAL encryption globally via the [`pg_tde.wal_encrypt`](../variables.md#pg_tdewal_encrypt) GUC variable, which requires a server restart.
 
 WAL keys also contain the [LSN :octicons-link-external-16:](https://www.postgresql.org/docs/17/wal-internals.html) of the first WAL write after key creation. This allows `pg_tde` to know which WAL ranges are encrypted or not and with which key.
 
@@ -63,7 +63,7 @@ Currently `pg_tde` only encrypts `heap` tables and other files such as indexes, 
 
 Indexes include any kind of index that goes through the SMGR API, not just the built-in indexes in PostgreSQL.
 
-In theory, it is also possible to encrypt any other table access method that goes through the SMGR API by similarly providing a marker access method to it and extending the event triggers.
+Other table access methods that use the SMGR API could also be encrypted. This requires adding a marker access method and extending the event triggers, using the same approach as with heap tables.
 
 ## Storage Manager (SMGR) API
 
@@ -72,4 +72,4 @@ In theory, it is also possible to encrypt any other table access method that goe
 * Making the API generally extensible, where extensions can inject custom code into the storage manager
 * Adding tracking information for files. When a new file is created for an existing relation, references to the existing file are also passed to the SMGR functions
 
-With these modifications, the `pg_tde` extension can implement an additional layer on top of the normal Magnetic Disk SMGR API: if the related table is encrypted, `pg_tde` encrypts a file before writing it to the disk and, similarly, decrypts it after reading when needed.
+With these modifications, `pg_tde` implements an additional layer on top of the normal Magnetic Disk SMGR API: if the related table is encrypted, `pg_tde` encrypts a file before writing it to the disk and, similarly, decrypts it after reading when needed.
