@@ -637,6 +637,9 @@
 /* PostgreSQL minor version number */
 #undef PG_MINORVERSION_NUM
 
+/* PostgreSQL Percona version as a string */
+#undef PG_PERCONAVERSION
+
 /* Define to 1 to use <stdbool.h> to define type bool. */
 #undef PG_USE_STDBOOL
 
