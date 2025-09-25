@@ -497,6 +497,8 @@ heapam_relation_set_new_filelocator(Relation rel,
 {
 	SMgrRelation srel;
 
+	RelFileLocator oldlocator = rel->rd_locator;
+
 	/*
 	 * Initialize to the minimum XID that could put tuples in the table. We
 	 * know that no xacts older than RecentXmin are still running, so that
@@ -514,7 +516,7 @@ heapam_relation_set_new_filelocator(Relation rel,
 	 */
 	*minmulti = GetOldestMultiXactId();
 
-	srel = RelationCreateStorage(*newrlocator, persistence, true);
+	srel = RelationCreateStorage(oldlocator, *newrlocator, persistence, true);
 
 	/*
 	 * If required, set up an init fork for an unlogged table so that it can
@@ -524,7 +526,7 @@ heapam_relation_set_new_filelocator(Relation rel,
 	{
 		Assert(rel->rd_rel->relkind == RELKIND_RELATION ||
 			   rel->rd_rel->relkind == RELKIND_TOASTVALUE);
-		smgrcreate(srel, INIT_FORKNUM, false);
+		smgrcreate(oldlocator, srel, INIT_FORKNUM, false);
 		log_smgrcreate(newrlocator, INIT_FORKNUM);
 	}
 
@@ -557,7 +559,7 @@ heapam_relation_copy_data(Relation rel, const RelFileLocator *newrlocator)
 	 * NOTE: any conflict in relfilenumber value will be caught in
 	 * RelationCreateStorage().
 	 */
-	dstrel = RelationCreateStorage(*newrlocator, rel->rd_rel->relpersistence, true);
+	dstrel = RelationCreateStorage(rel->rd_locator, *newrlocator, rel->rd_rel->relpersistence, true);
 
 	/* copy main fork */
 	RelationCopyStorage(RelationGetSmgr(rel), dstrel, MAIN_FORKNUM,
@@ -569,7 +571,7 @@ heapam_relation_copy_data(Relation rel, const RelFileLocator *newrlocator)
 	{
 		if (smgrexists(RelationGetSmgr(rel), forkNum))
 		{
-			smgrcreate(dstrel, forkNum, false);
+			smgrcreate(rel->rd_locator, dstrel, forkNum, false);
 
 			/*
 			 * WAL log creation if the relation is persistent, or this is the
