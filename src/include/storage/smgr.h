@@ -20,6 +20,8 @@
 
 typedef uint8 SMgrId;
 
+extern PGDLLIMPORT SMgrId storage_manager_id;
+
 /*
  * smgr.c maintains a table of SMgrRelation objects, which are essentially
  * cached file handles.  An SMgrRelation is created (if not already present)
