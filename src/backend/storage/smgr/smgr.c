@@ -36,6 +36,8 @@ static int	NSmgr = 0;
 
 static Size LargestSMgrRelationSize = 0;
 
+SMgrId		storage_manager_id;
+
 /*
  * Each backend has a hashtable that stores all extant SMgrRelation objects.
  * In addition, "unowned" SMgrRelation objects are chained together in a list.
@@ -183,7 +185,7 @@ smgropen(RelFileLocator rlocator, BackendId backend)
 		for (int i = 0; i <= MAX_FORKNUM; ++i)
 			reln->smgr_cached_nblocks[i] = InvalidBlockNumber;
 
-		reln->smgr_which = MdSMgrId;	/* we only have md.c at present */
+		reln->smgr_which = storage_manager_id;
 
 		/* implementation-specific initialization */
 		smgrsw[reln->smgr_which].smgr_open(reln);
