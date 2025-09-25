@@ -376,9 +376,9 @@ smgrcloserellocator(RelFileLocatorBackend rlocator)
  * to be created.
  */
 void
-smgrcreate(SMgrRelation reln, ForkNumber forknum, bool isRedo)
+smgrcreate(RelFileLocator relold, SMgrRelation reln, ForkNumber forknum, bool isRedo)
 {
-	smgrsw[reln->smgr_which].smgr_create(reln, forknum, isRedo);
+	smgrsw[reln->smgr_which].smgr_create(relold, reln, forknum, isRedo);
 }
 
 /*
