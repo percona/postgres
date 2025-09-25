@@ -614,6 +614,9 @@
 /* PostgreSQL minor version number */
 #undef PG_MINORVERSION_NUM
 
+/* PostgreSQL Percona version as a string */
+#undef PG_PERCONAVERSION
+
 /* PostgreSQL version as a string */
 #undef PG_VERSION
 
