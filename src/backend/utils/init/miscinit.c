@@ -1884,6 +1884,8 @@ void
 register_builtin_dynamic_managers(void)
 {
 	mdsmgr_register();
+
+	storage_manager_id = MdSMgrId;
 }
 
 /*
