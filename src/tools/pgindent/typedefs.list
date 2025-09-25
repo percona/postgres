@@ -1660,6 +1660,7 @@ Material
 MaterialPath
 MaterialState
 MdPathStr
+MdSMgrRelationData
 MdfdVec
 Memoize
 MemoizeEntry
