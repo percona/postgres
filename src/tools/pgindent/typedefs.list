@@ -1527,6 +1527,7 @@ MVNDistinctItem
 Material
 MaterialPath
 MaterialState
+MdSMgrRelationData
 MdfdVec
 Memoize
 MemoizeEntry
