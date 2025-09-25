@@ -167,6 +167,7 @@ endif
 pg_version_major = pg_version_arr[0].to_int()
 pg_version_minor = pg_version_arr[1].to_int()
 pg_version_num = (pg_version_major * 10000) + pg_version_minor
+pg_percona_ver = '1'
 
 pg_url = 'https://www.postgresql.org/'
 
@@ -177,6 +178,7 @@ cdata.set_quoted('PACKAGE_VERSION', pg_version)
 cdata.set_quoted('PACKAGE_STRING', 'PostgreSQL @0@'.format(pg_version))
 cdata.set_quoted('PACKAGE_TARNAME', 'postgresql')
 
+pg_version += ' - Percona Server for PostgreSQL ' + pg_version_major.to_string() + '.' + pg_version_minor.to_string() + '.' + pg_percona_ver
 pg_version += get_option('extra_version')
 cdata.set_quoted('PG_VERSION', pg_version)
 cdata.set_quoted('PG_MAJORVERSION', pg_version_major.to_string())
