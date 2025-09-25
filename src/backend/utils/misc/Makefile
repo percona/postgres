@@ -21,6 +21,7 @@ OBJS = \
 	guc_funcs.o \
 	guc_tables.o \
 	help_config.o \
+	percona.o \
 	pg_config.o \
 	pg_controldata.o \
 	pg_rusage.o \
