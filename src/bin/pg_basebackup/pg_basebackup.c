@@ -687,7 +687,7 @@ StartLogStreamer(char *startpos, uint32 timeline, char *sysidentifier,
 			exit(1);
 		}
 		pg_tde_save_server_key(principalKey, false);
-		TDEXLogSmgrInitWrite(true);
+		TDEXLogSmgrInitWrite(true, 16);
 	}
 #endif
 
