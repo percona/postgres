@@ -23,8 +23,10 @@
 #endif
 
 #define PG_TDE_WAL_KEY_FILE_MAGIC_OLD 0x014B4557	/* old version ID value = WEK 01 */
+#define PG_TDE_WAL_KEY_FILE_NAME_OLD "wal_keys"
+
 #define PG_TDE_WAL_KEY_FILE_MAGIC 0x024B4557	/* version ID value = WEK 02 */
-#define PG_TDE_WAL_KEY_FILE_NAME "wal_keys"
+#define PG_TDE_WAL_KEY_FILE_NAME "wal_keys_v2"
 
 typedef struct WalKeyFileHeader
 {
@@ -844,11 +846,34 @@ pg_tde_get_server_key_info(void)
 	 */
 	fd = pg_tde_open_wal_key_file_basic(get_wal_key_file_path(), O_RDONLY, true);
 
-	/* The file does not exist. */
-	if (fd < 0)
-		return NULL;
+	if (fd >= 0)
+		pg_tde_wal_key_file_header_read(get_wal_key_file_path(), fd, &fheader, &bytes_read);
+	else
+	{
+		/* 
+		 * TODO: An ugly hack for now, we need to get a key info when rewriting 
+		 * an old file...
+		 */
+		char	old_wal_key_file_path[MAXPGPATH] = {0};
 
-	pg_tde_wal_key_file_header_read(get_wal_key_file_path(), fd, &fheader, &bytes_read);
+		join_path_components(old_wal_key_file_path, pg_tde_get_data_dir(), PG_TDE_WAL_KEY_FILE_NAME_OLD);
+
+		fd = pg_tde_open_wal_key_file_basic(old_wal_key_file_path, O_RDONLY, true);
+
+		/* The file does not exist */
+		if (fd < 0)
+			return NULL;
+
+		bytes_read = pg_pread(fd, &fheader, sizeof(WalKeyFileHeader), 0);
+
+		if (bytes_read > 0 && (bytes_read != sizeof(WalKeyFileHeader)
+			|| fheader.file_version != PG_TDE_WAL_KEY_FILE_MAGIC_OLD))
+		{
+			ereport(FATAL,
+					errcode_for_file_access(),
+					errmsg("old WAL key file \"%s\" is corrupted: %m", old_wal_key_file_path));
+		}
+	}
 
 	CloseTransientFile(fd);
 
@@ -903,5 +928,158 @@ pg_tde_delete_server_key(void)
 
 	/* Remove whole key map file */
 	durable_unlink(get_wal_key_file_path(), ERROR);
+}
+
+/* 
+ * Functions for rewriting old wal_keys into a new format file.
+ *
+ * TODO: The old format should be deprecated. And this code should be removed
+ * eventually.
+ */
+static int
+pg_tde_open_old_wal_key_file_read(const char *filename,
+							  bool ignore_missing,
+							  off_t *curr_pos)
+{
+	int			fd;
+	WalKeyFileHeader fheader;
+	off_t		bytes_read = 0;
+
+	Assert(LWLockHeldByMeInMode(tde_lwlock_enc_keys(), LW_SHARED) ||
+		   LWLockHeldByMeInMode(tde_lwlock_enc_keys(), LW_EXCLUSIVE));
+
+	fd = pg_tde_open_wal_key_file_basic(filename, O_RDONLY | PG_BINARY, ignore_missing);
+	if (ignore_missing && fd < 0)
+		return fd;
+
+	bytes_read = pg_pread(fd, &fheader, sizeof(WalKeyFileHeader), 0);
+
+	/* File is empty */
+	if (bytes_read == 0)
+		return fd;
+
+	if (bytes_read != sizeof(WalKeyFileHeader)
+		|| fheader.file_version != PG_TDE_WAL_KEY_FILE_MAGIC_OLD)
+	{
+		ereport(FATAL,
+				errcode_for_file_access(),
+				errmsg("old WAL key file \"%s\" is corrupted: %m", filename));
+	}
+	*curr_pos = bytes_read;
+
+	return fd;
+}
+
+static bool
+pg_tde_read_one_wal_key_file_old_entry(int fd,
+								   WalKeyFileEntryOld *entry,
+								   off_t *offset)
+{
+	off_t		bytes_read = 0;
+
+	Assert(entry);
+	Assert(offset);
+
+	bytes_read = pg_pread(fd, entry, sizeof(WalKeyFileEntryOld), *offset);
+
+	/* We've reached the end of the file. */
+	if (bytes_read != sizeof(WalKeyFileEntryOld))
+		return false;
+
+	*offset += bytes_read;
+
+	return true;
+}
+
+static WalEncryptionRange *
+pg_tde_wal_range_from_old_entry(const TDEPrincipalKey *principal_key, WalKeyFileEntryOld *entry)
+{
+	WalEncryptionRange *range = tde_wal_prealloc_range == NULL ? palloc0_object(WalEncryptionRange) : tde_wal_prealloc_range;
+
+	tde_wal_prealloc_range = NULL;
+
+	Assert(principal_key);
+
+	range->type = entry->range_type;
+	range->start = entry->range_start;
+	range->end.tli = MaxTimeLineID;
+	range->end.lsn = MaxXLogRecPtr;
+	range->key.key_len = INTERNAL_KEY_OLD_LEN;
+
+	memcpy(range->key.base_iv, entry->key_base_iv, INTERNAL_KEY_IV_LEN);
+	if (!AesGcmDecrypt(principal_key->keyData, principal_key->keyLength,
+					   entry->entry_iv, MAP_ENTRY_IV_SIZE,
+					   (unsigned char *) entry, offsetof(WalKeyFileEntryOld, encrypted_key_data),
+					   entry->encrypted_key_data, INTERNAL_KEY_OLD_LEN,
+					   range->key.key,
+					   entry->aead_tag, MAP_ENTRY_AEAD_TAG_SIZE))
+		ereport(ERROR,
+				errmsg("Failed to decrypt key, incorrect principal key or corrupted key file %u", principal_key->keyLength));
+
+	return range;
+}
+
+void
+pg_tde_update_wal_keys_file(void)
+{
+	LWLock	   *lock_pk = tde_lwlock_enc_keys();
+	TDEPrincipalKey *principal_key;
+	TDESignedPrincipalKeyInfo signed_key_info;
+	char	wal_key_file_path[MAXPGPATH] = {0};
+	off_t	read_pos,
+			write_pos;
+	int		old_fd,
+			new_fd;
+
+	join_path_components(wal_key_file_path, pg_tde_get_data_dir(), PG_TDE_WAL_KEY_FILE_NAME_OLD);
+
+	/* Check if there is anything to do */
+	if (access(wal_key_file_path, F_OK) != 0)
+	 	return;
+
+	/* 
+	 * No real need in lock here as the func should be called only on the server
+	 * start, but GetPrincipalKey() expects one. 
+	 */
+	LWLockAcquire(lock_pk, LW_EXCLUSIVE);
+
+
+	old_fd = pg_tde_open_old_wal_key_file_read(wal_key_file_path, false, &read_pos);
+
+	/* 
+	 * The old file exists and it's not empty, hece a principal key
+	 * should exist as well.
+	 */
+	principal_key = GetPrincipalKey(GLOBAL_DATA_TDE_OID, LW_EXCLUSIVE);
+	if (principal_key == NULL)
+	{
+		ereport(ERROR,
+				errmsg("could not get server principal key"),
+				errdetail("Failed to updated format of WAL keys."));
+	}
+	pg_tde_sign_principal_key_info(&signed_key_info, principal_key);
+
+	new_fd = pg_tde_open_wal_key_file_write(get_wal_key_file_path(), &signed_key_info, true, &write_pos);
+
+	while (1)
+	{
+		WalKeyFileEntryOld	old_entry;
+		WalKeyFileEntry		new_entry;
+		WalEncryptionRange	*range;
+
+		if (!pg_tde_read_one_wal_key_file_old_entry(old_fd, &old_entry, &read_pos))
+			break;
+
+		range = pg_tde_wal_range_from_old_entry(principal_key, &old_entry);
+		pg_tde_initialize_wal_key_file_entry(&new_entry, principal_key, range);
+		pg_tde_write_one_wal_key_file_entry(new_fd, &new_entry, &write_pos, get_wal_key_file_path());
+		pfree(range);
+	}
+
+	CloseTransientFile(old_fd);
+	CloseTransientFile(new_fd);
+	durable_unlink(wal_key_file_path, ERROR);
+
+	LWLockRelease(lock_pk);
 }
 #endif
