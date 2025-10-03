@@ -10,7 +10,7 @@ To get started with `pg_tde`, follow these steps:
 
 * Add `pg_tde` to the `shared_preload_libraries` in `postgresql.conf` as this is required for the SMGR extensions
 * Execute `CREATE EXTENSION pg_tde` in the databases where they want to use encryption
-* Optionally, enable `pg_tde.wal_encrypt` in `postgresql.conf`
+* Optionally, enable `pg_tde.wal_encrypt` in `postgresql.conf` to encrypt WAL writes
 * Optionally, disable `pg_tde.inherit_global_providers` in `postgresql.conf` (it is enabled by default)
 
 ## Add providers
@@ -153,12 +153,19 @@ Users with management permissions to a specific database `(pg_tde_(grant/revoke)
 
 Also the `pg_tde_(grant/revoke)_database_key_management_to_role` function deals with only the specific permission for the above function: it allows a user to change the key for the database, but not to modify the provider configuration.
 
-## Create encrypted tables
+## Create an encrypted table
 
-To create an encrypted table or modify an existing table to be encrypted, use the following commands:
+To create an encrypted table, use the following command:
 
 ```sql
 CREATE TABLE t1(a INT) USING tde_heap;
+```
+
+## Alter an encrypted table
+
+To alter or modify an encrypted table, use the following command:
+
+```sql
 ALTER TABLE t1 SET ACCESS METHOD tde_heap;
 ```
 

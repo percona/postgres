@@ -10,11 +10,11 @@ Rotation means that `pg_tde` generates a new version of the principal key, and r
 
 ## Internal key regeneration
 
-Internal keys for tables, indexes and other data files are fixed once a file is created. There's no way to re-encrypt a file.
+Internal keys for tables, indexes and other data files are generated once a file is created. There's no way to re-encrypt a file.
 
 There are workarounds for this, because operations that move the table data to a new file, such as `VACUUM FULL` or an `ALTER TABLE` that rewrites the file will create a new key for the new file, essentially rotating the internal key. This however means taking an exclusive lock on the table for the duration of the operation, which might not be desirable for huge tables.
 
-WAL internal keys are also fixed to the respective ranges. To generate a new WAL key you need to restart the database.
+WAL internal keys are fixed once created. Every time the server (re)starts, a new WAL key is generated. If WAL encryption is enabled (using `pg_tde.wal_encrypt`), all WAL writes following the creation of the new key are encrypted with it until **another** key is generated at the next restart. This ensures that each WAL segment uses a consistent encryption key, without requiring you to manage key rotation manually.
 
 ## Internal key storage
 

@@ -9,7 +9,7 @@ Together, these components form the foundation of data-at-rest encryption in `pg
 `pg_tde` uses two kinds of keys for encryption:
 
 1. Internal keys to encrypt the data. They are stored in PostgreSQL's data directory under `$PGDATA/pg_tde`.
-2. Higher-level keys to encrypt internal keys. These keys are called *principal keys*. They are stored externally, in a Key Management System (KMS) using the key provider API.
+2. Principal keys, which encrypt internal keys, are stored externally in a Key Management System (KMS) using the key provider API.
 
 `pg_tde` uses one principal key per database. Every internal key for the given database is encrypted using this principal key.
 
