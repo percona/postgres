@@ -36,7 +36,7 @@ In `pg_tde`, a Key Management System (KMS) is treated as an external key provide
 When you configure a key provider, `pg_tde`:
 
 * Uploads new principal keys when they are created
-* Retrieves principal keys from the provider when needed for decryption
+* Retrieves principal keys from the provider when needed for decryption (for example, at startup or restart)
 * Caches retrieved keys to reduce repeated lookups
 
 !!! note
