@@ -26,10 +26,6 @@ You can select from multiple easy-to-follow installation options to install `pg_
 
     You can enable `pg_tde` when deploying Percona Server for PostgreSQL in Kubernetes using the Percona Operator.
 
-=== ":simple-everest: Everest"
-
-    test
-
 === ":octicons-download-16: Tar download (not recommended)"
 
     `pg_tde` is included in the Percona Distribution for PostgreSQL tarball. Select the below link to access the step-by-step guide. 
