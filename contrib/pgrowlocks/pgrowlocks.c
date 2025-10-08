@@ -96,7 +96,7 @@ pgrowlocks(PG_FUNCTION_ARGS)
 				(errcode(ERRCODE_WRONG_OBJECT_TYPE),
 				 errmsg("\"%s\" is not a table",
 						RelationGetRelationName(rel))));
-	else if (rel->rd_rel->relam != HEAP_TABLE_AM_OID)
+	else if (rel->rd_tableam != GetHeapamTableAmRoutine())
 		ereport(ERROR,
 				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
 				 errmsg("only heap AM is supported")));
