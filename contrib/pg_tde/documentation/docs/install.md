@@ -20,7 +20,7 @@ You can select from multiple easy-to-follow installation options to install `pg_
 
     `pg_tde` is a part of the Percona Distribution for PostgreSQL Docker image. Use this image to enjoy full encryption capabilities. Check below to get access to a detailed step-by-step guide. 
 
-    [Run in Docker :octicons-link-external-16:](https://docs.percona.com/postgresql/latest/docker.html){.md-button}
+    [Run in Docker :octicons-link-external-16:](https://docs.percona.com/postgresql/17/docker.html#enable-encryption){.md-button}
 
 === ":simple-kubernetes: Kubernetes"
 
