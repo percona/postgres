@@ -20,7 +20,7 @@
 #include "storage/smgr.h"
 #include "storage/sync.h"
 
-extern PGDLLIMPORT const PgAioHandleCallbacks aio_md_readv_cb;
+extern PGDLLIMPORT PgAioHandleCallbacks aio_md_readv_cb;
 
 /* registration function for md storage manager */
 extern void mdsmgr_register(void);
@@ -33,5 +33,8 @@ extern void DropRelationFiles(RelFileLocator *delrels, int ndelrels, bool isRedo
 extern int	mdsyncfiletag(const FileTag *ftag, char *path);
 extern int	mdunlinkfiletag(const FileTag *ftag, char *path);
 extern bool mdfiletagmatches(const FileTag *ftag, const FileTag *candidate);
+
+extern PgAioResult
+md_readv_complete(PgAioHandle *ioh, PgAioResult prior_result, uint8 cb_data);
 
 #endif							/* MD_H */

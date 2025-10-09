@@ -241,10 +241,9 @@ static MdfdVec *_mdfd_getseg(MdSMgrRelation reln, ForkNumber forknum,
 static BlockNumber _mdnblocks(MdSMgrRelation reln, ForkNumber forknum,
 							  MdfdVec *seg);
 
-static PgAioResult md_readv_complete(PgAioHandle *ioh, PgAioResult prior_result, uint8 cb_data);
 static void md_readv_report(PgAioResult result, const PgAioTargetData *td, int elevel);
 
-const PgAioHandleCallbacks aio_md_readv_cb = {
+PgAioHandleCallbacks aio_md_readv_cb = {
 	.complete_shared = md_readv_complete,
 	.report = md_readv_report,
 };
@@ -2074,7 +2073,7 @@ mdfiletagmatches(const FileTag *ftag, const FileTag *candidate)
 /*
  * AIO completion callback for mdstartreadv().
  */
-static PgAioResult
+PgAioResult
 md_readv_complete(PgAioHandle *ioh, PgAioResult prior_result, uint8 cb_data)
 {
 	PgAioTargetData *td = pgaio_io_get_target_data(ioh);
