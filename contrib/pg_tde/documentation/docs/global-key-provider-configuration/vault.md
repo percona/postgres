@@ -100,7 +100,7 @@ Example output:
 
 ```css
 Key                  Value
-token                hvs.CAESIC2TJ8PtHWmiY_woML1UO2mpLalN3rse2s4ne7mz8fi4Gh4KHGh2cy5xc0VZcVJGS2lRNnpoRWM3enhaekc2Qmo
+token                hvs.{secret_code}
 token_policies       ["default" "tde-policy"]
 ```
 
@@ -109,7 +109,7 @@ token_policies       ["default" "tde-policy"]
 Copy the generated token into the shared secrets directory so PostgreSQL can use it:
 
 ```bash
-echo "hvs.CAESIC2TJ8PtHWmiY_woML1UO2mpLalN3rse2s4ne7mz8fi4Gh4KHGh2cy5xc0VZcVJGS2lRNnpoRWM3enhaekc2Qmo" > /vault/secrets/vault_token.txt
+echo "hvs.secret_code" > /vault/secrets/vault_token.txt
 ```
 
 !!! tip
