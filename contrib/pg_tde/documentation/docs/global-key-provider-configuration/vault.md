@@ -81,6 +81,24 @@ This allows `pg_tde` to:
 - read, create, and update encryption keys
 - list and access metadata for the `tde/` path
 
+!!! tip
+
+    If you encounter the following error:
+
+    ```sql
+    ERROR: failed to get mount info for "http://vault:8200" at mountpoint ...
+    ```
+
+    Ensure your Vault policy includes the following path:
+
+    ```ini
+    path "sys/mounts/*" {
+      capabilities = ["read"]
+    }
+    ```
+
+    This allows `pg_tde` to read the mount metadata from Vault.
+
 ### 4. Create an Authentication Method and Token
 
 Enable the AppRole authentication method (optional but recommended):
