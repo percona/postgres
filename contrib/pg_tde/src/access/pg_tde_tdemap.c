@@ -39,8 +39,11 @@
 }
 #endif
 
-#define PG_TDE_FILEMAGIC			0x03454454	/* version ID value = TDE 03 */
-#define PG_TDE_MAP_FILENAME			"%d_keys"
+#define PG_TDE_FILEMAGIC_OLD			0x03454454	/* old version ID value = TDE 03 */
+#define PG_TDE_MAP_OLD_FNAME_SUFFIX			"_keys"
+
+#define PG_TDE_FILEMAGIC			0x04454454	/* version ID value = TDE 04 */
+#define PG_TDE_MAP_FILENAME			"%d_keys_v2" /* TODO: should be _v2 of _v4 ? */
 
 typedef enum
 {
@@ -63,14 +66,14 @@ typedef struct TDEFileHeader
  * encrypting/decrypting existing keys from the key files, so any changes here
  * might break existing clusters.
  */
-typedef struct TDEMapEntry
+typedef struct TDEMapEntryOld
 {
 	Oid			spcOid;			/* Part of AAD */
 	RelFileNumber relNumber;	/* Part of AAD */
 	uint32		type;			/* Part of AAD */
 	uint32		_unused3;		/* Part of AAD */
 
-	uint8		encrypted_key_data[INTERNAL_KEY_MAX_LEN];
+	uint8		encrypted_key_data[INTERNAL_KEY_OLD_LEN];
 	uint8		key_base_iv[INTERNAL_KEY_IV_LEN];
 
 	uint32		_unused1;		/* Will be 1 in existing files entries. */
@@ -80,6 +83,21 @@ typedef struct TDEMapEntry
 	/* IV and tag used when encrypting the key itself */
 	unsigned char entry_iv[MAP_ENTRY_IV_SIZE];
 	unsigned char aead_tag[MAP_ENTRY_AEAD_TAG_SIZE];
+} TDEMapEntryOld;
+
+typedef struct TDEMapEntry
+{
+	uint32		key_len;		/* Part of AAD */
+	Oid			spcOid;			/* Part of AAD */
+	RelFileNumber relNumber;	/* Part of AAD */
+	uint32		type;			/* Part of AAD */
+
+	/* IV and tag used when encrypting the key itself */
+	unsigned char entry_iv[MAP_ENTRY_IV_SIZE];
+	unsigned char aead_tag[MAP_ENTRY_AEAD_TAG_SIZE];
+
+	uint8		key_base_iv[INTERNAL_KEY_IV_LEN];
+	uint8		encrypted_key_data[INTERNAL_KEY_MAX_LEN];
 } TDEMapEntry;
 
 static void pg_tde_set_db_file_path(Oid dbOid, char *path);
@@ -397,12 +415,7 @@ pg_tde_initialize_map_entry(TDEMapEntry *map_entry, const TDEPrincipalKey *princ
 	map_entry->type = MAP_ENTRY_TYPE_KEY;
 	memcpy(map_entry->key_base_iv, rel_key_data->base_iv, INTERNAL_KEY_IV_LEN);
 
-	/*
-	 * We set these fields here so that existing file entries will be
-	 * consistent and future use of these fields easier.
-	 */
-	map_entry->_unused1 = 1;
-	map_entry->_unused2 = 0;
+	map_entry->key_len = rel_key_data->key_len;
 
 	if (!RAND_bytes(map_entry->entry_iv, MAP_ENTRY_IV_SIZE))
 		ereport(ERROR,
@@ -411,8 +424,8 @@ pg_tde_initialize_map_entry(TDEMapEntry *map_entry, const TDEPrincipalKey *princ
 
 	AesGcmEncrypt(principal_key->keyData, principal_key->keyLength,
 				  map_entry->entry_iv, MAP_ENTRY_IV_SIZE,
-				  (unsigned char *) map_entry, offsetof(TDEMapEntry, encrypted_key_data),
-				  rel_key_data->key, INTERNAL_KEY_MAX_LEN,
+				  (unsigned char *) map_entry, offsetof(TDEMapEntry, entry_iv),
+				  rel_key_data->key, rel_key_data->key_len,
 				  map_entry->encrypted_key_data,
 				  map_entry->aead_tag, MAP_ENTRY_AEAD_TAG_SIZE);
 }
@@ -590,14 +603,15 @@ tde_decrypt_rel_key(const TDEPrincipalKey *principal_key, TDEMapEntry *map_entry
 
 	if (!AesGcmDecrypt(principal_key->keyData, principal_key->keyLength,
 					   map_entry->entry_iv, MAP_ENTRY_IV_SIZE,
-					   (unsigned char *) map_entry, offsetof(TDEMapEntry, encrypted_key_data),
-					   map_entry->encrypted_key_data, INTERNAL_KEY_MAX_LEN,
+					   (unsigned char *) map_entry, offsetof(TDEMapEntry, entry_iv),
+					   map_entry->encrypted_key_data, map_entry->key_len,
 					   key->key,
 					   map_entry->aead_tag, MAP_ENTRY_AEAD_TAG_SIZE))
 		ereport(ERROR,
 				errmsg("Failed to decrypt key, incorrect principal key or corrupted key file"));
 
 	memcpy(key->base_iv, map_entry->key_base_iv, INTERNAL_KEY_IV_LEN);
+	key->key_len = map_entry->key_len;
 
 	return key;
 }
@@ -785,10 +799,36 @@ pg_tde_get_principal_key_info(Oid dbOid)
 	fd = pg_tde_open_file_basic(db_map_path, O_RDONLY, true);
 
 	/* The file does not exist. */
-	if (fd < 0)
-		return NULL;
+	if (fd >= 0)
+		pg_tde_file_header_read(db_map_path, fd, &fheader, &bytes_read);
+	else
+	{
+		/* 
+		 * TODO: An ugly hack for now, we need to get a key info when rewriting 
+		 * an old file...
+		 */
+		char	old_key_file_path[MAXPGPATH] = {0};
+		char	*fname = psprintf("%d"PG_TDE_MAP_OLD_FNAME_SUFFIX, dbOid);
 
-	pg_tde_file_header_read(db_map_path, fd, &fheader, &bytes_read);
+		join_path_components(old_key_file_path, pg_tde_get_data_dir(), fname);
+		pfree(fname);
+
+		fd = pg_tde_open_file_basic(old_key_file_path, O_RDONLY, true);
+
+		/* The file does not exist */
+		if (fd < 0)
+			return NULL;
+
+		bytes_read = pg_pread(fd, &fheader, sizeof(TDEFileHeader), 0);
+
+		if (bytes_read > 0 && (bytes_read != sizeof(TDEFileHeader)
+			|| fheader.file_version != PG_TDE_FILEMAGIC_OLD))
+		{
+			ereport(FATAL,
+					errcode_for_file_access(),
+					errmsg("old smgr key file \"%s\" is corrupted: %m", old_key_file_path));
+		}
+	}
 
 	CloseTransientFile(fd);
 
@@ -881,3 +921,189 @@ pg_tde_get_smgr_key(RelFileLocator rel)
 
 	return rel_key;
 }
+
+#ifndef FRONTEND
+
+/* 
+ * Functions for rewriting old smgr _key into a new format file.
+ *
+ * TODO: The old format should be deprecated. And this code should be removed
+ * eventually.
+ */
+
+static int
+pg_tde_open_old_file_read(const char *tde_filename, bool ignore_missing, off_t *curr_pos)
+{
+	int			fd;
+	TDEFileHeader fheader;
+	off_t		bytes_read = 0;
+
+	Assert(LWLockHeldByMeInMode(tde_lwlock_enc_keys(), LW_SHARED) || 
+		   LWLockHeldByMeInMode(tde_lwlock_enc_keys(), LW_EXCLUSIVE));
+
+	fd = pg_tde_open_file_basic(tde_filename, O_RDONLY | PG_BINARY, ignore_missing);
+	if (ignore_missing && fd < 0)
+		return fd;
+
+	bytes_read = pg_pread(fd, &fheader, sizeof(TDEFileHeader), 0);
+
+	/* File is empty */
+	if (bytes_read == 0)
+		return fd;
+
+	if (bytes_read != sizeof(TDEFileHeader)
+		|| fheader.file_version != PG_TDE_FILEMAGIC_OLD)
+	{
+		ereport(FATAL,
+				errcode_for_file_access(),
+				errmsg("old TDE map file \"%s\" is corrupted: %m", tde_filename));
+	}
+
+	*curr_pos = bytes_read;
+
+	return fd;
+}
+
+static bool
+pg_tde_read_one_old_map_entry(int map_file, TDEMapEntryOld *map_entry, off_t *offset)
+{
+	off_t		bytes_read = 0;
+
+	Assert(map_entry);
+	Assert(offset);
+
+	bytes_read = pg_pread(map_file, map_entry, sizeof(TDEMapEntryOld), *offset);
+
+	/* We've reached the end of the file. */
+	if (bytes_read != sizeof(TDEMapEntryOld))
+		return false;
+
+	*offset += bytes_read;
+
+	return true;
+}
+
+static InternalKey *
+tde_decrypt_old_rel_key(const TDEPrincipalKey *principal_key, TDEMapEntryOld *map_entry)
+{
+	InternalKey *key = palloc_object(InternalKey);
+
+	Assert(principal_key);
+
+	if (!AesGcmDecrypt(principal_key->keyData, principal_key->keyLength,
+					   map_entry->entry_iv, MAP_ENTRY_IV_SIZE,
+					   (unsigned char *) map_entry, offsetof(TDEMapEntryOld, encrypted_key_data),
+					   map_entry->encrypted_key_data, INTERNAL_KEY_OLD_LEN,
+					   key->key,
+					   map_entry->aead_tag, MAP_ENTRY_AEAD_TAG_SIZE))
+		ereport(ERROR,
+				errmsg("Failed to decrypt key, incorrect principal key or corrupted key file"));
+
+	memcpy(key->base_iv, map_entry->key_base_iv, INTERNAL_KEY_IV_LEN);
+	key->key_len = INTERNAL_KEY_OLD_LEN;
+
+	return key;
+}
+
+void
+pg_tde_migrate_smgr_keys_file(void)
+{
+	DIR			*dir;
+	LWLock	   *lock_pk = tde_lwlock_enc_keys();
+	struct dirent *file;
+	TDEPrincipalKey *principal_key = NULL;
+	TDESignedPrincipalKeyInfo signed_key_info;
+	int old_suffix_len = strlen(PG_TDE_MAP_OLD_FNAME_SUFFIX);
+
+	/* 
+	 * No real need in lock here as the func should be called only on the server
+	 * start, but GetPrincipalKey() expects lock.
+	*/
+	LWLockAcquire(lock_pk, LW_EXCLUSIVE);
+
+	dir = opendir(pg_tde_get_data_dir());
+	if (dir == NULL && errno != ENOENT)
+		elog(ERROR, "could not open directory \"%s\": %m",
+						pg_tde_get_data_dir());
+
+	/* 
+	 * TODO: create a "current_version_v4" file after the successfull migration
+	 * or during pg_tde dir creatation, so no need to scan the dir all the time,
+	 * but just test the file?  
+	 */
+	while (errno = 0, (file = readdir(dir)) != NULL)
+	{
+		if (strlen(file->d_name) > old_suffix_len &&
+			strncmp(file->d_name + strlen(file->d_name) - old_suffix_len, PG_TDE_MAP_OLD_FNAME_SUFFIX, old_suffix_len) == 0)
+		{
+			char	old_db_map_path[MAXPGPATH] = {0};
+			char	db_map_path[MAXPGPATH] = {0};
+			off_t	read_pos,
+					write_pos;
+			int		old_fd,
+					new_fd;
+			Oid		dbOid;
+			char 	*suffix;
+			char	*old_fname;
+
+
+			dbOid = strtoul(file->d_name, &suffix, 10);
+			if (strcmp(suffix, PG_TDE_MAP_OLD_FNAME_SUFFIX) != 0)
+				continue;
+
+			old_fname = psprintf("%d"PG_TDE_MAP_OLD_FNAME_SUFFIX, dbOid);
+			join_path_components(old_db_map_path, pg_tde_get_data_dir(), old_fname);
+			pfree(old_fname);
+
+			old_fd = pg_tde_open_old_file_read(old_db_map_path, false, &read_pos);
+
+			pg_tde_set_db_file_path(dbOid, db_map_path);
+			/* 
+			 * The old file exists and it's not empty, hece a principal key
+			 * should exist as well.
+			 */
+			if (principal_key == NULL)
+			{
+				principal_key = GetPrincipalKey(dbOid, LW_EXCLUSIVE);
+				if (principal_key == NULL)
+				{
+					ereport(ERROR,
+							errmsg("could not get server principal key"),
+							errdetail("Failed to migrate the keys file of %u database.", dbOid));
+				}
+				pg_tde_sign_principal_key_info(&signed_key_info, principal_key);
+			}
+			new_fd = pg_tde_open_file_write(db_map_path, &signed_key_info, true, &write_pos);
+
+			while (1)
+			{
+				TDEMapEntryOld	old_entry;
+				TDEMapEntry		new_entry;
+				InternalKey *rel_key_data;
+				RelFileLocator rloc;
+
+				if (!pg_tde_read_one_old_map_entry(old_fd, &old_entry, &read_pos))
+					break;
+
+				rloc.spcOid = old_entry.spcOid;
+				rloc.dbOid = dbOid;
+				rloc.relNumber = old_entry.relNumber;
+
+				rel_key_data = tde_decrypt_old_rel_key(principal_key, &old_entry);
+				pg_tde_initialize_map_entry(&new_entry, principal_key, &rloc, rel_key_data);
+				pg_tde_write_one_map_entry(new_fd, &new_entry, &write_pos, db_map_path);
+
+				pfree(rel_key_data);
+			}
+
+			CloseTransientFile(old_fd);
+			CloseTransientFile(new_fd);
+			durable_unlink(old_db_map_path, ERROR);
+		}
+	}
+
+	closedir(dir);
+	LWLockRelease(lock_pk);
+}
+
+#endif
