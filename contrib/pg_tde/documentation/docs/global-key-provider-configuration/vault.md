@@ -9,11 +9,11 @@ This example setup describes how to run HashiCorp Vault and Percona PostgreSQL w
 !!! note
     For production deployments, follow your organization’s security standards.
 
-### 1. Create docker-compose.yaml
+### 1. Create the docker-compose.yaml file
 
-Use the following `docker-compose.yaml` file to run both Vault and PostgreSQL with a shared secrets volume:
+The following `docker-compose.yaml` file is an example on how to run both Vault and PostgreSQL with a shared secrets volume:
 
-??? example "docker-compose.yaml"
+??? example "docker-compose.yaml (example file)"
 
     ```bash
     version: '3.8'
@@ -50,9 +50,9 @@ Use the following `docker-compose.yaml` file to run both Vault and PostgreSQL wi
     shared-secrets:
     ```
 
-### 2. Initialize Vault and Enable KV v2 Secrets
+### 2. Enable the KV v2 secrets engine
 
-In the Vault container, enable a KV storage engine for `pg_tde`:
+In the Vault container, enable a KV v2 storage engine for `pg_tde`:
 
 ```bash
 vault secrets enable -path=tde -version=2 kv
@@ -60,9 +60,9 @@ vault secrets enable -path=tde -version=2 kv
 
 This creates a `tde/` mount for storing encrypted keys.
 
-### 3. Create a vault policy for pg_tde
+### 3. Create a Vault policy for pg_tde
 
-Define the permissions required by `pg_tde` to read and write keys in Vault:
+Define a Vault policy that grants `pg_tde` access to read, write, and list keys.
 
 ```bash
 vault policy write tde-policy - <<EOF
@@ -101,7 +101,7 @@ This allows `pg_tde` to:
 
 ### 4. Create an Authentication Method and Token
 
-Enable the AppRole authentication method (optional but recommended):
+Enable the AppRole authentication method:
 
 ```bash
 vault auth enable approle
@@ -124,7 +124,7 @@ token_policies       ["default" "tde-policy"]
 
 ### 5. Share the token with PostgreSQL
 
-Copy the generated token into the shared secrets directory so PostgreSQL can use it:
+Copy the generated token into the shared secrets directory (shared secrets volume) so PostgreSQL can use it:
 
 ```bash
 echo "hvs.secret_code" > /vault/secrets/vault_token.txt
@@ -189,9 +189,19 @@ INSERT INTO secure_data (name, amount, created_at) VALUES
 ('Charlie', 345.67, '2025-08-19');
 ```
 
-Querying the table and confirm that the encryption is functioning.
+Query the table and confirm that the encryption is functioning:
 
-## Example usage
+```sql
+select * from secure_data;
+ id |  name   | amount  | created_at
+----+---------+---------+------------
+  1 | Alice   | 1234.56 | 2025-08-01
+  2 | Bob     | 7890.12 | 2025-08-10
+  3 | Charlie |  345.67 | 2025-08-19
+(3 rows)
+```
+
+## Example global key provider usage
 
 ```sql
 SELECT pg_tde_add_global_key_provider_vault_v2(
@@ -223,16 +233,15 @@ SELECT pg_tde_add_global_key_provider_vault_v2(
 );
 ```
 
-For more information on related functions, see the link below:
-
-[Percona pg_tde Function Reference](../functions.md){.md-button}
+For more information on related functions, see [Function Reference](../functions.md).
 
 ## Required permissions
 
-`pg_tde` requires given permissions on listed Vault's API endpoints
-* `sys/mounts/<mount>` - **read** permissions
+The PostgreSQL instance requires the following Vault API capabilities to manage and read encryption keys:
+
+* `sys/mounts/<mount>/*` - **read** permissions
 * `<mount>/data/*` - **create**, **read** permissions
-* `<mount>/metadata` - **list** permissions
+* `<mount>/metadata/*` - **list** permissions
 
 !!! note
     For more information on Vault permissions, see the [following documentation](https://developer.hashicorp.com/vault/docs/concepts/policies).
