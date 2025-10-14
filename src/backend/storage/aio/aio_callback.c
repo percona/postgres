@@ -27,8 +27,8 @@ static const PgAioHandleCallbacks aio_invalid_cb = {0};
 
 typedef struct PgAioHandleCallbacksEntry
 {
-	const PgAioHandleCallbacks *const cb;
-	const char *const name;
+	const PgAioHandleCallbacks *cb;
+	const char *name;
 } PgAioHandleCallbacksEntry;
 
 /*
@@ -36,7 +36,7 @@ typedef struct PgAioHandleCallbacksEntry
  * handle.  See PgAioHandleCallbackID's definition for an explanation for why
  * callbacks are not identified by a pointer.
  */
-static const PgAioHandleCallbacksEntry aio_handle_cbs[] = {
+static PgAioHandleCallbacksEntry aio_handle_cbs[PGAIO_HCB_MAX] = {
 #define CALLBACK_ENTRY(id, callback)  [id] = {.cb = &callback, .name = #callback}
 	CALLBACK_ENTRY(PGAIO_HCB_INVALID, aio_invalid_cb),
 
@@ -48,7 +48,21 @@ static const PgAioHandleCallbacksEntry aio_handle_cbs[] = {
 #undef CALLBACK_ENTRY
 };
 
+static PgAioHandleCallbackID aio_handle_max_cb_id = PGAIO_HCB_LOCAL_BUFFER_READV;
 
+PgAioHandleCallbackID
+pgaio_io_register_callback_entry(const PgAioHandleCallbacks *callback, const char *name)
+{
+	PgAioHandleCallbackID cb_id = ++aio_handle_max_cb_id;
+
+	if (cb_id > PGAIO_HCB_MAX)
+		elog(FATAL, "There can be at most %d AIO callback entries", PGAIO_HCB_MAX);
+
+	aio_handle_cbs[cb_id].cb = callback;
+	aio_handle_cbs[cb_id].name = name;
+
+	return cb_id;
+}
 
 /* --------------------------------------------------------------------------------
  * Public callback related functions operating on IO Handles
