@@ -9,6 +9,9 @@ use PostgreSQL::Test::Utils;
 
 use Test::More;
 
+PostgreSQL::Test::TdeCluster::skip_if_tde_mode_smgr
+	'hacks relation files directly for scaffolding';
+
 my $node;
 my $blksize;
 

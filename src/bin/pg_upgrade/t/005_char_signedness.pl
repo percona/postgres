@@ -9,6 +9,9 @@ use PostgreSQL::Test::Cluster;
 use PostgreSQL::Test::Utils;
 use Test::More;
 
+PostgreSQL::Test::TdeCluster::skip_if_tde_mode_smgr
+	'pg_restore fail to restore _pg_tde schema on cluster which already has it';
+
 # Can be changed to test the other modes
 my $mode = $ENV{PG_TEST_PG_UPGRADE_MODE} || '--copy';
 
