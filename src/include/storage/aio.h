@@ -200,7 +200,7 @@ typedef enum PgAioHandleCallbackID
 	PGAIO_HCB_LOCAL_BUFFER_READV,
 } PgAioHandleCallbackID;
 
-#define PGAIO_HCB_MAX	PGAIO_HCB_LOCAL_BUFFER_READV
+#define PGAIO_HCB_MAX	15
 StaticAssertDecl(PGAIO_HCB_MAX < (1 << PGAIO_RESULT_ID_BITS),
 				 "PGAIO_HCB_MAX is too big for PGAIO_RESULT_ID_BITS");
 
@@ -308,6 +308,7 @@ extern PgAioTargetData *pgaio_io_get_target_data(PgAioHandle *ioh);
 extern char *pgaio_io_get_target_description(PgAioHandle *ioh);
 
 /* functions in aio_callback.c */
+extern PgAioHandleCallbackID pgaio_io_register_callback_entry(const PgAioHandleCallbacks *callback, const char *name);
 extern void pgaio_io_register_callbacks(PgAioHandle *ioh, PgAioHandleCallbackID cb_id,
 										uint8 cb_data);
 extern void pgaio_io_set_handle_data_64(PgAioHandle *ioh, uint64 *data, uint8 len);
