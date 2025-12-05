@@ -350,15 +350,10 @@ pg_popcount32_slow(uint32 word)
 #ifdef HAVE__BUILTIN_POPCOUNT
 	return __builtin_popcount(word);
 #else							/* !HAVE__BUILTIN_POPCOUNT */
-	int			result = 0;
-
-	while (word != 0)
-	{
-		result += pg_number_of_ones[word & 255];
-		word >>= 8;
-	}
-
-	return result;
+	return pg_number_of_ones[word >> 24] +
+		   pg_number_of_ones[(word >> 16) & 0xFF] +
+		   pg_number_of_ones[(word >> 8) & 0xFF] +
+		   pg_number_of_ones[word & 0xFF];
 #endif							/* HAVE__BUILTIN_POPCOUNT */
 }
 
@@ -378,15 +373,14 @@ pg_popcount64_slow(uint64 word)
 #error "cannot find integer of the same size as uint64_t"
 #endif
 #else							/* !HAVE__BUILTIN_POPCOUNT */
-	int			result = 0;
-
-	while (word != 0)
-	{
-		result += pg_number_of_ones[word & 255];
-		word >>= 8;
-	}
-
-	return result;
+	return pg_number_of_ones[word >> 56] +
+		   pg_number_of_ones[(word >> 48) & 0xFF] +
+		   pg_number_of_ones[(word >> 40) & 0xFF] +
+		   pg_number_of_ones[(word >> 32) & 0xFF] +
+		   pg_number_of_ones[(word >> 24) & 0xFF] +
+		   pg_number_of_ones[(word >> 16) & 0xFF] +
+		   pg_number_of_ones[(word >> 8) & 0xFF] +
+		   pg_number_of_ones[word >> 0 & 0xFF];
 #endif							/* HAVE__BUILTIN_POPCOUNT */
 }
 
