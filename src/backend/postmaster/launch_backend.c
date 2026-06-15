@@ -696,6 +696,15 @@ SubPostmasterMain(int argc, char *argv[])
 	LocalProcessControlFile(false);
 
 	/*
+	 * Re-register built-in dynamic managers (e.g. md smgr). On fork-based
+	 * platforms the child inherits the postmaster's already-populated smgr
+	 * table; under EXEC_BACKEND the child starts with an empty table, so we
+	 * must re-run registration. Must happen before shared_preload_libraries
+	 * so extensions can still register their own smgrs from _PG_init().
+	 */
+	register_builtin_dynamic_managers();
+
+	/*
 	 * Reload any libraries that were preloaded by the postmaster.  Since we
 	 * exec'd this process, those libraries didn't come along with us; but we
 	 * should load them into all child processes to be consistent with the
