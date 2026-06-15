@@ -21,7 +21,7 @@
 
 /* registration function for md storage manager */
 extern void mdsmgr_register(void);
-extern SMgrId MdSMgrId;
+extern PGDLLIMPORT SMgrId MdSMgrId;
 
 /* md storage manager functionality */
 extern void mdinit(void);
