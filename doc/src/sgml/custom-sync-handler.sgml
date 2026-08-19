@@ -1,0 +1,118 @@
+<!-- doc/src/sgml/custom-sync-handler.sgml -->
+
+<chapter id="custom-sync-handler">
+ <title>Custom Sync Handlers for Extensions</title>
+
+ <para>
+  This chapter explains the interface between the core
+  <productname>PostgreSQL</productname> system and custom sync handlers,
+  which enable extensions to participate in the checkpoint
+  <function>fsync</function> pipeline implemented in
+  <filename>src/backend/storage/sync/sync.c</filename>.
+ </para>
+
+ <para>
+  Extensions that manage storage outside the standard relation-file layout,
+  such as a <link linkend="tableam">Table Access Method</link> that stores
+  its data in a non-file format, may need their data to be
+  <function>fsync</function>ed at checkpoint time in the same manner as the
+  built-in handlers do for relation segments, <acronym>CLOG</acronym>,
+  <structname>commit_ts</structname>, and multixact data.  A custom sync
+  handler lets an extension register its own sync callback, participate in
+  the same request coalescing and cancellation mechanisms, and benefit from
+  the checkpointer's batching and <varname>cycle_ctr</varname> semantics
+  without reimplementing the machinery or faking its data as
+  <function>md.c</function> segments.
+ </para>
+
+ <para>
+  To create a custom sync handler, first define a
+  <structname>SyncOps</structname> structure containing the handler
+  callbacks.  The structure is defined in
+  <filename>src/include/storage/sync.h</filename>:
+<programlisting>
+typedef struct SyncOps
+{
+    int  (*sync_syncfiletag) (const FileTag *ftag, char *path);
+    int  (*sync_unlinkfiletag) (const FileTag *ftag, char *path);
+    bool (*sync_filetagmatches) (const FileTag *ftag,
+                                 const FileTag *candidate);
+} SyncOps;
+</programlisting>
+  Only <structfield>sync_syncfiletag</structfield> is required; the other
+  two pointers may be <literal>NULL</literal> if the handler does not
+  participate in <literal>SYNC_UNLINK_REQUEST</literal> or
+  <literal>SYNC_FILTER_REQUEST</literal> flows.  This mirrors the built-in
+  handlers for <acronym>CLOG</acronym>, <structname>commit_ts</structname>,
+  and multixact data, which only define
+  <structfield>sync_syncfiletag</structfield>.
+ </para>
+
+ <para>
+  Then, register the handler and record the returned handler ID:
+<programlisting>
+extern int16 register_sync_handler(const SyncOps *ops, const char *name);
+</programlisting>
+  <function>register_sync_handler</function> must be called from the
+  extension module's <link linkend="xfunc-c-dynload">_PG_init</link>
+  function while <varname>shared_preload_libraries</varname> is still being
+  loaded; calls made after that phase has completed raise
+  <literal>FATAL</literal>.  The extension must therefore be placed in
+  <xref linkend="guc-shared-preload-libraries"/>.
+ </para>
+
+ <para>
+  The returned <type>int16</type> handler ID is the value the extension
+  stores in <structfield>FileTag.handler</structfield> when queuing sync
+  requests via <function>RegisterSyncRequest</function>.  Extension handler
+  IDs are assigned sequentially starting at
+  <literal>SYNC_HANDLER_FIRST_DYNAMIC</literal>, which is the first value
+  after the built-in handler IDs <literal>SYNC_HANDLER_MD</literal>,
+  <literal>SYNC_HANDLER_CLOG</literal>,
+  <literal>SYNC_HANDLER_COMMIT_TS</literal>,
+  <literal>SYNC_HANDLER_MULTIXACT_OFFSET</literal>, and
+  <literal>SYNC_HANDLER_MULTIXACT_MEMBER</literal>.  The assigned ID is
+  stable for the lifetime of a given server configuration, that is, it
+  does not change between backends, the checkpointer, or auxiliary
+  processes within a single postmaster lifetime.  Because sync requests
+  live only in the checkpointer's in-memory pending-operations hash table
+  and are not persisted across server restarts, the assigned ID does not
+  need to be stable across restarts or across changes to
+  <varname>shared_preload_libraries</varname>.
+ </para>
+
+ <para>
+  The <structname>FileTag</structname> structure passed to the handler
+  callbacks has a small fixed layout that all handlers share.  Its
+  contents are opaque to <filename>sync.c</filename>; each handler
+  interprets the fields according to its own convention.  Because
+  <filename>sync.c</filename> deduplicates pending sync requests by
+  hashing the raw bytes of the <structname>FileTag</structname>
+  (<literal>HASH_BLOBS</literal>), every field including any padding
+  must be zeroed before the structure is populated, otherwise logically
+  identical tags with different padding bytes will not coalesce into a
+  single callback invocation.  A simple <function>memset</function> to
+  zero before assignment is sufficient.
+ </para>
+
+ <para>
+  The <filename>src/test/modules/test_sync_handler</filename> module
+  contains a minimal working example, which demonstrates registration
+  from <function>_PG_init</function>, the per-checkpoint callback
+  dispatch, request coalescing via <literal>HASH_BLOBS</literal>, and
+  the <varname>cycle_ctr</varname> skip behaviour on idle checkpoints.
+  The TAP test in that module also serves as a copy-paste starting point
+  for new sync-handler extensions.
+ </para>
+
+ <note>
+  <para>
+   The extension must remain in <varname>shared_preload_libraries</varname>
+   as long as any data managed by its sync handler may require
+   checkpointing.  If the extension is removed while such data exists,
+   <productname>PostgreSQL</productname> will not be able to dispatch
+   pending sync requests for that data, which may lead to durability
+   issues at the next checkpoint.
+  </para>
+ </note>
+</chapter>

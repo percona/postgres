@@ -259,6 +259,7 @@ break is not needed in a wider output rendering.
   &tableam;
   &indexam;
   &wal-for-extensions;
+  &custom-sync-handler;
   &indextypes;
   &storage;
   &transaction;

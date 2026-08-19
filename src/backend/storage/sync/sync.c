@@ -79,50 +79,219 @@ static CycleCtr checkpoint_cycle_ctr = 0;
 #define UNLINKS_PER_ABSORB		10
 
 /*
- * Function pointers for handling sync and unlink requests.
+ * Sync handler dispatch table.
+ *
+ * Populated by InitSyncHandlers() for the five built-in handlers (MD,
+ * CLOG, commit_ts, multixact_offset, multixact_member) and by
+ * register_sync_handler() for handlers installed by extensions from
+ * their _PG_init() function.  After shared_preload_libraries has
+ * finished loading, syncsw[] is effectively immutable for the life
+ * of the process.
+ *
+ * Every process that can call into sync.c (postmaster, backends, and
+ * the checkpointer and other auxiliary processes) obtains its own
+ * populated syncsw[] either by inheriting it via fork() from the
+ * postmaster, or, on EXEC_BACKEND platforms where there is no fork(),
+ * by re-running InitSyncHandlers() and process_shared_preload_libraries()
+ * in its own address space during startup.
+ *
+ * SyncOps itself is defined in sync.h so that extensions can declare
+ * const SyncOps instances at file scope.
  */
-typedef struct SyncOps
-{
-	int			(*sync_syncfiletag) (const FileTag *ftag, char *path);
-	int			(*sync_unlinkfiletag) (const FileTag *ftag, char *path);
-	bool		(*sync_filetagmatches) (const FileTag *ftag,
-										const FileTag *candidate);
-} SyncOps;
+static SyncOps *syncsw = NULL;
+static const char **sync_handler_names = NULL;
+static int	NSyncHandlers = 0;
+static int	sync_handlers_capacity = 0;
+static bool builtin_sync_handlers_registered = false;
 
 /*
- * These indexes must correspond to the values of the SyncRequestHandler enum.
+ * Built-in SyncOps, registered in enum order during InitSync() so that
+ * SYNC_HANDLER_MD == 0, SYNC_HANDLER_CLOG == 1, etc.
  */
-static const SyncOps syncsw[] = {
-	/* magnetic disk */
-	[SYNC_HANDLER_MD] = {
-		.sync_syncfiletag = mdsyncfiletag,
-		.sync_unlinkfiletag = mdunlinkfiletag,
-		.sync_filetagmatches = mdfiletagmatches
-	},
-	/* pg_xact */
-	[SYNC_HANDLER_CLOG] = {
-		.sync_syncfiletag = clogsyncfiletag
-	},
-	/* pg_commit_ts */
-	[SYNC_HANDLER_COMMIT_TS] = {
-		.sync_syncfiletag = committssyncfiletag
-	},
-	/* pg_multixact/offsets */
-	[SYNC_HANDLER_MULTIXACT_OFFSET] = {
-		.sync_syncfiletag = multixactoffsetssyncfiletag
-	},
-	/* pg_multixact/members */
-	[SYNC_HANDLER_MULTIXACT_MEMBER] = {
-		.sync_syncfiletag = multixactmemberssyncfiletag
-	}
+static const SyncOps builtin_md_ops = {
+	.sync_syncfiletag = mdsyncfiletag,
+	.sync_unlinkfiletag = mdunlinkfiletag,
+	.sync_filetagmatches = mdfiletagmatches,
+};
+static const SyncOps builtin_clog_ops = {
+	.sync_syncfiletag = clogsyncfiletag,
+};
+static const SyncOps builtin_committs_ops = {
+	.sync_syncfiletag = committssyncfiletag,
+};
+static const SyncOps builtin_multixact_offset_ops = {
+	.sync_syncfiletag = multixactoffsetssyncfiletag,
+};
+static const SyncOps builtin_multixact_member_ops = {
+	.sync_syncfiletag = multixactmemberssyncfiletag,
 };
 
 /*
+ * Internal helper that adds an entry to syncsw[] without performing the
+ * preload-phase check.  Used by InitSync() to install the built-in
+ * handlers, which must be present in every process that calls into
+ * sync.c (including the checkpointer, which runs after
+ * shared_preload_libraries has finished loading).
+ */
+static int16
+sync_handler_register_internal(const SyncOps *ops, const char *name)
+{
+	int16		my_id;
+	MemoryContext old;
+
+	if (ops == NULL || ops->sync_syncfiletag == NULL)
+		elog(FATAL, "sync handler registration requires a non-NULL sync callback");
+
+	if (name == NULL || *name == '\0')
+		elog(FATAL, "sync handler name must not be empty");
+
+	if (NSyncHandlers >= SYNC_HANDLER_MAX)
+		ereport(FATAL,
+				(errcode(ERRCODE_CONFIGURATION_LIMIT_EXCEEDED),
+				 errmsg("too many sync handlers registered (maximum is %d)",
+						SYNC_HANDLER_MAX)));
+
+	old = MemoryContextSwitchTo(TopMemoryContext);
+
+	if (NSyncHandlers >= sync_handlers_capacity)
+	{
+		int			new_cap = (sync_handlers_capacity == 0)
+			? 8
+			: sync_handlers_capacity * 2;
+
+		if (new_cap > SYNC_HANDLER_MAX)
+			new_cap = SYNC_HANDLER_MAX;
+
+		if (syncsw == NULL)
+		{
+			syncsw = palloc(sizeof(SyncOps) * new_cap);
+			sync_handler_names = palloc(sizeof(char *) * new_cap);
+		}
+		else
+		{
+			syncsw = repalloc(syncsw, sizeof(SyncOps) * new_cap);
+			sync_handler_names = repalloc(sync_handler_names,
+										  sizeof(char *) * new_cap);
+		}
+		sync_handlers_capacity = new_cap;
+	}
+
+	my_id = (int16) NSyncHandlers++;
+	memcpy(&syncsw[my_id], ops, sizeof(SyncOps));
+	sync_handler_names[my_id] = pstrdup(name);
+
+	MemoryContextSwitchTo(old);
+
+	/*
+	 * No barrier needed: registration only happens during
+	 * shared_preload_libraries load, which is single-threaded.  On fork-based
+	 * platforms backends and auxiliary processes inherit the fully-populated
+	 * array from the postmaster via fork().  On EXEC_BACKEND platforms each
+	 * child repeats the single-threaded registration sequence in its own
+	 * address space during startup. In either case, the array is immutable by
+	 * the time any concurrent reader can observe it.
+	 */
+	return my_id;
+}
+
+/*
+ * Public registration entry point for extensions.  See sync.h for the
+ * contract.
+ *
+ * Extensions must call this from their _PG_init() while
+ * shared_preload_libraries is still being processed; later calls raise
+ * FATAL.  Built-in handlers bypass this guard via
+ * sync_handler_register_internal() because the checkpointer and other
+ * auxiliary processes call InitSync() after preload has finished, and
+ * the built-in dispatch table must still be populated in those
+ * processes.
+ *
+ * On EXEC_BACKEND platforms each child process repeats
+ * process_shared_preload_libraries() in its own fresh address space
+ * during startup, and an extension's _PG_init() can reach this
+ * function before the child has called InitSync().  Call
+ * InitSyncHandlers() here to ensure the five built-in handlers always
+ * occupy IDs 0..SYNC_HANDLER_FIRST_DYNAMIC-1 before any dynamic ID is
+ * assigned, which keeps handler IDs consistent across every process
+ * that dispatches sync requests.  InitSyncHandlers() is idempotent.
+ */
+int16
+register_sync_handler(const SyncOps *ops, const char *name)
+{
+	if (process_shared_preload_libraries_done)
+		ereport(FATAL,
+				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+				 errmsg("sync handler registration is only permitted while shared_preload_libraries is being loaded")));
+
+	InitSyncHandlers();
+
+	return sync_handler_register_internal(ops, name);
+}
+
+/*
+ * Register the built-in sync handlers.
+ *
+ * This MUST run before any call to register_sync_handler() from
+ * extension _PG_init() code, so that the built-in handlers occupy
+ * their canonical IDs (SYNC_HANDLER_MD = 0, SYNC_HANDLER_CLOG = 1,
+ * etc.) and extension handlers are assigned IDs >=
+ * SYNC_HANDLER_FIRST_DYNAMIC.
+ *
+ * Called from:
+ *   - PostmasterMain(), just before process_shared_preload_libraries()
+ *   - AuxiliaryProcessMain() (not currently needed because aux procs
+ *     fork from the postmaster with syncsw[] already populated, but
+ *     see the idempotent NSyncHandlers==0 guard below)
+ *   - Standalone backend init (via InitSync -> InitSyncHandlers)
+ *
+ * Idempotent: the NSyncHandlers == 0 guard ensures built-ins are
+ * registered exactly once per process. Safe to call from multiple
+ * init paths.
+ */
+void
+InitSyncHandlers(void)
+{
+	if (builtin_sync_handlers_registered)
+		return;
+
+	(void) sync_handler_register_internal(&builtin_md_ops, "md");
+	(void) sync_handler_register_internal(&builtin_clog_ops, "clog");
+	(void) sync_handler_register_internal(&builtin_committs_ops, "commit_ts");
+	(void) sync_handler_register_internal(&builtin_multixact_offset_ops,
+										  "multixact_offset");
+	(void) sync_handler_register_internal(&builtin_multixact_member_ops,
+										  "multixact_member");
+
+	builtin_sync_handlers_registered = true;
+
+	/*
+	 * Enforce the enum-to-count invariant: if a new built-in is added to the
+	 * SyncRequestHandler enum, the build will fail-fast at first boot until a
+	 * matching sync_handler_register_internal() call is added here.
+	 */
+	Assert(NSyncHandlers == SYNC_HANDLER_FIRST_DYNAMIC);
+}
+
+/*
  * Initialize data structures for the file sync tracking.
+ *
+ * This runs in processes that actually need the pendingOps hash table
+ * (standalone backends and the checkpointer). It also calls
+ * InitSyncHandlers() defensively in case this process reached here
+ * without the postmaster having done so, e.g., standalone mode.
  */
 void
 InitSync(void)
 {
+	/*
+	 * Make sure built-in handlers are registered. In the postmaster, this was
+	 * already called from PostmasterMain() before
+	 * process_shared_preload_libraries(); in standalone mode it is called
+	 * here for the first (and only) time. The NSyncHandlers guard inside
+	 * InitSyncHandlers() makes it idempotent.
+	 */
+	InitSyncHandlers();
+
 	/*
 	 * Create pending-operations hashtable if we need it.  Currently, we need
 	 * it if we are standalone (not under a postmaster) or if we are a
@@ -204,6 +373,19 @@ SyncPostCheckpoint(void)
 	int			absorb_counter;
 	ListCell   *lc;
 
+	/*
+	 * Cache the syncsw base pointer in a local for the duration of this
+	 * function. Without this, the compiler cannot hoist the load of the
+	 * mutable static pointer out of the dispatch loop, and each dispatch
+	 * costs an extra memory load plus an address-materialization LEA
+	 * (verified with objdump on GCC 14.2 -O2). With the local cached, the
+	 * per-entry dispatch compiles down to identical assembly as the pre-patch
+	 * static-const array. Safe because register_sync_handler() is forbidden
+	 * after process_shared_preload_libraries_done and syncsw is never mutated
+	 * outside registration.
+	 */
+	SyncOps    *ops = syncsw;
+
 	absorb_counter = UNLINKS_PER_ABSORB;
 	foreach(lc, pendingUnlinks)
 	{
@@ -226,9 +408,12 @@ SyncPostCheckpoint(void)
 		if (entry->cycle_ctr == checkpoint_cycle_ctr)
 			break;
 
+		Assert(entry->tag.handler >= 0 &&
+			   entry->tag.handler < NSyncHandlers);
+
 		/* Unlink the file */
-		if (syncsw[entry->tag.handler].sync_unlinkfiletag(&entry->tag,
-														  path) < 0)
+		if (ops[entry->tag.handler].sync_unlinkfiletag(&entry->tag,
+													   path) < 0)
 		{
 			/*
 			 * There's a race condition, when the database is dropped at the
@@ -299,6 +484,9 @@ ProcessSyncRequests(void)
 	uint64		elapsed;
 	uint64		longest = 0;
 	uint64		total_elapsed = 0;
+
+	/* See comment in SyncPostCheckpoint() above. */
+	SyncOps    *ops = syncsw;
 
 	/*
 	 * This is only called during checkpoints, and checkpoints should only
@@ -411,9 +599,12 @@ ProcessSyncRequests(void)
 			{
 				char		path[MAXPGPATH];
 
+				Assert(entry->tag.handler >= 0 &&
+					   entry->tag.handler < NSyncHandlers);
+
 				INSTR_TIME_SET_CURRENT(sync_start);
-				if (syncsw[entry->tag.handler].sync_syncfiletag(&entry->tag,
-																path) == 0)
+				if (ops[entry->tag.handler].sync_syncfiletag(&entry->tag,
+															 path) == 0)
 				{
 					/* Success; update statistics about sync timing */
 					INSTR_TIME_SET_CURRENT(sync_end);
@@ -505,13 +696,24 @@ RememberSyncRequest(const FileTag *ftag, SyncRequestType type)
 		HASH_SEQ_STATUS hstat;
 		PendingFsyncEntry *pfe;
 		ListCell   *cell;
+		bool		(*filetagmatches) (const FileTag *ftag,
+									   const FileTag *candidate);
+
+		Assert(ftag->handler >= 0 && ftag->handler < NSyncHandlers);
+
+		/*
+		 * Cache the per-handler filetagmatches function pointer once so both
+		 * match loops keep it in a register. See comment in
+		 * SyncPostCheckpoint().
+		 */
+		filetagmatches = syncsw[ftag->handler].sync_filetagmatches;
 
 		/* Cancel matching fsync requests */
 		hash_seq_init(&hstat, pendingOps);
 		while ((pfe = (PendingFsyncEntry *) hash_seq_search(&hstat)) != NULL)
 		{
 			if (pfe->tag.handler == ftag->handler &&
-				syncsw[ftag->handler].sync_filetagmatches(ftag, &pfe->tag))
+				filetagmatches(ftag, &pfe->tag))
 				pfe->canceled = true;
 		}
 
@@ -521,7 +723,7 @@ RememberSyncRequest(const FileTag *ftag, SyncRequestType type)
 			PendingUnlinkEntry *pue = (PendingUnlinkEntry *) lfirst(cell);
 
 			if (pue->tag.handler == ftag->handler &&
-				syncsw[ftag->handler].sync_filetagmatches(ftag, &pue->tag))
+				filetagmatches(ftag, &pue->tag))
 				pue->canceled = true;
 		}
 	}
