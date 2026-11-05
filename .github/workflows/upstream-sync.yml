@@ -1,0 +1,58 @@
+name: upstream-sync
+
+on:
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+    inputs:
+      major:
+        description: Major version
+        type: choice
+        options: [all, '16', '17', '18', '19']
+        default: all
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        major: ${{ fromJSON((inputs.major && inputs.major != 'all') && format('[{0}]', inputs.major) || '[16, 17, 18, 19]') }}
+    concurrency:
+      group: upstream-sync-${{ matrix.major }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install build deps
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq bison flex m4 meson ninja-build
+
+      - uses: actions/cache@v6
+        id: autoconf
+        with:
+          path: ~/autoconf-2.69
+          key: autoconf-2.69-${{ runner.os }}-24.04
+
+      - name: Build autoconf 2.69
+        if: steps.autoconf.outputs.cache-hit != 'true'
+        run: |
+          curl -fsSL -o ac.tar.xz https://ftp.gnu.org/gnu/autoconf/autoconf-2.69.tar.xz
+          echo "64ebcec9f8ac5b2487125a86a7760d2591ac9e1d3dbd59489633f9de62a57684  ac.tar.xz" | sha256sum -c
+          tar -xJf ac.tar.xz
+          cd autoconf-2.69
+          ./configure -q --prefix="$HOME/autoconf-2.69"
+          make -s install
+
+      - run: echo "$HOME/autoconf-2.69/bin" >> "$GITHUB_PATH"
+
+      - name: Sync PSP_REL_${{ matrix.major }}_STABLE
+        env:
+          REPO: https://github.com/${{ github.repository }}.git
+          # SYNC_TOKEN: PAT w/ contents+workflows write, needed once upstream touches .github
+          PUSH_URL: https://x-access-token:${{ secrets.SYNC_TOKEN || github.token }}@github.com/${{ github.repository }}.git
+        run: scripts/sync.sh ${{ matrix.major }}

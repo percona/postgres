@@ -1,0 +1,6 @@
+#!/bin/sh
+# merge driver: keep our COPYRIGHT (%B), take upstream (%A) PGDG year line
+re='^Portions Copyright \(c\) 1996-[0-9]{4}, PostgreSQL Global Development Group$'
+up=$(grep -E "$re" "$1") && grep -qE "$re" "$2" || exit 1
+sed -E "s/$re/$up/" "$2" > "$1"
+echo "- kept our COPYRIGHT, upstream year" | tee -a "${GITHUB_STEP_SUMMARY:-/dev/null}" >&2
