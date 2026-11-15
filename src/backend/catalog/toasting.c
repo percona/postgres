@@ -328,6 +328,8 @@ create_toast_table(Relation rel, Oid toastOid, Oid toastIndexOid,
 	/*
 	 * Don't let index creation overwrite progress information for the command
 	 * that caused the TOAST table to be created.
+	 *
+	 * The index follows encryption of its toast table.
 	 */
 	index_create_percona(toast_rel, toast_idxname, toastIndexOid, InvalidOid,
 						 InvalidOid, InvalidOid,
@@ -337,7 +339,7 @@ create_toast_table(Relation rel, Oid toastOid, Oid toastIndexOid,
 						 rel->rd_rel->reltablespace,
 						 collationIds, opclassIds, NULL, coloptions, NULL, (Datum) 0,
 						 INDEX_CREATE_IS_PRIMARY | INDEX_CREATE_SUPPRESS_PROGRESS,
-						 0, true, true, NULL, NULL);
+						 0, true, true, NULL, &toast_rel->rd_locator);
 
 	table_close(toast_rel, NoLock);
 
