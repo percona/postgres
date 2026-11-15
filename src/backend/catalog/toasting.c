@@ -323,6 +323,7 @@ create_toast_table(Relation rel, Oid toastOid, Oid toastIndexOid,
 	coloptions[0] = 0;
 	coloptions[1] = 0;
 
+	/* index follows encryption of its toast table */
 	index_create_percona(toast_rel, toast_idxname, toastIndexOid, InvalidOid,
 						 InvalidOid, InvalidOid,
 						 indexInfo,
@@ -330,7 +331,7 @@ create_toast_table(Relation rel, Oid toastOid, Oid toastIndexOid,
 						 BTREE_AM_OID,
 						 rel->rd_rel->reltablespace,
 						 collationObjectId, classObjectId, coloptions, (Datum) 0,
-						 INDEX_CREATE_IS_PRIMARY, 0, true, true, NULL, NULL);
+						 INDEX_CREATE_IS_PRIMARY, 0, true, true, NULL, &toast_rel->rd_locator);
 
 	table_close(toast_rel, NoLock);
 
