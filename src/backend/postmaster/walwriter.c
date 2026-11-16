@@ -247,6 +247,7 @@ WalWriterMain(const void *startup_data, size_t startup_data_len)
 		 * Do what we're here for; then, if XLogBackgroundFlush() found useful
 		 * work to do, reset hibernation counter.
 		 */
+		INJECTION_POINT("walwriter-before-flush", NULL);
 		if (XLogBackgroundFlush())
 			left_till_hibernate = LOOPS_UNTIL_HIBERNATE;
 		else if (left_till_hibernate > 0)
