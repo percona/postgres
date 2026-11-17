@@ -1,0 +1,4 @@
+comment = 'Test extension using the upstream smgr API'
+default_version = '1.0'
+module_pathname = '$libdir/test_old_smgr_api'
+relocatable = true
