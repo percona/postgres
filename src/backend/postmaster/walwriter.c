@@ -60,6 +60,7 @@
 #include "storage/procsignal.h"
 #include "storage/smgr.h"
 #include "utils/hsearch.h"
+#include "utils/injection_point.h"
 #include "utils/memutils.h"
 #include "utils/resowner.h"
 
@@ -247,6 +248,7 @@ WalWriterMain(const void *startup_data, size_t startup_data_len)
 		 * Do what we're here for; then, if XLogBackgroundFlush() found useful
 		 * work to do, reset hibernation counter.
 		 */
+		INJECTION_POINT("walwriter-before-flush", NULL);
 		if (XLogBackgroundFlush())
 			left_till_hibernate = LOOPS_UNTIL_HIBERNATE;
 		else if (left_till_hibernate > 0)
