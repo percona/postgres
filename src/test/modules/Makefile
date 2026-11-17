@@ -32,6 +32,7 @@ SUBDIRS = \
 		  test_misc \
 		  test_oat_hooks \
 		  test_parser \
+		  test_percona_smgr_api \
 		  test_pg_dump \
 		  test_predtest \
 		  test_radixtree \
