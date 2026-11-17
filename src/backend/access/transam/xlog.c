@@ -453,6 +453,8 @@ typedef struct XLogCtlInsert
  */
 typedef struct XLogCopyCrypt
 {
+	bool		encrypt;		/* or just append the trailing CRC? */
+	pg_crc32c	crc;			/* that CRC, if !encrypt */
 	const char *prefix;			/* written by encrypt_begin */
 	uint32		prefix_len;
 	uint32		suffix_len;
@@ -774,6 +776,7 @@ XLogInsertRecord(XLogRecData *rdata,
 	bool		prevDoPageWrites = doPageWrites;
 	TimeLineID	insertTLI;
 	bool		encrypt = (flags & XLOG_ENCRYPT_BODY) != 0;
+	bool		encrypted = (rechdr->xl_info & XLR_ENCRYPTED) != 0;
 	XLogCopyCrypt crypt;
 	char		crypt_prefix[PerconaXLogRecordCryptMaxPrefix];
 
@@ -800,14 +803,17 @@ XLogInsertRecord(XLogRecData *rdata,
 	insertTLI = XLogCtl->InsertTimeLineID;
 
 	/*
-	 * The body of this record is to be encrypted. Let the hook choose key
-	 * and IV now, without a lock held, and learn the final record length
-	 * from it. The body itself is encrypted while it is copied to the WAL
-	 * buffers, so that no buffer for the ciphertext is needed, however large
-	 * the record is.
+	 * The body of this record is to be encrypted, and it was too large for
+	 * XLogInsert to do that. Let the hook choose key and IV now, without a
+	 * lock held, and learn the final record length from it. The body itself
+	 * is encrypted while it is copied to the WAL buffers, so that no buffer
+	 * for the ciphertext is needed, however large the record is.
 	 */
+	crypt.encrypt = encrypt;
 	if (encrypt)
 	{
+		Assert(!encrypted);
+
 		/* the CRC goes to the trailer */
 		rechdr->xl_crc = 0;
 
@@ -954,9 +960,19 @@ XLogInsertRecord(XLogRecData *rdata,
 		/*
 		 * Now that xl_prev has been filled in, calculate CRC of the record
 		 * header. An encrypted record has its CRC in a trailer, which
-		 * CopyXLogRecordToWAL calculates and appends.
+		 * CopyXLogRecordToWAL appends: for a record XLogInsert encrypted it
+		 * is finished here, for one encrypted while it is copied it can only
+		 * be calculated there.
 		 */
-		if (!encrypt)
+		if (encrypted)
+		{
+			rdata_crc = rechdr->xl_crc;
+			rechdr->xl_crc = 0;
+			COMP_CRC32C(rdata_crc, rechdr, SizeOfXLogRecord);
+			FIN_CRC32C(rdata_crc);
+			crypt.crc = rdata_crc;
+		}
+		else if (!encrypt)
 		{
 			rdata_crc = rechdr->xl_crc;
 			COMP_CRC32C(rdata_crc, rechdr, offsetof(XLogRecord, xl_crc));
@@ -971,7 +987,7 @@ XLogInsertRecord(XLogRecData *rdata,
 		CopyXLogRecordToWAL(rechdr->xl_tot_len,
 							class == WALINSERT_SPECIAL_SWITCH, rdata,
 							StartPos, EndPos, insertTLI,
-							encrypt ? &crypt : NULL);
+							(encrypt || encrypted) ? &crypt : NULL);
 
 		/*
 		 * Unless record is flagged as not important, update LSN of last
@@ -1374,10 +1390,12 @@ CopyXLogDataToWAL(XLogCopyState *st, const char *data, int len,
  * Subroutine of XLogInsertRecord.  Copies a WAL record to an already-reserved
  * area in the WAL.
  *
- * With crypt set, rdata is the plaintext record and its body is encrypted on
- * the way: the header is followed by the hook's prefix, the ciphertext, the
- * hook's suffix and the CRC of the record, see XLR_ENCRYPTED. write_len is
- * the length of all that.
+ * With crypt set the record is an encrypted one, see XLR_ENCRYPTED, and
+ * write_len is its length including the trailing CRC. Either rdata is that
+ * record and only the CRC is missing, or, with crypt->encrypt, rdata is the
+ * plaintext record and its body is encrypted on the way: the header is
+ * followed by the hook's prefix, the ciphertext, the hook's suffix and the
+ * CRC.
  */
 static void
 CopyXLogRecordToWAL(int write_len, bool isLogSwitch, XLogRecData *rdata,
@@ -1408,13 +1426,16 @@ CopyXLogRecordToWAL(int write_len, bool isLogSwitch, XLogRecData *rdata,
 	Assert(st.freespace >= sizeof(uint32));
 
 	/* Copy record data */
-	if (likely(crypt == NULL))
+	if (likely(crypt == NULL || !crypt->encrypt))
 	{
 		while (rdata != NULL)
 		{
 			CopyXLogDataToWAL(&st, rdata->data, rdata->len, XLCOPY_PLAIN);
 			rdata = rdata->next;
 		}
+		if (crypt != NULL)
+			CopyXLogDataToWAL(&st, (const char *) &crypt->crc,
+							  SizeOfXLogRecordTrailer, XLCOPY_PLAIN);
 	}
 	else
 	{

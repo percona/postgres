@@ -7,11 +7,12 @@
  * holding a counter, an optional suffix holding a sum of the plaintext, and
  * the header folded in. Enough to tell plaintext from "ciphertext" on disk
  * and to drive every piece of core plumbing: prefix and suffix of any
- * length, a body encrypted in pieces, decrypt failure, a key that arrives
- * by redo, opt-out per rmgr and per relation, frontend opaque records.
- * Every contract violation by core is a PANIC or ERROR here, not an Assert,
- * so the TAP tests catch it in any build; that includes a process using the
- * hook without its own process_init call, checked by pid.
+ * length, a body encrypted in pieces before or during the copy to the WAL
+ * buffers, decrypt failure, a key that arrives by redo, opt-out per rmgr
+ * and per relation, frontend opaque records. Every contract violation by
+ * core is a PANIC or ERROR here, not an Assert, so the TAP tests catch it
+ * in any build; that includes a process using the hook without its own
+ * process_init call, checked by pid.
  *
  * Portions Copyright (c) 1996-2026, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
@@ -46,6 +47,7 @@ PG_MODULE_MAGIC;
 
 static int	test_overhead = 5;
 static int	test_suffix = 0;
+static int	test_buffer_size = 2048;
 static bool test_enabled = true;
 static bool test_fail_decrypt = false;
 static int	test_fail_decrypt_rmgr = -1;
@@ -363,6 +365,13 @@ _PG_init(void)
 							0, 0, TEST_MAX_SUFFIX,
 							PGC_POSTMASTER, 0,
 							NULL, NULL, NULL);
+	DefineCustomIntVariable("test_xlog_crypt.buffer_size",
+							"Largest record body encrypted before the WAL insertion lock is taken.",
+							"Small by default, so that every test encrypts records both ways.",
+							&test_buffer_size,
+							2048, 0, 16 * 1024 * 1024,
+							PGC_POSTMASTER, GUC_UNIT_BYTE,
+							NULL, NULL, NULL);
 	DefineCustomBoolVariable("test_xlog_crypt.enabled",
 							 "Whether the toy hook encrypts records at all.",
 							 NULL,
@@ -417,5 +426,6 @@ _PG_init(void)
 	/* tight bounds, so that core is caught asking for or allowing more */
 	test_crypt.max_prefix_len = test_overhead;
 	test_crypt.max_suffix_len = test_suffix;
+	test_crypt.buffer_size = test_buffer_size;
 	SetPerconaXLogRecordCrypt(&test_crypt);
 }

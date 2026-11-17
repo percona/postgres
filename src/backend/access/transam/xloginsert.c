@@ -114,6 +114,16 @@ static uint8 curinsert_flags = 0;
 static XLogRecData hdr_rdt;
 static char *hdr_scratch = NULL;
 
+/*
+ * Buffer for record bodies encrypted before the WAL insertion lock is taken,
+ * and the chain XLogInsertRecord gets instead of hdr_rdt then. The buffer
+ * has the size the encryption hook asked for and never grows: XLogInsert
+ * runs in critical sections, where nothing can be allocated. Larger records
+ * are encrypted by XLogInsertRecord while it copies them.
+ */
+static char *crypt_buf = NULL;
+static XLogRecData crypt_chain[2];
+
 #define SizeOfXlogOrigin	(sizeof(RepOriginId) + sizeof(char))
 #define SizeOfXLogTransactionId	(sizeof(TransactionId) + sizeof(char))
 
@@ -135,6 +145,7 @@ static bool begininsert_called = false;
 /* Memory context to hold the registered buffer and data references. */
 static MemoryContext xloginsert_cxt;
 
+static XLogRecData *XLogEncryptRecordBody(XLogRecData *rdt);
 static XLogRecData *XLogRecordAssemble(RmgrId rmid, uint8 info, bool encrypt,
 									   XLogRecPtr RedoRecPtr, bool doPageWrites,
 									   XLogRecPtr *fpw_lsn, int *num_fpi,
@@ -572,11 +583,25 @@ XLogInsert(RmgrId rmid, uint8 info)
 		/*
 		 * A record without a body stays as it is: there is nothing to
 		 * protect, and an XLOG_SWITCH has to keep its exact length.
+		 *
+		 * Encrypt here, without a lock, if the body fits into the buffer.
+		 * Concurrent inserters then do it in parallel. A retry assembles the
+		 * record again, so it is also encrypted again, with whatever IV the
+		 * hook chooses then. Otherwise leave it to XLogInsertRecord.
 		 */
 		flags = curinsert_flags;
-		if (encrypt &&
-			((XLogRecord *) rdt->data)->xl_tot_len > SizeOfXLogRecord)
-			flags |= XLOG_ENCRYPT_BODY;
+		if (encrypt)
+		{
+			uint32		body_len;
+
+			body_len = ((XLogRecord *) rdt->data)->xl_tot_len - SizeOfXLogRecord;
+			if (body_len == 0)
+				 /* nothing to do */ ;
+			else if (body_len <= percona_xlog_record_crypt->buffer_size)
+				rdt = XLogEncryptRecordBody(rdt);
+			else
+				flags |= XLOG_ENCRYPT_BODY;
+		}
 
 		EndPos = XLogInsertRecord(rdt, fpw_lsn, flags, num_fpi,
 								  topxid_included);
@@ -1009,6 +1034,75 @@ XLogRecordAssemble(RmgrId rmid, uint8 info, bool encrypt,
 	rechdr->xl_crc = rdata_crc;
 
 	return &hdr_rdt;
+}
+
+/*
+ * Encrypt the body of the record assembled in hdr_rdt into crypt_buf and
+ * return the chain of the encrypted record: the header and the buffer. The
+ * trailing CRC is not part of it, XLogInsertRecord appends that once the
+ * header is complete; like for a plain record, xl_crc holds the CRC of the
+ * body until then.
+ */
+static XLogRecData *
+XLogEncryptRecordBody(XLogRecData *rdt)
+{
+	XLogRecord *rechdr = (XLogRecord *) hdr_scratch;
+	uint32		prefix_len = 0;
+	uint32		suffix_len = 0;
+	char	   *out;
+	Size		out_len;
+	pg_crc32c	crc;
+
+	Assert(rdt == &hdr_rdt);
+	Assert(crypt_buf != NULL);
+
+	rechdr->xl_crc = 0;
+	percona_xlog_record_crypt->encrypt_begin(rechdr, crypt_buf,
+											 &prefix_len, &suffix_len);
+	if (prefix_len > percona_xlog_record_crypt->max_prefix_len ||
+		suffix_len > percona_xlog_record_crypt->max_suffix_len)
+		elog(PANIC, "WAL encryption hook asked for a %u byte prefix and a %u byte suffix, at most %u and %u declared",
+			 prefix_len, suffix_len,
+			 percona_xlog_record_crypt->max_prefix_len,
+			 percona_xlog_record_crypt->max_suffix_len);
+
+	/* the first chunk starts with the record header, the rest is body */
+	out = crypt_buf + prefix_len;
+	if (rdt->len > SizeOfXLogRecord)
+	{
+		percona_xlog_record_crypt->encrypt_update(hdr_scratch + SizeOfXLogRecord, out,
+												  rdt->len - SizeOfXLogRecord);
+		out += rdt->len - SizeOfXLogRecord;
+	}
+	for (XLogRecData *cur = rdt->next; cur != NULL; cur = cur->next)
+	{
+		if (cur->len == 0)
+			continue;
+		percona_xlog_record_crypt->encrypt_update(cur->data, out, cur->len);
+		out += cur->len;
+	}
+	if (percona_xlog_record_crypt->encrypt_end != NULL)
+		percona_xlog_record_crypt->encrypt_end(out);
+	out += suffix_len;
+	out_len = out - crypt_buf;
+
+	Assert(out_len == rechdr->xl_tot_len - SizeOfXLogRecord + prefix_len + suffix_len);
+	rechdr->xl_tot_len = PerconaXLogRecordCryptTotalLen(rechdr->xl_tot_len,
+														prefix_len, suffix_len);
+	rechdr->xl_info |= XLR_ENCRYPTED;
+
+	INIT_CRC32C(crc);
+	COMP_CRC32C(crc, crypt_buf, out_len);
+	rechdr->xl_crc = crc;
+
+	crypt_chain[0].data = rechdr;
+	crypt_chain[0].len = SizeOfXLogRecord;
+	crypt_chain[0].next = &crypt_chain[1];
+	crypt_chain[1].data = crypt_buf;
+	crypt_chain[1].len = out_len;
+	crypt_chain[1].next = NULL;
+
+	return &crypt_chain[0];
 }
 
 /*
@@ -1467,4 +1561,11 @@ InitXLogInsert(void)
 	if (hdr_scratch == NULL)
 		hdr_scratch = MemoryContextAllocZero(xloginsert_cxt,
 											 HEADER_SCRATCH_SIZE);
+
+	if (crypt_buf == NULL && percona_xlog_record_crypt != NULL &&
+		percona_xlog_record_crypt->buffer_size > 0)
+		crypt_buf = MemoryContextAlloc(xloginsert_cxt,
+									   percona_xlog_record_crypt->buffer_size +
+									   percona_xlog_record_crypt->max_prefix_len +
+									   percona_xlog_record_crypt->max_suffix_len);
 }

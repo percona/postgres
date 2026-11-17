@@ -31,20 +31,30 @@ sub wal_contains
 	return 0;
 }
 
-for my $case ([ 1, 0 ], [ 64, 64 ], [ 5, 1 ], [ 2, 7 ])
+# With a buffer of zero every record is encrypted while it is copied to the
+# WAL buffers, with a large one none is.
+for my $case (
+	[ 1, 0, 2048 ],
+	[ 64, 64, 0 ],
+	[ 5, 1, '1MB' ],
+	[ 2, 7, 0 ],
+	[ 64, 64, '1MB' ])
 {
-	my ($overhead, $suffix) = @$case;
-	my $name = "prefix $overhead suffix $suffix";
+	my ($overhead, $suffix, $buffer) = @$case;
+	my $name = "prefix $overhead suffix $suffix buffer $buffer";
 	my $canary = "CANARY_overhead_${overhead}_${suffix}_a91c";
-	my $node = PostgreSQL::Test::Cluster->new("ovh${overhead}_$suffix");
+	my $node = PostgreSQL::Test::Cluster->new("ovh${overhead}_${suffix}_$buffer");
 	$node->init;
 	$node->append_conf('postgresql.conf',
 		"shared_preload_libraries = 'test_xlog_crypt'\n"
 		  . "test_xlog_crypt.overhead = $overhead\n"
-		  . "test_xlog_crypt.suffix = $suffix\n");
+		  . "test_xlog_crypt.suffix = $suffix\n"
+		  . "test_xlog_crypt.buffer_size = $buffer\n");
 	$node->start;
 	$node->safe_psql('postgres', "CREATE TABLE t (v text)");
 	$node->safe_psql('postgres', "INSERT INTO t VALUES ('$canary')");
+	$node->safe_psql('postgres',
+		"SELECT pg_logical_emit_message(true, 'crypt', repeat('$canary', 3000))");
 	$node->safe_psql('postgres', "SELECT pg_switch_wal()");
 	$node->stop('immediate');
 	is(wal_contains($node, $canary), 0, "$name: canary absent from WAL");

@@ -11,10 +11,11 @@
  *		ciphertext	as long as the plaintext body
  *		suffix		written by encrypt_end, for example an authentication tag
  *
- * The body is encrypted as a stream, in the pieces XLogInsert has it in, so
- * no buffer for a whole record is needed and nothing is allocated, however
- * large the record is. That happens while the record is copied to the WAL
- * buffers, with a WAL insertion lock held.
+ * The body is encrypted as a stream, in the pieces XLogInsert has it in.
+ * Records up to buffer_size are encrypted into a buffer before the WAL
+ * insertion lock is taken, so backends do that in parallel. Larger ones are
+ * encrypted while they are copied to the WAL buffers, with the lock held.
+ * Either way nothing is allocated, however large the record is.
  */
 #ifndef PERCONA_XLOG_CRYPT_H
 #define PERCONA_XLOG_CRYPT_H
@@ -22,9 +23,10 @@
 #include "access/rmgr.h"
 #include "access/xlogrecord.h"
 
-/* upper bounds for max_prefix_len and max_suffix_len */
+/* upper bounds for max_prefix_len, max_suffix_len and buffer_size */
 #define PerconaXLogRecordCryptMaxPrefix 64
 #define PerconaXLogRecordCryptMaxSuffix 64
+#define PerconaXLogRecordCryptMaxBuffer XLogRecordMaxSize
 
 typedef struct PerconaXLogRecordCrypt
 {
@@ -35,6 +37,14 @@ typedef struct PerconaXLogRecordCrypt
 	 */
 	uint32		max_prefix_len;
 	uint32		max_suffix_len;
+
+	/*
+	 * Records with a body of at most this many bytes are encrypted before
+	 * the WAL insertion lock is taken. Every process that can insert WAL
+	 * allocates a buffer of this size when it starts, so it costs memory
+	 * per process. Zero encrypts every record with the lock held.
+	 */
+	Size		buffer_size;
 
 	/*
 	 * Called in every process that has shared memory, once it is set up:
@@ -95,8 +105,9 @@ typedef struct PerconaXLogRecordCrypt
 	 * must be a stream: len bytes out for len bytes in, cut anywhere. out
 	 * never overlaps in.
 	 *
-	 * Called with a WAL insertion lock held, and out is the WAL buffer: no
-	 * allocation, no locks, no error below PANIC, and nothing slow.
+	 * May be called with a WAL insertion lock held, out being the WAL
+	 * buffer: no allocation, no locks, no error below PANIC, and nothing
+	 * slow.
 	 */
 	void		(*encrypt_update) (const char *in, char *out, size_t len);
 

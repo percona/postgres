@@ -108,16 +108,21 @@ SetPerconaXLogRecordCrypt(const PerconaXLogRecordCrypt *xlcrypt)
 #endif
 	if (xlcrypt != NULL &&
 		(xlcrypt->max_prefix_len > PerconaXLogRecordCryptMaxPrefix ||
-		 xlcrypt->max_suffix_len > PerconaXLogRecordCryptMaxSuffix))
+		 xlcrypt->max_suffix_len > PerconaXLogRecordCryptMaxSuffix ||
+		 xlcrypt->buffer_size > PerconaXLogRecordCryptMaxBuffer))
 	{
 #ifndef FRONTEND
-		elog(ERROR, "WAL encryption hook declares a %u byte prefix and a %u byte suffix, at most %d and %d allowed",
+		elog(ERROR, "WAL encryption hook declares a %u byte prefix, a %u byte suffix and a %zu byte buffer, at most %d, %d and %d allowed",
 			 xlcrypt->max_prefix_len, xlcrypt->max_suffix_len,
-			 PerconaXLogRecordCryptMaxPrefix, PerconaXLogRecordCryptMaxSuffix);
+			 xlcrypt->buffer_size,
+			 PerconaXLogRecordCryptMaxPrefix, PerconaXLogRecordCryptMaxSuffix,
+			 PerconaXLogRecordCryptMaxBuffer);
 #else
-		pg_fatal("WAL encryption hook declares a %u byte prefix and a %u byte suffix, at most %d and %d allowed",
+		pg_fatal("WAL encryption hook declares a %u byte prefix, a %u byte suffix and a %zu byte buffer, at most %d, %d and %d allowed",
 				 xlcrypt->max_prefix_len, xlcrypt->max_suffix_len,
-				 PerconaXLogRecordCryptMaxPrefix, PerconaXLogRecordCryptMaxSuffix);
+				 xlcrypt->buffer_size,
+				 PerconaXLogRecordCryptMaxPrefix, PerconaXLogRecordCryptMaxSuffix,
+				 PerconaXLogRecordCryptMaxBuffer);
 #endif
 	}
 	percona_xlog_record_crypt = xlcrypt;
