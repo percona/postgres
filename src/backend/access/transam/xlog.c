@@ -50,6 +50,7 @@
 #include "access/commit_ts.h"
 #include "access/heaptoast.h"
 #include "access/multixact.h"
+#include "access/percona_xlog_crypt.h"
 #include "access/rewriteheap.h"
 #include "access/subtrans.h"
 #include "access/timeline.h"
@@ -447,6 +448,17 @@ typedef struct XLogCtlInsert
 } XLogCtlInsert;
 
 /*
+ * What CopyXLogRecordToWAL needs to encrypt a record body on its way into
+ * the WAL buffers, see PerconaXLogRecordCrypt.
+ */
+typedef struct XLogCopyCrypt
+{
+	const char *prefix;			/* written by encrypt_begin */
+	uint32		prefix_len;
+	uint32		suffix_len;
+} XLogCopyCrypt;
+
+/*
  * Total shared-memory state for XLOG.
  */
 typedef struct XLogCtlData
@@ -699,7 +711,7 @@ static int	get_sync_bit(int method);
 static void CopyXLogRecordToWAL(int write_len, bool isLogSwitch,
 								XLogRecData *rdata,
 								XLogRecPtr StartPos, XLogRecPtr EndPos,
-								TimeLineID tli);
+								TimeLineID tli, const XLogCopyCrypt *crypt);
 static void ReserveXLogInsertLocation(int size, XLogRecPtr *StartPos,
 									  XLogRecPtr *EndPos, XLogRecPtr *PrevPtr);
 static bool ReserveXLogSwitch(XLogRecPtr *StartPos, XLogRecPtr *EndPos,
@@ -761,6 +773,9 @@ XLogInsertRecord(XLogRecData *rdata,
 	XLogRecPtr	EndPos;
 	bool		prevDoPageWrites = doPageWrites;
 	TimeLineID	insertTLI;
+	bool		encrypt = (flags & XLOG_ENCRYPT_BODY) != 0;
+	XLogCopyCrypt crypt;
+	char		crypt_prefix[PerconaXLogRecordCryptMaxPrefix];
 
 	/* Does this record type require special handling? */
 	if (unlikely(rechdr->xl_rmid == RM_XLOG_ID))
@@ -783,6 +798,36 @@ XLogInsertRecord(XLogRecData *rdata,
 	 * change, so we can read it without a lock.
 	 */
 	insertTLI = XLogCtl->InsertTimeLineID;
+
+	/*
+	 * The body of this record is to be encrypted. Let the hook choose key
+	 * and IV now, without a lock held, and learn the final record length
+	 * from it. The body itself is encrypted while it is copied to the WAL
+	 * buffers, so that no buffer for the ciphertext is needed, however large
+	 * the record is.
+	 */
+	if (encrypt)
+	{
+		/* the CRC goes to the trailer */
+		rechdr->xl_crc = 0;
+
+		crypt.prefix = crypt_prefix;
+		crypt.prefix_len = 0;
+		crypt.suffix_len = 0;
+		percona_xlog_record_crypt->encrypt_begin(rechdr, crypt_prefix,
+												 &crypt.prefix_len, &crypt.suffix_len);
+		if (crypt.prefix_len > percona_xlog_record_crypt->max_prefix_len ||
+			crypt.suffix_len > percona_xlog_record_crypt->max_suffix_len)
+			elog(PANIC, "WAL encryption hook asked for a %u byte prefix and a %u byte suffix, at most %u and %u declared",
+				 crypt.prefix_len, crypt.suffix_len,
+				 percona_xlog_record_crypt->max_prefix_len,
+				 percona_xlog_record_crypt->max_suffix_len);
+
+		rechdr->xl_tot_len = PerconaXLogRecordCryptTotalLen(rechdr->xl_tot_len,
+															crypt.prefix_len,
+															crypt.suffix_len);
+		rechdr->xl_info |= XLR_ENCRYPTED;
+	}
 
 	/*----------
 	 *
@@ -908,12 +953,16 @@ XLogInsertRecord(XLogRecData *rdata,
 	{
 		/*
 		 * Now that xl_prev has been filled in, calculate CRC of the record
-		 * header.
+		 * header. An encrypted record has its CRC in a trailer, which
+		 * CopyXLogRecordToWAL calculates and appends.
 		 */
-		rdata_crc = rechdr->xl_crc;
-		COMP_CRC32C(rdata_crc, rechdr, offsetof(XLogRecord, xl_crc));
-		FIN_CRC32C(rdata_crc);
-		rechdr->xl_crc = rdata_crc;
+		if (!encrypt)
+		{
+			rdata_crc = rechdr->xl_crc;
+			COMP_CRC32C(rdata_crc, rechdr, offsetof(XLogRecord, xl_crc));
+			FIN_CRC32C(rdata_crc);
+			rechdr->xl_crc = rdata_crc;
+		}
 
 		/*
 		 * All the record data, including the header, is now ready to be
@@ -921,7 +970,8 @@ XLogInsertRecord(XLogRecData *rdata,
 		 */
 		CopyXLogRecordToWAL(rechdr->xl_tot_len,
 							class == WALINSERT_SPECIAL_SWITCH, rdata,
-							StartPos, EndPos, insertTLI);
+							StartPos, EndPos, insertTLI,
+							encrypt ? &crypt : NULL);
 
 		/*
 		 * Unless record is flagged as not important, update LSN of last
@@ -1042,6 +1092,10 @@ XLogInsertRecord(XLogRecData *rdata,
 		if (!debug_reader)
 		{
 			appendStringInfoString(&buf, "error decoding record: out of memory while allocating a WAL reading processor");
+		}
+		else if (record->xl_info & XLR_ENCRYPTED)
+		{
+			appendStringInfoString(&buf, " - encrypted");
 		}
 		else if (!DecodeXLogRecord(debug_reader,
 								   decoded,
@@ -1221,89 +1275,178 @@ ReserveXLogSwitch(XLogRecPtr *StartPos, XLogRecPtr *EndPos, XLogRecPtr *PrevPtr)
 }
 
 /*
+ * Where CopyXLogRecordToWAL is in the WAL buffers, and what it does with the
+ * bytes it copies.
+ */
+typedef struct XLogCopyState
+{
+	XLogRecPtr	CurrPos;
+	char	   *currpos;
+	int			freespace;
+	int			written;
+	int			write_len;
+	TimeLineID	tli;
+	pg_crc32c	crc;			/* of what XLCOPY_CRC and XLCOPY_ENCRYPT wrote */
+} XLogCopyState;
+
+typedef enum XLogCopyMode
+{
+	XLCOPY_PLAIN,				/* copy */
+	XLCOPY_CRC,					/* copy, add to the CRC */
+	XLCOPY_ENCRYPT,				/* encrypt, add the ciphertext to the CRC */
+} XLogCopyMode;
+
+static pg_attribute_always_inline void
+CopyXLogChunkToWAL(XLogCopyState *st, const char *data, int len,
+				   XLogCopyMode mode)
+{
+	if (mode == XLCOPY_ENCRYPT)
+	{
+		if (len > 0)
+			percona_xlog_record_crypt->encrypt_update(data, st->currpos, len);
+	}
+	else
+		memcpy(st->currpos, data, len);
+
+	if (mode != XLCOPY_PLAIN)
+		COMP_CRC32C(st->crc, st->currpos, len);
+}
+
+/*
+ * Copy len bytes of a record to the WAL buffers, continuing on the next
+ * pages as needed.
+ */
+static pg_attribute_always_inline void
+CopyXLogDataToWAL(XLogCopyState *st, const char *data, int len,
+				  XLogCopyMode mode)
+{
+	XLogPageHeader pagehdr;
+
+	while (len > st->freespace)
+	{
+		/*
+		 * Write what fits on this page, and continue on the next page.
+		 */
+		Assert(st->CurrPos % XLOG_BLCKSZ >= SizeOfXLogShortPHD || st->freespace == 0);
+		CopyXLogChunkToWAL(st, data, st->freespace, mode);
+		data += st->freespace;
+		len -= st->freespace;
+		st->written += st->freespace;
+		st->CurrPos += st->freespace;
+
+		/*
+		 * Get pointer to beginning of next page, and set the xlp_rem_len in
+		 * the page header. Set XLP_FIRST_IS_CONTRECORD.
+		 *
+		 * It's safe to set the contrecord flag and xlp_rem_len without a lock
+		 * on the page. All the other flags were already set when the page was
+		 * initialized, in AdvanceXLInsertBuffer, and we're the only backend
+		 * that needs to set the contrecord flag.
+		 */
+		st->currpos = GetXLogBuffer(st->CurrPos, st->tli);
+		pagehdr = (XLogPageHeader) st->currpos;
+		pagehdr->xlp_rem_len = st->write_len - st->written;
+		pagehdr->xlp_info |= XLP_FIRST_IS_CONTRECORD;
+
+		/* skip over the page header */
+		if (XLogSegmentOffset(st->CurrPos, wal_segment_size) == 0)
+		{
+			st->CurrPos += SizeOfXLogLongPHD;
+			st->currpos += SizeOfXLogLongPHD;
+		}
+		else
+		{
+			st->CurrPos += SizeOfXLogShortPHD;
+			st->currpos += SizeOfXLogShortPHD;
+		}
+		st->freespace = INSERT_FREESPACE(st->CurrPos);
+	}
+
+	Assert(st->CurrPos % XLOG_BLCKSZ >= SizeOfXLogShortPHD || len == 0);
+	CopyXLogChunkToWAL(st, data, len, mode);
+	st->currpos += len;
+	st->CurrPos += len;
+	st->freespace -= len;
+	st->written += len;
+}
+
+/*
  * Subroutine of XLogInsertRecord.  Copies a WAL record to an already-reserved
  * area in the WAL.
+ *
+ * With crypt set, rdata is the plaintext record and its body is encrypted on
+ * the way: the header is followed by the hook's prefix, the ciphertext, the
+ * hook's suffix and the CRC of the record, see XLR_ENCRYPTED. write_len is
+ * the length of all that.
  */
 static void
 CopyXLogRecordToWAL(int write_len, bool isLogSwitch, XLogRecData *rdata,
-					XLogRecPtr StartPos, XLogRecPtr EndPos, TimeLineID tli)
+					XLogRecPtr StartPos, XLogRecPtr EndPos, TimeLineID tli,
+					const XLogCopyCrypt *crypt)
 {
+	XLogCopyState st;
 	char	   *currpos;
 	int			freespace;
 	int			written;
 	XLogRecPtr	CurrPos;
-	XLogPageHeader pagehdr;
 
 	/*
 	 * Get a pointer to the right place in the right WAL buffer to start
 	 * inserting to.
 	 */
-	CurrPos = StartPos;
-	currpos = GetXLogBuffer(CurrPos, tli);
-	freespace = INSERT_FREESPACE(CurrPos);
+	st.CurrPos = StartPos;
+	st.currpos = GetXLogBuffer(StartPos, tli);
+	st.freespace = INSERT_FREESPACE(StartPos);
+	st.written = 0;
+	st.write_len = write_len;
+	st.tli = tli;
 
 	/*
 	 * there should be enough space for at least the first field (xl_tot_len)
 	 * on this page.
 	 */
-	Assert(freespace >= sizeof(uint32));
+	Assert(st.freespace >= sizeof(uint32));
 
 	/* Copy record data */
-	written = 0;
-	while (rdata != NULL)
+	if (likely(crypt == NULL))
 	{
-		const char *rdata_data = rdata->data;
-		int			rdata_len = rdata->len;
-
-		while (rdata_len > freespace)
+		while (rdata != NULL)
 		{
-			/*
-			 * Write what fits on this page, and continue on the next page.
-			 */
-			Assert(CurrPos % XLOG_BLCKSZ >= SizeOfXLogShortPHD || freespace == 0);
-			memcpy(currpos, rdata_data, freespace);
-			rdata_data += freespace;
-			rdata_len -= freespace;
-			written += freespace;
-			CurrPos += freespace;
-
-			/*
-			 * Get pointer to beginning of next page, and set the xlp_rem_len
-			 * in the page header. Set XLP_FIRST_IS_CONTRECORD.
-			 *
-			 * It's safe to set the contrecord flag and xlp_rem_len without a
-			 * lock on the page. All the other flags were already set when the
-			 * page was initialized, in AdvanceXLInsertBuffer, and we're the
-			 * only backend that needs to set the contrecord flag.
-			 */
-			currpos = GetXLogBuffer(CurrPos, tli);
-			pagehdr = (XLogPageHeader) currpos;
-			pagehdr->xlp_rem_len = write_len - written;
-			pagehdr->xlp_info |= XLP_FIRST_IS_CONTRECORD;
-
-			/* skip over the page header */
-			if (XLogSegmentOffset(CurrPos, wal_segment_size) == 0)
-			{
-				CurrPos += SizeOfXLogLongPHD;
-				currpos += SizeOfXLogLongPHD;
-			}
-			else
-			{
-				CurrPos += SizeOfXLogShortPHD;
-				currpos += SizeOfXLogShortPHD;
-			}
-			freespace = INSERT_FREESPACE(CurrPos);
+			CopyXLogDataToWAL(&st, rdata->data, rdata->len, XLCOPY_PLAIN);
+			rdata = rdata->next;
 		}
-
-		Assert(CurrPos % XLOG_BLCKSZ >= SizeOfXLogShortPHD || rdata_len == 0);
-		memcpy(currpos, rdata_data, rdata_len);
-		currpos += rdata_len;
-		CurrPos += rdata_len;
-		freespace -= rdata_len;
-		written += rdata_len;
-
-		rdata = rdata->next;
 	}
+	else
+	{
+		const char *rechdr = rdata->data;
+		char		suffix[PerconaXLogRecordCryptMaxSuffix];
+		pg_crc32c	crc;
+
+		INIT_CRC32C(st.crc);
+
+		/* the header stays readable, the rest of the first chunk is body */
+		CopyXLogDataToWAL(&st, rechdr, SizeOfXLogRecord, XLCOPY_PLAIN);
+		CopyXLogDataToWAL(&st, crypt->prefix, crypt->prefix_len, XLCOPY_CRC);
+		CopyXLogDataToWAL(&st, rechdr + SizeOfXLogRecord,
+						  rdata->len - SizeOfXLogRecord, XLCOPY_ENCRYPT);
+		for (rdata = rdata->next; rdata != NULL; rdata = rdata->next)
+			CopyXLogDataToWAL(&st, rdata->data, rdata->len, XLCOPY_ENCRYPT);
+
+		if (percona_xlog_record_crypt->encrypt_end != NULL)
+			percona_xlog_record_crypt->encrypt_end(suffix);
+		CopyXLogDataToWAL(&st, suffix, crypt->suffix_len, XLCOPY_CRC);
+
+		/* body first, the whole header last */
+		crc = st.crc;
+		COMP_CRC32C(crc, rechdr, SizeOfXLogRecord);
+		FIN_CRC32C(crc);
+		CopyXLogDataToWAL(&st, (char *) &crc, SizeOfXLogRecordTrailer,
+						  XLCOPY_PLAIN);
+	}
+	currpos = st.currpos;
+	freespace = st.freespace;
+	written = st.written;
+	CurrPos = st.CurrPos;
 	Assert(written == write_len);
 
 	/*

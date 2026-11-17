@@ -54,6 +54,9 @@ extern void XLogRegisterBlock(uint8 block_id, RelFileLocator *rlocator,
 							  uint8 flags);
 extern void XLogRegisterBufData(uint8 block_id, const void *data, uint32 len);
 extern void XLogResetInsertion(void);
+extern int	XLogInsertMaxBlockId(void);
+extern bool XLogInsertGetBlockTag(uint8 block_id, RelFileLocator *rlocator,
+								  ForkNumber *forknum, BlockNumber *blknum);
 extern bool XLogCheckBufferNeedsBackup(Buffer buffer);
 
 extern XLogRecPtr log_newpage(RelFileLocator *rlocator, ForkNumber forknum,

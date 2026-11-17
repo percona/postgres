@@ -33,6 +33,7 @@
 
 #include <unistd.h>
 
+#include "access/percona_xlog_crypt.h"
 #include "libpq/libpq-be.h"
 #include "miscadmin.h"
 #include "postmaster/autovacuum.h"
@@ -268,6 +269,15 @@ postmaster_child_launch(BackendType child_type, int child_slot,
 			dsm_detach_all();
 			PGSharedMemoryDetach();
 		}
+
+		/*
+		 * Shared memory is inherited, so the WAL encryption hook can set up
+		 * this child's state now; children without shared memory never
+		 * insert or read WAL. EXEC_BACKEND children do it after attaching,
+		 * see AttachSharedMemoryStructs().
+		 */
+		if (child_process_kinds[child_type].shmem_attach)
+			PerconaXLogRecordCryptProcessInit();
 
 		/*
 		 * Enter the Main function with TopMemoryContext.  The startup data is

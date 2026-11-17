@@ -155,6 +155,8 @@ extern PGDLLIMPORT bool XLOG_DEBUG;
  */
 #define XLOG_INCLUDE_ORIGIN		0x01	/* include the replication origin */
 #define XLOG_MARK_UNIMPORTANT	0x02	/* record not important for durability */
+/* not for XLogSetRecordFlags(), XLogInsert() sets it */
+#define XLOG_ENCRYPT_BODY		0x80	/* encrypt the body while copying it */
 
 
 /* Checkpoint statistics */

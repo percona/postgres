@@ -25,6 +25,7 @@
 #include <zstd.h>
 #endif
 
+#include "access/percona_xlog_crypt.h"
 #include "access/transam.h"
 #include "access/xlog_internal.h"
 #include "access/xlogreader.h"
@@ -35,6 +36,7 @@
 #include "replication/origin.h"
 
 #ifndef FRONTEND
+#include "miscadmin.h"
 #include "pgstat.h"
 #include "storage/bufmgr.h"
 #else
@@ -81,6 +83,44 @@ void
 SetXLogSmgr(const XLogSmgr *xlsmgr)
 {
 	xlog_smgr = xlsmgr;
+}
+
+/*
+ * Record-level encryption hook, NULL unless an extension registered one.
+ * Lives here next to xlog_smgr for the same reason: frontend tools link
+ * xlogreader.c and need it too.
+ */
+const PerconaXLogRecordCrypt *percona_xlog_record_crypt = NULL;
+
+void
+SetPerconaXLogRecordCrypt(const PerconaXLogRecordCrypt *xlcrypt)
+{
+#ifndef FRONTEND
+	if (!process_shared_preload_libraries_in_progress)
+		ereport(ERROR,
+				(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
+				 errmsg("WAL encryption hooks can only be registered from shared_preload_libraries")));
+	if (percona_xlog_record_crypt != NULL && xlcrypt != NULL &&
+		xlcrypt != percona_xlog_record_crypt)
+		ereport(ERROR,
+				(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
+				 errmsg("a WAL encryption hook is already registered")));
+#endif
+	if (xlcrypt != NULL &&
+		(xlcrypt->max_prefix_len > PerconaXLogRecordCryptMaxPrefix ||
+		 xlcrypt->max_suffix_len > PerconaXLogRecordCryptMaxSuffix))
+	{
+#ifndef FRONTEND
+		elog(ERROR, "WAL encryption hook declares a %u byte prefix and a %u byte suffix, at most %d and %d allowed",
+			 xlcrypt->max_prefix_len, xlcrypt->max_suffix_len,
+			 PerconaXLogRecordCryptMaxPrefix, PerconaXLogRecordCryptMaxSuffix);
+#else
+		pg_fatal("WAL encryption hook declares a %u byte prefix and a %u byte suffix, at most %d and %d allowed",
+				 xlcrypt->max_prefix_len, xlcrypt->max_suffix_len,
+				 PerconaXLogRecordCryptMaxPrefix, PerconaXLogRecordCryptMaxSuffix);
+#endif
+	}
+	percona_xlog_record_crypt = xlcrypt;
 }
 
 /*
@@ -574,12 +614,74 @@ static XLogPageReadResult
 XLogDecryptRecord(XLogReaderState *state, XLogRecord **recordp,
 				  XLogRecPtr RecPtr, bool assembled)
 {
+	XLogRecord *record = *recordp;
+	size_t		body_len;
+	size_t		plain_len = 0;
+	const char *body = (const char *) record + SizeOfXLogRecord;
+	char	   *out;
+
+	if (percona_xlog_record_crypt == NULL)
+	{
 #ifndef FRONTEND
-	/* nothing writes encrypted records yet */
-	Assert(false);
+		if (state->nonblocking)
+			return XLREAD_WOULDBLOCK;
+		ereport(ERROR,
+				(errcode(ERRCODE_DATA_CORRUPTED),
+				 errmsg("WAL record at %X/%X is encrypted but no WAL encryption hook is loaded",
+						LSN_FORMAT_ARGS(RecPtr)),
+				 errhint("Add the extension that encrypted the WAL to \"shared_preload_libraries\".")));
 #else
-	state->decode_opaque = true;
+		state->decode_opaque = true;
+		return XLREAD_SUCCESS;
 #endif
+	}
+
+	/* ValidXLogRecord made sure there is a body in front of the trailer */
+	body_len = record->xl_tot_len - SizeOfXLogRecord - SizeOfXLogRecordTrailer;
+
+	/*
+	 * A record assembled from several pages lives in readRecordBuf and is
+	 * decrypted in place. A single-page record points into readBuf, which
+	 * ReadPageInternal reuses for later reads of the same page; decrypting
+	 * there would leave plaintext behind for a second read to fail the CRC
+	 * on. Copy only the header to readRecordBuf and decrypt the body out of
+	 * readBuf behind it, so out and body never overlap. On failure readBuf
+	 * is unmodified.
+	 */
+	if (!assembled)
+	{
+		if (state->readRecordBufSize < record->xl_tot_len)
+			allocate_recordbuf(state, record->xl_tot_len);
+		memcpy(state->readRecordBuf, record, SizeOfXLogRecord);
+		record = (XLogRecord *) state->readRecordBuf;
+	}
+	out = (char *) record + SizeOfXLogRecord;
+
+	/* an empty body would never have been encrypted */
+	if (!percona_xlog_record_crypt->decrypt(record, body, body_len, out,
+											&plain_len) ||
+		plain_len == 0 || plain_len > body_len)
+	{
+#ifndef FRONTEND
+		if (state->nonblocking)
+			return XLREAD_WOULDBLOCK;
+		ereport(ERROR,
+				(errcode(ERRCODE_DATA_CORRUPTED),
+				 errmsg("could not decrypt WAL record at %X/%X",
+						LSN_FORMAT_ARGS(RecPtr)),
+				 errhint("The loaded WAL encryption hook could not decrypt the record.")));
+#else
+		report_invalid_record(state,
+							  "could not decrypt WAL record at %X/%X",
+							  LSN_FORMAT_ARGS(RecPtr));
+		return XLREAD_FAIL;
+#endif
+	}
+
+	record->xl_tot_len = (uint32) (SizeOfXLogRecord + plain_len);
+	record->xl_info &= ~XLR_ENCRYPTED;
+	*recordp = record;
+	state->decode_decrypted = true;
 	return XLREAD_SUCCESS;
 }
 
@@ -1746,6 +1848,7 @@ ResetDecoder(XLogReaderState *state)
 
 	/* Drop any decrypt hand-off to a decode that will not happen. */
 	state->decode_opaque = false;
+	state->decode_decrypted = false;
 }
 
 /*
@@ -1825,7 +1928,9 @@ DecodeXLogRecord(XLogReaderState *state,
 	decoded->main_data_len = 0;
 	decoded->max_block_id = -1;
 	decoded->opaque_encrypted = state->decode_opaque;
+	decoded->was_encrypted = state->decode_decrypted;
 	state->decode_opaque = false;
+	state->decode_decrypted = false;
 	if (decoded->opaque_encrypted)
 	{
 		/* No body to decode; the caller gets the header only. */

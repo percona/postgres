@@ -27,6 +27,7 @@
 #include <zstd.h>
 #endif
 
+#include "access/percona_xlog_crypt.h"
 #include "access/xact.h"
 #include "access/xlog.h"
 #include "access/xlog_internal.h"
@@ -134,7 +135,7 @@ static bool begininsert_called = false;
 /* Memory context to hold the registered buffer and data references. */
 static MemoryContext xloginsert_cxt;
 
-static XLogRecData *XLogRecordAssemble(RmgrId rmid, uint8 info,
+static XLogRecData *XLogRecordAssemble(RmgrId rmid, uint8 info, bool encrypt,
 									   XLogRecPtr RedoRecPtr, bool doPageWrites,
 									   XLogRecPtr *fpw_lsn, int *num_fpi,
 									   bool *topxid_included);
@@ -460,6 +461,45 @@ XLogSetRecordFlags(uint8 flags)
 }
 
 /*
+ * Highest block id registered for the record under construction, -1 if no
+ * block is registered.
+ */
+int
+XLogInsertMaxBlockId(void)
+{
+	return max_registered_block_id - 1;
+}
+
+/*
+ * Get the tag of a block registered for the record under construction. Any
+ * of the output pointers can be NULL. Returns false if no block is
+ * registered with that id.
+ *
+ * The registrations stay until XLogInsert() returns, so code called from
+ * there can use this too.
+ */
+bool
+XLogInsertGetBlockTag(uint8 block_id, RelFileLocator *rlocator,
+					  ForkNumber *forknum, BlockNumber *blknum)
+{
+	registered_buffer *regbuf;
+
+	if (block_id >= max_registered_block_id)
+		return false;
+	regbuf = &registered_buffers[block_id];
+	if (!regbuf->in_use)
+		return false;
+
+	if (rlocator)
+		*rlocator = regbuf->rlocator;
+	if (forknum)
+		*forknum = regbuf->forkno;
+	if (blknum)
+		*blknum = regbuf->block;
+	return true;
+}
+
+/*
  * Insert an XLOG record having the specified RMID and info bytes, with the
  * body of the record being the data and buffer references registered earlier
  * with XLogRegister* calls.
@@ -474,6 +514,7 @@ XLogRecPtr
 XLogInsert(RmgrId rmid, uint8 info)
 {
 	XLogRecPtr	EndPos;
+	bool		encrypt = false;
 
 	/* XLogBeginInsert() must have been called. */
 	if (!begininsert_called)
@@ -501,6 +542,13 @@ XLogInsert(RmgrId rmid, uint8 info)
 		return EndPos;
 	}
 
+	/*
+	 * Only when a hook is registered and it says so. Asked once, a retry
+	 * below must not come to another answer.
+	 */
+	if (percona_xlog_record_crypt != NULL)
+		encrypt = percona_xlog_record_crypt->wants_encryption(rmid, info);
+
 	do
 	{
 		XLogRecPtr	RedoRecPtr;
@@ -509,6 +557,7 @@ XLogInsert(RmgrId rmid, uint8 info)
 		XLogRecPtr	fpw_lsn;
 		XLogRecData *rdt;
 		int			num_fpi = 0;
+		uint8		flags;
 
 		/*
 		 * Get values needed to decide whether to do full-page writes. Since
@@ -517,10 +566,19 @@ XLogInsert(RmgrId rmid, uint8 info)
 		 */
 		GetFullPageWriteInfo(&RedoRecPtr, &doPageWrites);
 
-		rdt = XLogRecordAssemble(rmid, info, RedoRecPtr, doPageWrites,
+		rdt = XLogRecordAssemble(rmid, info, encrypt, RedoRecPtr, doPageWrites,
 								 &fpw_lsn, &num_fpi, &topxid_included);
 
-		EndPos = XLogInsertRecord(rdt, fpw_lsn, curinsert_flags, num_fpi,
+		/*
+		 * A record without a body stays as it is: there is nothing to
+		 * protect, and an XLOG_SWITCH has to keep its exact length.
+		 */
+		flags = curinsert_flags;
+		if (encrypt &&
+			((XLogRecord *) rdt->data)->xl_tot_len > SizeOfXLogRecord)
+			flags |= XLOG_ENCRYPT_BODY;
+
+		EndPos = XLogInsertRecord(rdt, fpw_lsn, flags, num_fpi,
 								  topxid_included);
 	} while (EndPos == InvalidXLogRecPtr);
 
@@ -545,12 +603,13 @@ XLogInsert(RmgrId rmid, uint8 info)
  * current subtransaction.
  */
 static XLogRecData *
-XLogRecordAssemble(RmgrId rmid, uint8 info,
+XLogRecordAssemble(RmgrId rmid, uint8 info, bool encrypt,
 				   XLogRecPtr RedoRecPtr, bool doPageWrites,
 				   XLogRecPtr *fpw_lsn, int *num_fpi, bool *topxid_included)
 {
 	XLogRecData *rdt;
 	uint64		total_len = 0;
+	uint64		final_len;
 	int			block_id;
 	pg_crc32c	rdata_crc;
 	registered_buffer *prev_regbuf = NULL;
@@ -904,24 +963,38 @@ XLogRecordAssemble(RmgrId rmid, uint8 info,
 	 * don't know the prev-link yet.  Thus, the CRC will represent the CRC of
 	 * the whole record in the order: rdata, then backup blocks, then record
 	 * header.
+	 *
+	 * The CRC of an encrypted record is over the ciphertext, which does not
+	 * exist yet; XLogInsertRecord takes care of it. A record without a body
+	 * is never encrypted, and the bare INIT value is its correct partial CRC
+	 * either way.
 	 */
 	INIT_CRC32C(rdata_crc);
-	COMP_CRC32C(rdata_crc, hdr_scratch + SizeOfXLogRecord, hdr_rdt.len - SizeOfXLogRecord);
-	for (rdt = hdr_rdt.next; rdt != NULL; rdt = rdt->next)
-		COMP_CRC32C(rdata_crc, rdt->data, rdt->len);
+	if (!encrypt)
+	{
+		COMP_CRC32C(rdata_crc, hdr_scratch + SizeOfXLogRecord, hdr_rdt.len - SizeOfXLogRecord);
+		for (rdt = hdr_rdt.next; rdt != NULL; rdt = rdt->next)
+			COMP_CRC32C(rdata_crc, rdt->data, rdt->len);
+	}
 
 	/*
-	 * Ensure that the XLogRecord is not too large.
+	 * Ensure that the XLogRecord is not too large, counting what encryption
+	 * may add.
 	 *
 	 * XLogReader machinery is only able to handle records up to a certain
 	 * size (ignoring machine resource limitations), so make sure that we will
 	 * not emit records larger than the sizes advertised to be supported.
 	 */
-	if (total_len > XLogRecordMaxSize)
+	final_len = total_len;
+	if (encrypt)
+		final_len = PerconaXLogRecordCryptTotalLen(total_len,
+												   percona_xlog_record_crypt->max_prefix_len,
+												   percona_xlog_record_crypt->max_suffix_len);
+	if (final_len > XLogRecordMaxSize)
 		ereport(ERROR,
 				(errmsg_internal("oversized WAL record"),
 				 errdetail_internal("WAL record would be %" PRIu64 " bytes (of maximum %u bytes); rmid %u flags %u.",
-									total_len, XLogRecordMaxSize, rmid, info)));
+									final_len, XLogRecordMaxSize, rmid, info)));
 
 	/*
 	 * Fill in the fields in the record header. Prev-link is filled in later,

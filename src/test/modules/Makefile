@@ -42,6 +42,7 @@ SUBDIRS = \
 		  test_shm_mq \
 		  test_slru \
 		  test_tidstore \
+		  test_xlog_crypt \
 		  unsafe_tests \
 		  worker_spi \
 		  xid_wraparound

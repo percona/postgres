@@ -89,6 +89,7 @@
 #include <pthread.h>
 #endif
 
+#include "access/percona_xlog_crypt.h"
 #include "access/xlog.h"
 #include "access/xlog_internal.h"
 #include "access/xlogrecovery.h"
@@ -1006,6 +1007,9 @@ PostmasterMain(int argc, char *argv[])
 	 * clean up dead IPC objects if the postmaster crashes and is restarted.
 	 */
 	CreateSharedMemoryAndSemaphores();
+
+	/* The WAL encryption hook, if any, sets up its per-process state now. */
+	PerconaXLogRecordCryptProcessInit();
 
 	/*
 	 * Estimate number of openable files.  This must happen after setting up
@@ -3218,6 +3222,9 @@ PostmasterStateMachine(void)
 
 		/* re-create shared memory and semaphores */
 		CreateSharedMemoryAndSemaphores();
+
+		/* The WAL encryption hook, if any, sets up its per-process state now. */
+		PerconaXLogRecordCryptProcessInit();
 
 		UpdatePMState(PM_STARTUP);
 

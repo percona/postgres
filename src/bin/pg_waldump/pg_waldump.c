@@ -18,6 +18,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include "access/percona_xlog_crypt.h"
 #include "access/transam.h"
 #include "access/xlog_internal.h"
 #include "access/xlogreader.h"
@@ -579,6 +580,15 @@ XLogDumpDisplayRecord(XLogDumpConfig *config, XLogReaderState *record)
 	initStringInfo(&s);
 	desc->rm_desc(&s, record);
 	printf("%s", s.data);
+
+	if (XLogRecWasEncrypted(record) && percona_xlog_record_crypt != NULL &&
+		percona_xlog_record_crypt->describe_last != NULL)
+	{
+		char		descbuf[128];
+
+		if (percona_xlog_record_crypt->describe_last(descbuf, sizeof(descbuf)) > 0)
+			printf(" enc: %s", descbuf);
+	}
 
 	resetStringInfo(&s);
 	XLogRecGetBlockRefInfo(record, true, config->bkp_details, &s, NULL);
