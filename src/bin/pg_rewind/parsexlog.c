@@ -55,6 +55,18 @@ static int	SimpleXLogPageRead(XLogReaderState *xlogreader,
 							   int reqLen, XLogRecPtr targetRecPtr, char *readBuf);
 
 /*
+ * pg_rewind cannot do its job without seeing block references, so an
+ * encrypted record it cannot decrypt is fatal rather than skipped.
+ */
+static void
+check_record_readable(XLogReaderState *xlogreader)
+{
+	if (XLogRecIsOpaqueEncrypted(xlogreader))
+		pg_fatal("WAL record at %X/%X is encrypted and pg_rewind cannot decrypt it",
+				 LSN_FORMAT_ARGS(xlogreader->ReadRecPtr));
+}
+
+/*
  * Read WAL from the datadir/pg_wal, starting from 'startpoint' on timeline
  * index 'tliIndex' in target timeline history, until 'endpoint'. Make note of
  * the data blocks touched by the WAL records, and return them in a page map.
@@ -97,6 +109,7 @@ extractPageMap(const char *datadir, XLogRecPtr startpoint, int tliIndex,
 						 LSN_FORMAT_ARGS(errptr));
 		}
 
+		check_record_readable(xlogreader);
 		extractPageInfo(xlogreader);
 	} while (xlogreader->EndRecPtr < endpoint);
 
@@ -149,6 +162,7 @@ readOneRecord(const char *datadir, XLogRecPtr ptr, int tliIndex,
 			pg_fatal("could not read WAL record at %X/%X",
 					 LSN_FORMAT_ARGS(ptr));
 	}
+	check_record_readable(xlogreader);
 	endptr = xlogreader->EndRecPtr;
 
 	XLogReaderFree(xlogreader);
@@ -218,6 +232,8 @@ findLastCheckpoint(const char *datadir, XLogRecPtr forkptr, int tliIndex,
 				pg_fatal("could not find previous WAL record at %X/%X",
 						 LSN_FORMAT_ARGS(searchptr));
 		}
+
+		check_record_readable(xlogreader);
 
 		/* Detect if a new WAL file has been opened */
 		if (xlogreader->seg.ws_tli != current_tli ||

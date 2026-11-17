@@ -562,6 +562,14 @@ XLogDumpDisplayRecord(XLogDumpConfig *config, XLogReaderState *record)
 		   LSN_FORMAT_ARGS(record->ReadRecPtr),
 		   LSN_FORMAT_ARGS(xl_prev));
 
+	if (XLogRecIsOpaqueEncrypted(record))
+	{
+		printf("desc: ENCRYPTED (%u body bytes, cannot decrypt)\n",
+			   XLogRecGetTotalLen(record) -
+			   (uint32) (SizeOfXLogRecord + SizeOfXLogRecordTrailer));
+		return;
+	}
+
 	id = desc->rm_identify(info);
 	if (id == NULL)
 		printf("desc: UNKNOWN (%x) ", info & ~XLR_INFO_MASK);
@@ -794,6 +802,7 @@ main(int argc, char **argv)
 	uint32		xlogid;
 	uint32		xrecoff;
 	XLogReaderState *xlogreader_state;
+	uint64		opaque_records = 0;
 	XLogDumpPrivate private;
 	XLogDumpConfig config;
 	XLogStats	stats;
@@ -1264,6 +1273,10 @@ main(int argc, char **argv)
 			config.filter_by_xid != record->xl_xid)
 			continue;
 
+		/* an encrypted record has no block references to look at */
+		if (XLogRecIsOpaqueEncrypted(xlogreader_state))
+			opaque_records++;
+
 		/* check for extended filtering */
 		if (config.filter_by_extended &&
 			!XLogRecordMatchesRelationBlock(xlogreader_state,
@@ -1304,6 +1317,22 @@ main(int argc, char **argv)
 
 	if (config.stats == true && !config.quiet)
 		XLogDumpDisplayStats(&config, &stats);
+
+	if (opaque_records > 0)
+	{
+		if (config.filter_by_extended || config.filter_by_fpw)
+			pg_log_warning("skipped %" PRIu64 " encrypted records that cannot be matched against block filters",
+						   opaque_records);
+		else
+		{
+			if (config.stats == true && !config.quiet)
+				pg_log_warning("full-page images in %" PRIu64 " encrypted records are counted as record data",
+							   opaque_records);
+			if (config.save_fullpage_path != NULL)
+				pg_log_warning("full-page images in %" PRIu64 " encrypted records were not saved",
+							   opaque_records);
+		}
+	}
 
 	if (time_to_stop)
 		exit(0);
