@@ -2155,6 +2155,7 @@ PendingUnlinkEntry
 PendingWrite
 PendingWriteback
 PerLockTagEntry
+PerconaXLogRecordCrypt
 PerlInterpreter
 Perl_ppaddr_t
 Permutation

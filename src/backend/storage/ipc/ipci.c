@@ -18,6 +18,7 @@
 #include "access/commit_ts.h"
 #include "access/multixact.h"
 #include "access/nbtree.h"
+#include "access/percona_xlog_crypt.h"
 #include "access/subtrans.h"
 #include "access/syncscan.h"
 #include "access/transam.h"
@@ -189,6 +190,9 @@ AttachSharedMemoryStructs(void)
 	 */
 	if (shmem_startup_hook)
 		shmem_startup_hook();
+
+	/* Shared memory is attached, the WAL encryption hook can use it. */
+	PerconaXLogRecordCryptProcessInit();
 }
 #endif
 

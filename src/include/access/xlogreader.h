@@ -158,6 +158,8 @@ typedef struct DecodedXLogRecord
 	/* Private member used for resource management. */
 	size_t		size;			/* total size of decoded record */
 	bool		oversized;		/* outside the regular decode buffer? */
+	bool		opaque_encrypted;	/* body not decrypted, only header valid */
+	bool		was_encrypted;	/* body was decrypted by the hook */
 	struct DecodedXLogRecord *next; /* decoded record queue link */
 
 	/* Public members. */
@@ -316,6 +318,15 @@ struct XLogReaderState
 	 * data.
 	 */
 	bool		nonblocking;
+
+	/*
+	 * Set by XLogDecryptRecord, consumed by the next DecodeXLogRecord.
+	 * decode_opaque: the record was not decrypted, leave the body undecoded
+	 * and mark the record opaque.
+	 */
+	bool		decode_opaque;
+	bool		decode_decrypted;	/* next decode: body was decrypted by the
+									 * hook */
 };
 
 /*
@@ -416,6 +427,8 @@ extern bool DecodeXLogRecord(XLogReaderState *state,
 #define XLogRecGetDataLen(decoder) ((decoder)->record->main_data_len)
 #define XLogRecHasAnyBlockRefs(decoder) ((decoder)->record->max_block_id >= 0)
 #define XLogRecMaxBlockId(decoder) ((decoder)->record->max_block_id)
+#define XLogRecIsOpaqueEncrypted(decoder) ((decoder)->record->opaque_encrypted)
+#define XLogRecWasEncrypted(decoder) ((decoder)->record->was_encrypted)
 #define XLogRecGetBlock(decoder, i) (&(decoder)->record->blocks[(i)])
 #define XLogRecHasBlockRef(decoder, block_id)			\
 	(((decoder)->record->max_block_id >= (block_id)) &&	\

@@ -57,7 +57,8 @@ typedef struct XLogRecord
 /*
  * The high 4 bits in xl_info may be used freely by rmgr. The
  * XLR_SPECIAL_REL_UPDATE and XLR_CHECK_CONSISTENCY bits can be passed by
- * XLogInsert caller. The rest are set internally by XLogInsert.
+ * XLogInsert caller. XLR_ENCRYPTED is set internally by XLogInsert, callers
+ * cannot pass it.
  */
 #define XLR_INFO_MASK			0x0F
 #define XLR_RMGR_INFO_MASK		0xF0
@@ -89,6 +90,30 @@ typedef struct XLogRecord
  * wal_consistency_checking is enabled for a rmgr this is set unconditionally.
  */
 #define XLR_CHECK_CONSISTENCY	0x02
+
+/*
+ * The record body is encrypted. Such a record differs from a plain one in
+ * two ways: the bytes after the header are not block and data headers but
+ * whatever the encryption produced, and the checksum is not in the header
+ * but in a trailer, after the body:
+ *
+ *		XLogRecord, xl_crc = 0
+ *		encrypted body
+ *		pg_crc32c
+ *
+ * xl_tot_len covers all three. The trailing CRC is calculated over the body
+ * first and the whole header, with its zero xl_crc, last. Having it at the
+ * end allows a record to be encrypted while it is copied to the WAL buffers,
+ * when the header is already written.
+ *
+ * Records without a body are never encrypted. After decryption the reader
+ * presents a normal record: xl_tot_len (and so XLogRecGetTotalLen) is the
+ * plaintext length and the flag is cleared, while LSN distances still
+ * reflect the on-disk length.
+ */
+#define XLR_ENCRYPTED			0x04
+
+#define SizeOfXLogRecordTrailer	sizeof(pg_crc32c)
 
 /*
  * Header info for block data appended to an XLOG record.

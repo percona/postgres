@@ -32,6 +32,7 @@
 #endif
 
 #include "access/parallel.h"
+#include "access/percona_xlog_crypt.h"
 #include "access/printtup.h"
 #include "access/xact.h"
 #include "catalog/pg_type.h"
@@ -4150,6 +4151,9 @@ PostgresSingleUserMain(int argc, char *argv[],
 	 * mode, but we must have these data structures anyway.)
 	 */
 	CreateSharedMemoryAndSemaphores();
+
+	/* The WAL encryption hook, if any, sets up its per-process state now. */
+	PerconaXLogRecordCryptProcessInit();
 
 	/*
 	 * Estimate number of openable files.  This must happen after setting up
