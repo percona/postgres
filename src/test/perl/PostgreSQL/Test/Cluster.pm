@@ -3162,7 +3162,8 @@ sub advance_wal_out_of_record_splitting_zone
 =item $node->advance_wal_to_record_splitting_zone($wal_block_size)
 
 Advance WAL so close to the end of a page that an XLogRecordHeader would not
-fit on it.
+fit on it, but its fields up to xl_prev do: a header written there has only
+xl_info, xl_rmid and xl_crc on the next page.
 
 Returns the end LSN up to which WAL has advanced, in bytes.
 
@@ -3174,6 +3175,9 @@ sub advance_wal_to_record_splitting_zone
 
 	# Size of record header.
 	my $RECORD_HEADER_SIZE = 24;
+
+	# Size of record header up to and including xl_prev.
+	my $RECORD_HEADER_PREV_SIZE = 16;
 
 	my $end_lsn = $self->_get_insert_lsn();
 	my $page_offset = $end_lsn % $wal_block_size;
@@ -3187,10 +3191,16 @@ sub advance_wal_to_record_splitting_zone
 	}
 
 	# Calibrate our message size so that we can get closer 8 bytes at
-	# a time.
+	# a time.  A step that is not calibrated yet can jump over the zone,
+	# then the search goes on in the next page.  Give up after twice the
+	# steps a whole page takes.
 	my $message_size = $wal_block_size - 80;
-	while ($page_offset <= $wal_block_size - $RECORD_HEADER_SIZE)
+	for my $i (1 .. $wal_block_size / 4)
 	{
+		return $end_lsn
+		  if $page_offset > $wal_block_size - $RECORD_HEADER_SIZE
+		  && $page_offset <= $wal_block_size - $RECORD_HEADER_PREV_SIZE;
+
 		$self->emit_wal($message_size);
 		$end_lsn = $self->_get_insert_lsn();
 
@@ -3209,7 +3219,8 @@ sub advance_wal_to_record_splitting_zone
 			$message_size += 8;
 		}
 	}
-	return $end_lsn;
+
+	die "could not reach the record splitting zone";
 }
 
 =pod
