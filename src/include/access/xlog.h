@@ -229,6 +229,7 @@ extern bool XLogInsertAllowed(void);
 extern XLogRecPtr GetXLogInsertRecPtr(void);
 extern XLogRecPtr GetXLogInsertEndRecPtr(void);
 extern XLogRecPtr GetXLogWriteRecPtr(void);
+extern XLogRecPtr PerconaGetXLogWriteRecPtr(void);
 
 extern uint64 GetSystemIdentifier(void);
 extern char *GetMockAuthenticationNonce(void);
