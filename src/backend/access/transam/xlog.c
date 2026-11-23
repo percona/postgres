@@ -9053,6 +9053,23 @@ GetXLogWriteRecPtr(void)
 }
 
 /*
+ * Like GetXLogWriteRecPtr(), but does not update LogwrtResult, which
+ * XLogWrite() uses to track its progress. Can be called from inside
+ * XLogWrite(), e.g. by the XLog storage manager.
+ */
+XLogRecPtr
+PerconaGetXLogWriteRecPtr(void)
+{
+	XLogRecPtr	result;
+
+	SpinLockAcquire(&XLogCtl->info_lck);
+	result = XLogCtl->LogwrtResult.Write;
+	SpinLockRelease(&XLogCtl->info_lck);
+
+	return result;
+}
+
+/*
  * Returns the redo pointer of the last checkpoint or restartpoint. This is
  * the oldest point in WAL that we still need, if we have to restart recovery.
  */
