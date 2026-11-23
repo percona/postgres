@@ -9520,6 +9520,17 @@ GetXLogWriteRecPtr(void)
 }
 
 /*
+ * Like GetXLogWriteRecPtr(), but does not update LogwrtResult, which
+ * XLogWrite() uses to track its progress. Can be called from inside
+ * XLogWrite(), e.g. by the XLog storage manager.
+ */
+XLogRecPtr
+PerconaGetXLogWriteRecPtr(void)
+{
+	return pg_atomic_read_u64(&XLogCtl->logWriteResult);
+}
+
+/*
  * Returns the redo pointer of the last checkpoint or restartpoint. This is
  * the oldest point in WAL that we still need, if we have to restart recovery.
  */

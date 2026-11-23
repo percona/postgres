@@ -362,4 +362,4 @@
  */
 /* #define TRACE_SYNCSCAN */
 
-#define PERCONA_API_VERSION 3
+#define PERCONA_API_VERSION 4
